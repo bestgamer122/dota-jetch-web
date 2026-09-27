@@ -1,12 +1,11 @@
-/* DOTA JETCH — FALLBACK
-Загружается сразу после config.js. Содержит базовые реализации,
-которые heroes.js может перезаписать, если загрузится.
-Гарантирует работу analyze/games/history даже без heroes.js. */
+/* DOTA JETCH — FALLBACK (самодостаточный)
+Содержит все функции для работы analyze/games/history
+даже если heroes.js не загрузился или повреждён. */
 
 (function () {
 "use strict";
 
-/* Список героев, чтобы не зависеть от heroes.js */
+/* ─── Список героев (для игр и поиска) ─── */
 const FALLBACK_HEROES = [
 { id: 1,   name: "Anti-Mage" }, { id: 2,  name: "Axe" }, { id: 3, name: "Bane" },
 { id: 4,   name: "Bloodseeker" }, { id: 5, name: "Crystal Maiden" }, { id: 6, name: "Drow Ranger" },
@@ -19,15 +18,15 @@ const FALLBACK_HEROES = [
 { id: 26,  name: "Lion" }, { id: 27, name: "Shadow Shaman" }, { id: 28, name: "Slardar" },
 { id: 29,  name: "Tidehunter" }, { id: 30, name: "Witch Doctor" }, { id: 31, name: "Lich" },
 { id: 32,  name: "Riki" }, { id: 33, name: "Enigma" }, { id: 34, name: "Tinker" },
-{ id: 35,  name: "Sniper" }, { id: 36,  name: "Necrophos" }, { id: 37, name: "Warlock" },
+{ id: 35,  name: "Sniper" }, { id: 36, name: "Necrophos" }, { id: 37, name: "Warlock" },
 { id: 38,  name: "Beastmaster" }, { id: 39, name: "Queen of Pain" }, { id: 40, name: "Venomancer" },
 { id: 41,  name: "Faceless Void" }, { id: 42, name: "Wraith King" }, { id: 43, name: "Death Prophet" },
 { id: 44,  name: "Phantom Assassin" }, { id: 45, name: "Pugna" }, { id: 46, name: "Templar Assassin" },
-{ id: 47,  name: "Viper" }, { id: 48,  name: "Luna" }, { id: 49, name: "Dragon Knight" },
-{ id: 50,  name: "Dazzle" }, { id: 51,  name: "Clockwerk" }, { id: 52, name: "Leshrac" },
+{ id: 47,  name: "Viper" }, { id: 48, name: "Luna" }, { id: 49, name: "Dragon Knight" },
+{ id: 50,  name: "Dazzle" }, { id: 51, name: "Clockwerk" }, { id: 52, name: "Leshrac" },
 { id: 53,  name: "Nature's Prophet" }, { id: 54, name: "Lifestealer" }, { id: 55, name: "Dark Seer" },
-{ id: 56,  name: "Clinkz" }, { id: 57,  name: "Omniknight" }, { id: 58, name: "Enchantress" },
-{ id: 59,  name: "Huskar" }, { id: 60,  name: "Night Stalker" }, { id: 61, name: "Broodmother" },
+{ id: 56,  name: "Clinkz" }, { id: 57, name: "Omniknight" }, { id: 58, name: "Enchantress" },
+{ id: 59,  name: "Huskar" }, { id: 60, name: "Night Stalker" }, { id: 61, name: "Broodmother" },
 { id: 62,  name: "Bounty Hunter" }, { id: 63, name: "Weaver" }, { id: 64, name: "Jakiro" },
 { id: 65,  name: "Batrider" }, { id: 66, name: "Chen" }, { id: 67, name: "Spectre" },
 { id: 68,  name: "Ancient Apparition" }, { id: 69, name: "Doom" }, { id: 70, name: "Ursa" },
@@ -52,13 +51,49 @@ const FALLBACK_HEROES = [
 { id: 137, name: "Primal Beast" }, { id: 138, name: "Muerta" },
 ];
 
-/* Если heroes.js загрузится — он перезапишет эти функции. */
-
-window.getHeroes = async function () {
-return FALLBACK_HEROES.slice();
+/* ─── Алиасы (русские прозвища) ─── */
+const HERO_ALIASES = {
+"жугер":"Juggernaut","жуггернаут":"Juggernaut","джагернаут":"Juggernaut",
+"сф":"Shadow Fiend","инвокер":"Invoker","вока":"Invoker",
+"пугна":"Pudge","пудж":"Pudge","сларк":"Slark",
+"дров":"Drow Ranger","тракса":"Drow Ranger","снайпер":"Sniper","снайп":"Sniper",
+"свен":"Sven","ск":"Sand King","цм":"Crystal Maiden","кристалка":"Crystal Maiden",
+"лк":"Wraith King","вр":"Vengeful Spirit","ам":"Anti-Mage","антимаг":"Anti-Mage",
+"па":"Phantom Assassin","фантомка":"Phantom Assassin","мортра":"Phantom Assassin",
+"террор":"Terrorblade","шторм":"Storm Spirit","энигма":"Enigma",
+"спектра":"Spectre","спек":"Spectre","зевс":"Zeus","лайфстил":"Lifestealer",
+"маг":"Magnus","магнус":"Magnus","рубик":"Rubick","феникс":"Phoenix",
+"мипо":"Meepo","арка":"Arc Warden","тимбер":"Timbersaw","тини":"Tiny",
+"бара":"Spirit Breaker","некр":"Necrophos","дк":"Dragon Knight",
+"тролль":"Troll Warlord","клок":"Clockwerk","дуза":"Medusa","медуза":"Medusa",
+"луна":"Luna","тайдер":"Tidehunter","об":"Outworld Destroyer","од":"Outworld Destroyer",
+"кур":"Kunkka","кунка":"Kunkka","марси":"Mars","войд":"Faceless Void",
+"урса":"Ursa","хуск":"Huskar","слардар":"Slardar","панго":"Pangolier",
+"бристл":"Bristleback","цк":"Chaos Knight","венга":"Vengeful Spirit",
+"никс":"Nyx Assassin","фурион":"Nature's Prophet","нп":"Nature's Prophet",
+"виса":"Visage","брунка":"Primal Beast","муэрта":"Muerta","хоуд":"Hoodwink",
+"даун":"Dawnbreaker",
+"аба":"Abaddon","абадон":"Abaddon",
+"алх":"Alchemist","алхимик":"Alchemist",
+"аппарат":"Ancient Apparition",
+"бейн":"Bane","батрайдер":"Batrider","бист":"Beastmaster","бистмастер":"Beastmaster",
+"центур":"Centaur Warrunner","центавр":"Centaur Warrunner",
+"чен":"Chen","клинкз":"Clinkz","дарксир":"Dark Seer",
+"дазл":"Dazzle","дизраптор":"Disruptor","шейкер":"Earthshaker",
+"эмбер":"Ember Spirit","энча":"Enchantress","гиро":"Gyrocopter",
+"ио":"Io","джакиро":"Jakiro","котел":"Keeper of the Light",
+"лешрак":"Leshrac","леш":"Leshrac","лич":"Lich",
+"ликан":"Lycan","мирана":"Mirana","нс":"Night Stalker",
+"пак":"Puck","разор":"Razor","раста":"Shadow Shaman",
+"скай":"Skywrath Mage","снапфаер":"Snapfire","течис":"Techies",
+"трент":"Treant Protector","туск":"Tusk","андерлорд":"Underlord",
+"вено":"Venomancer","висаж":"Visage","виндра":"Windranger",
+"виверна":"Winter Wyvern","вивер":"Winter Wyvern",
+"тинкер":"Tinker","лина":"Lina","зеус":"Zeus","морф":"Morphling",
 };
 
-const _shortMap = {
+/* ─── Короткие инициалы для иконок ─── */
+const HERO_SHORT = {
 "Anti-Mage":"AM","Ancient Apparition":"AA","Arc Warden":"AW","Bounty Hunter":"BH",
 "Bristleback":"BB","Crystal Maiden":"CM","Drow Ranger":"DR","Earth Spirit":"ES",
 "Earthshaker":"ES","Ember Spirit":"ES","Faceless Void":"FV","Keeper of the Light":"KotL",
@@ -92,7 +127,7 @@ const _shortMap = {
 
 function _shortName(name) {
 if (!name) return "?";
-if (_shortMap[name]) return _shortMap[name];
+if (HERO_SHORT[name]) return HERO_SHORT[name];
 const w = String(name).split(/\s+/).filter(Boolean);
 if (w.length === 1) return w[0].slice(0, 3).toUpperCase();
 return w.slice(0, 3).map(function (x) { return x[0]; }).join("").toUpperCase();
@@ -109,6 +144,30 @@ const h = _hue(name || "?");
 const h2 = (h + 60) % 360;
 return "linear-gradient(135deg, hsl(" + h + " 75% 42%), hsl(" + h2 + " 70% 26%))";
 }
+
+/* ─── Публичные функции ─── */
+window.getHeroes = async function () {
+return FALLBACK_HEROES.slice();
+};
+
+window.findHeroId = async function (nameOrAlias) {
+if (!nameOrAlias) return null;
+const q = nameOrAlias.trim().toLowerCase();
+if (!q) return null;
+const alias = HERO_ALIASES[q];
+const needle = alias ? alias.toLowerCase() : q;
+const heroes = await window.getHeroes();
+if (!heroes.length) return null;
+for (const h of heroes) if (h.name.toLowerCase() === needle) return h;
+for (const h of heroes) if (needle.length >= 3 && h.name.toLowerCase().includes(needle)) return h;
+if (needle.length >= 4) for (const h of heroes) if (h.name.toLowerCase().startsWith(needle.slice(0, 4))) return h;
+return null;
+};
+
+window.findHeroById = function (id, heroes) {
+if (!heroes) return null;
+return heroes.find(function (h) { return h.id === id; }) || null;
+};
 
 window.heroShort = _shortName;
 window.heroGradient = _gradient;
@@ -184,9 +243,9 @@ return wrap;
 window.cdnUrlVariants = function () { return []; };
 window.makeSmartImg = function () { return null; };
 window.normalizeCdnPath = function (p) { return p || ""; };
+window.cdnEnabled = function () { return false; };
 
-/* Простые перцентили, если heroes.js не загрузился */
-if (typeof window.percentileOf !== "function") {
+/* Перцентили */
 window.percentileOf = function (bench, key, value) {
 if (!bench || !bench[key] || !Array.isArray(bench[key])) return null;
 const arr = bench[key].slice().sort(function (a, b) { return (a.percentile || 0) - (b.percentile || 0); });
@@ -208,9 +267,7 @@ return (pa + frac * (pb - pa)) * 100;
 }
 return null;
 };
-}
 
-if (typeof window.pctGrade !== "function") {
 window.pctGrade = function (pct) {
 if (pct === null || pct === undefined) return "—";
 if (pct >= 90) return "S";
@@ -219,9 +276,7 @@ if (pct >= 50) return "B";
 if (pct >= 25) return "C";
 return "D";
 };
-}
 
-if (typeof window.pctColor !== "function") {
 window.pctColor = function (pct) {
 if (pct === null || pct === undefined) return "var(--text-dim)";
 if (pct >= 75) return "var(--green)";
@@ -229,7 +284,6 @@ if (pct >= 50) return "var(--yellow)";
 if (pct >= 25) return "var(--orange)";
 return "var(--red)";
 };
-}
 
-console.log("[fallback.js] Базовые функции готовы");
+console.log("[fallback.js] Самодостаточные функции готовы");
 })();
