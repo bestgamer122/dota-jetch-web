@@ -1,4 +1,5 @@
-/* DOTA JETCH — APP v3.3.6 */
+/* DOTA JETCH — APP v3.3.7
+С защитой от исключений в init. */
 
 const PAGES = {
 dashboard:    { title: "Главная",              render: renderDashboard },
@@ -13,25 +14,23 @@ export:       { title: "Экспорт / Импорт",     render: renderExport
 settings:     { title: "Настройки",            render: renderSettings },
 about:        { title: "О программе",          render: renderAbout },
 _404:         { title: "Страница не найдена",  render: render404 },
-_error:       { title: "Ошибка",               render: renderError },
 };
 
 let currentPage = "dashboard";
-let lastRenderError = null;
 
 function safeRender(name) {
 try {
+if (!PAGES[name]) throw new Error("Страница не существует: " + name);
 if (typeof PAGES[name].render !== "function") throw new Error("render не функция");
 const node = PAGES[name].render();
 if (!node) throw new Error("render вернул пустой результат");
 return node;
 } catch (e) {
-lastRenderError = { page: name, error: e };
 console.error("Render error in", name, e);
 const frag = document.createDocumentFragment();
-const card = UI.card("Ошибка на странице " + PAGES[name].title);
+const card = UI.card("Ошибка на странице " + (PAGES[name] ? PAGES[name].title : name));
 card.appendChild(el("div", { class: "dim", style: "font-size:12px;line-height:1.6;margin-bottom:10px;" },
-"Что-то пошло не так при рендере. Подробности в консоли (F12)."));
+"Подробности в консоли (F12)."));
 card.appendChild(el("div", {
 style: "font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--red);background:var(--bg-elev);padding:10px;border-radius:8px;word-break:break-word;"
 }, (e.message || String(e))));
@@ -63,17 +62,8 @@ if (scroller) scroller.scrollTop = 0;
 location.hash = name === "_404" ? "404" : name;
 }
 
-function renderError() {
-const frag = document.createDocumentFragment();
-const card = UI.card("Ошибка");
-card.appendChild(el("div", { style: "padding:20px;color:var(--red);font-size:13px;" },
-(lastRenderError && lastRenderError.error && lastRenderError.error.message) || "Неизвестная ошибка"));
-frag.appendChild(card);
-return frag;
-}
-
 function renderChartsPage() {
-if (typeof Daily !== "undefined") Daily.bump("chart");
+try { if (typeof Daily !== "undefined") Daily.bump("chart"); } catch (e) {}
 if (typeof Charts === "undefined") {
 const frag = document.createDocumentFragment();
 const card = UI.card("Прогресс");
@@ -137,7 +127,7 @@ stats2.appendChild(UI.statCard("F", "var(--orange)", "var(--orange-bg)", "Стр
 stats2.appendChild(UI.statCard("H", "var(--green)", "var(--green-bg)", "История", String(histCount), "Матчей"));
 frag.appendChild(stats2);
 
-if (lastAnalysis && lastAnalysis.hero && typeof heroImgEl === "function") {
+if (typeof lastAnalysis !== "undefined" && lastAnalysis && lastAnalysis.hero && typeof heroImgEl === "function") {
 const last = UI.card("Последний разобранный матч");
 const row = el("div", { style: "display:flex;align-items:center;gap:14px;" });
 row.appendChild(heroImgEl(lastAnalysis.hero, 56));
@@ -250,27 +240,11 @@ frag.appendChild(planCard);
 const themeCard = UI.card("Тема оформления");
 themeCard.appendChild(makeThemeDropdown(loadTheme(), function (key) {
 applyTheme(key);
-if (typeof Daily !== "undefined") Daily.bump("theme");
-if (typeof Achievements !== "undefined") Achievements.onThemeChange();
+try { if (typeof Daily !== "undefined") Daily.bump("theme"); } catch (e) {}
+try { if (typeof Achievements !== "undefined") Achievements.onThemeChange(); } catch (e) {}
 showDialog("Тема применена", "Выбрана: " + THEMES[key].label, "success");
 }));
 frag.appendChild(themeCard);
-
-const iconsCard = UI.card("Загрузка иконок");
-iconsCard.appendChild(el("div", { class: "dim", style: "font-size:12px;margin-bottom:12px;line-height:1.6;" },
-"Если иконки Steam CDN не грузятся — отключи, будут показаны fallback-иконки с буквами и градиентом."));
-const toggleLabel = el("label", { style: "display:flex;align-items:center;gap:10px;font-size:13px;cursor:pointer;" });
-const toggle = el("input", { type: "checkbox" });
-toggle.style.cssText = "width:18px;height:18px;cursor:pointer;";
-toggle.checked = (typeof cdnEnabled === "function" ? cdnEnabled() : true);
-toggle.addEventListener("change", function() {
-Store.set("cdn_try_enabled", toggle.checked);
-showDialog("Готово", "Перезагрузи страницу для применения.", "success");
-});
-toggleLabel.appendChild(toggle);
-toggleLabel.appendChild(document.createTextNode("Пытаться загружать иконки с CDN"));
-iconsCard.appendChild(toggleLabel);
-frag.appendChild(iconsCard);
 
 const dataCard = UI.card("Данные");
 dataCard.appendChild(el("div", { class: "dim", style: "font-size:12px;margin-bottom:12px;line-height:1.6;" },
@@ -321,6 +295,7 @@ return frag;
 }
 
 function updateSidebarPlan() {
+try {
 const plus = Store.get("license_active", false) === true;
 const planTitle = qs("#planTitle");
 const planInfo = qs("#planInfo");
@@ -334,34 +309,50 @@ const left = typeof analyzeQuotaRemaining === "function" ? analyzeQuotaRemaining
 planValue.textContent = left + " / 5";
 }
 }
+} catch (e) { console.warn("updateSidebarPlan error:", e); }
 }
 
 function init() {
+try {
 applyTheme(loadTheme());
+} catch (e) { console.error("applyTheme error:", e); }
 
+try {
 qsa(".nav-btn").forEach(function(btn) {
 btn.addEventListener("click", function() { switchPage(btn.dataset.page); });
 });
+} catch (e) { console.error("nav binding error:", e); }
 
-Store.set("sessions", (Store.get("sessions", 0) || 0) + 1);
+try { Store.set("sessions", (Store.get("sessions", 0) || 0) + 1); } catch (e) {}
 
+try {
 const hash = (location.hash || "#dashboard").slice(1);
 switchPage(PAGES[hash] ? hash : "dashboard");
-
-updateSidebarPlan();
-
-if (typeof Achievements !== "undefined") Achievements.check();
-
-if ("serviceWorker" in navigator) {
-navigator.serviceWorker.register("sw.js").then(function(reg) {
-console.log("DOTA JETCH — SW registered:", reg.scope);
-}).catch(function(e) { console.warn("SW registration failed:", e); });
+} catch (e) {
+console.error("switchPage error:", e);
+const el2 = qs("#pageContent");
+if (el2) {
+el2.innerHTML = '<div style="padding:40px;color:#ef4444;font-family:monospace;">' +
+'<div style="font-size:24px;margin-bottom:12px;">⚠️ Ошибка запуска</div>' +
+'<div style="font-size:13px;">' + (e.message || String(e)) + '</div>' +
+'</div>';
 }
+}
+
+try { updateSidebarPlan(); } catch (e) {}
+try { if (typeof Achievements !== "undefined") Achievements.check(); } catch (e) {}
 
 console.log("DOTA JETCH WEB — init OK, version", APP_VERSION);
 }
 
+/* Ждём DOMContentLoaded или выполняем сразу, если уже загружено */
+if (document.readyState === "loading") {
 window.addEventListener("DOMContentLoaded", init);
+} else {
+/* Скрипт загружен после DOMContentLoaded */
+setTimeout(init, 0);
+}
+
 window.addEventListener("hashchange", function() {
 const h = (location.hash || "#dashboard").slice(1);
 if (h !== currentPage && PAGES[h]) switchPage(h);
