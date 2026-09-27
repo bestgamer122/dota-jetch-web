@@ -1,12 +1,12 @@
-/* DOTA JETCH — Service Worker v3.3.4
-Сбрасывает старый кэш при обновлении. */
+/* DOTA JETCH — Service Worker v3.3.5
+Сбрасывает старый кэш. */
 
-const CACHE_NAME = "dotajetch-v3.3.4";
+const CACHE_NAME = "dotajetch-v3.3.5";
 
 const STATIC_ASSETS = [
 "./", "./index.html", "./manifest.json",
 "./css/style.css",
-"./js/config.js", "./js/fallback.js", "./js/ui.js", "./js/heroes.js",
+"./js/config.js", "./js/fallback.js", "./js/ui.js",
 "./js/knowledge.js", "./js/achievements.js", "./js/history.js",
 "./js/diary.js", "./js/assistant.js", "./js/games.js",
 "./js/charts.js", "./js/daily.js", "./js/export.js",
