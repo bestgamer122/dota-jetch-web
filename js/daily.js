@@ -1,4 +1,4 @@
-/* DOTA JETCH — ЕЖЕДНЕВНЫЕ КВЕСТЫ + ЕЖЕДНЕВНАЯ ВИКТОРИНА */
+/* DOTA JETCH — ЕЖЕДНЕВНЫЕ КВЕСТЫ */
 
 const Daily = {
 _todayKey: function () {
@@ -13,32 +13,29 @@ for (let i = 0; i < k.length; i++) h = (h * 31 + k.charCodeAt(i)) % 100000;
 return h;
 },
 
-/* Задания на сегодня (3 случайных) */
 tasks: function () {
+const self = this;
 const all = [
-{ id: "analyze", icon: "🎯", title: "Разбери 1 матч", desc: "Открой вкладку «Анализ матча»", progress: () => Store.get("daily_progress_analyze", 0), goal: 1 },
-{ id: "chat", icon: "💬", title: "Задай 2 вопроса ИИ", desc: "ИИ-ассистент ответит", progress: () => Store.get("daily_progress_chat", 0), goal: 2 },
-{ id: "diary", icon: "📔", title: "Запиши в дневник", desc: "Хотя бы 1 запись", progress: () => Store.get("daily_progress_diary", 0), goal: 1 },
-{ id: "game", icon: "🎮", title: "Сыграй в мини-игру", desc: "Реакция, викторина или угадай героя", progress: () => Store.get("daily_progress_game", 0), goal: 1 },
-{ id: "chart", icon: "📈", title: "Открой графики", desc: "Вкладка «Прогресс»", progress: () => Store.get("daily_progress_chart", 0), goal: 1 },
-{ id: "theme", icon: "🎨", title: "Смени тему", desc: "Настройки → тема оформления", progress: () => Store.get("daily_progress_theme", 0), goal: 1 },
+{ id: "analyze", icon: "🎯", title: "Разбери 1 матч", desc: "Вкладка «Анализ матча»", progress: function() { return Store.get("daily_progress_analyze", 0) || 0; }, goal: 1 },
+{ id: "chat", icon: "💬", title: "Задай 2 вопроса ИИ", desc: "Доступно только в JETCH+", progress: function() { return Store.get("daily_progress_chat", 0) || 0; }, goal: 2 },
+{ id: "diary", icon: "📔", title: "Запиши в дневник", desc: "Хотя бы 1 запись", progress: function() { return Store.get("daily_progress_diary", 0) || 0; }, goal: 1 },
+{ id: "game", icon: "🎮", title: "Сыграй в мини-игру", desc: "Реакция, викторина или угадай героя", progress: function() { return Store.get("daily_progress_game", 0) || 0; }, goal: 1 },
+{ id: "chart", icon: "📈", title: "Открой графики", desc: "Вкладка «Прогресс»", progress: function() { return Store.get("daily_progress_chart", 0) || 0; }, goal: 1 },
+{ id: "theme", icon: "🎨", title: "Смени тему", desc: "Настройки → тема", progress: function() { return Store.get("daily_progress_theme", 0) || 0; }, goal: 1 },
 ];
-/* выбираем 3 на основе сида */
-const seed = this._seed();
+const seed = self._seed();
 const start = seed % all.length;
 const picked = [];
 for (let i = 0; i < 3; i++) picked.push(all[(start + i) % all.length]);
 return picked;
 },
 
-/* Отметить прогресс */
 bump: function (id) {
-const today = this._todayKey();
+const today = this.*todayKey();
 const stored = Store.get("daily_date", "");
 if (stored !== today) {
-/* новый день — сбрасываем */
 ["analyze", "chat", "diary", "game", "chart", "theme"].forEach(function (k) {
-Store.set("daily_progress_" + k, 0);
+Store.set("daily_progress*" + k, 0);
 });
 Store.set("daily_date", today);
 Store.set("daily_streak_claimed", false);
@@ -48,7 +45,6 @@ Store.set("daily_progress_" + id, cur + 1);
 if (typeof Achievements !== "undefined") Achievements.check();
 },
 
-/* Все ли выполнены */
 allDone: function () {
 const tasks = this.tasks();
 for (const t of tasks) {
@@ -57,19 +53,14 @@ if (t.progress() < t.goal) return false;
 return true;
 },
 
-/* Забрать награду */
 claim: function () {
 if (!this.allDone()) return false;
 if (Store.get("daily_streak_claimed", false)) return false;
 Store.set("daily_streak_claimed", true);
-/* Обновляем стрик */
 const today = this._todayKey();
 const last = Store.get("daily_last_claim_date", "");
 let streak = Store.get("daily_streak", 0) || 0;
-if (last === today) {
-/* уже сегодня получал */
-} else {
-/* проверяем вчера */
+if (last !== today) {
 const y = new Date();
 y.setDate(y.getDate() - 1);
 const yesterday = y.getFullYear() + "-" + String(y.getMonth() + 1).padStart(2, "0") + "-" + String(y.getDate()).padStart(2, "0");
@@ -83,14 +74,12 @@ return true;
 },
 };
 
-/* Визуальный блок на дашборде */
 function renderDailyWidget() {
 const card = UI.card("🎯 Задания дня");
 const tasks = Daily.tasks();
 
 const today = Daily.*todayKey();
 if (Store.get("daily_date", "") !== today) {
-/* сбрасываем прогресс под новый день */
 ["analyze", "chat", "diary", "game", "chart", "theme"].forEach(function (k) {
 Store.set("daily_progress*" + k, 0);
 });
@@ -100,38 +89,48 @@ Store.set("daily_streak_claimed", false);
 
 const grid = el("div", { style: "display:flex;flex-direction:column;gap:10px;" });
 
+const plus = Store.get("license_active", false) === true;
+
 for (const t of tasks) {
 const cur = Math.min(t.progress(), t.goal);
 const done = cur >= t.goal;
+/* если задача про чат, а юзер на FREE — показываем как заблокированную */
+const locked = (t.id === "chat" && !plus);
 
 const row = el("div", {
 style: "display:flex;align-items:center;gap:14px;padding:12px 14px;border-radius:12px;background:" +
-(done ? "var(--green-bg)" : "var(--bg-elev)") +
-";border:1px solid " + (done ? "var(--green)" : "var(--border)") + ";transition:all 0.25s ease;"
+(done ? "var(--green-bg)" : locked ? "rgba(150,155,175,0.06)" : "var(--bg-elev)") +
+";border:1px solid " + (done ? "var(--green)" : locked ? "var(--border)" : "var(--border)") + ";transition:all 0.25s ease;"
 });
 
-row.appendChild(el("div", { style: "font-size:24px;width:32px;text-align:center;flex-shrink:0;" }, done ? "✅" : t.icon));
+row.appendChild(el("div", { style: "font-size:24px;width:32px;text-align:center;flex-shrink:0;filter:" + (locked ? "grayscale(0.7) opacity(0.6)" : "none") + ";" },
+done ? "✅" : locked ? "🔒" : t.icon));
 
 const info = el("div", { style: "flex:1;min-width:0;" });
 info.appendChild(el("div", {
-style: "font-size:13px;font-weight:600;color:" + (done ? "var(--green)" : "var(--text)") + ";"
+style: "font-size:13px;font-weight:600;color:" + (done ? "var(--green)" : locked ? "var(--text-muted)" : "var(--text)") + ";"
 }, t.title));
 info.appendChild(el("div", {
 class: "dim", style: "font-size:11px;margin-top:3px;"
-}, done ? "Выполнено" : t.desc));
+}, done ? "Выполнено" : locked ? "Доступно в JETCH+" : t.desc));
 row.appendChild(info);
 
+if (locked) {
+const upBtn = el("button", { class: "nav-btn", style: "font-size:10px;padding:4px 8px;flex-shrink:0;" }, "JETCH+");
+upBtn.addEventListener("click", function () { switchPage("settings"); });
+row.appendChild(upBtn);
+} else {
 const prog = el("div", {
 style: "font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:" +
 (done ? "var(--green)" : "var(--text-muted)") + ";flex-shrink:0;"
 }, cur + "/" + t.goal);
 row.appendChild(prog);
+}
 
 grid.appendChild(row);
 }
 card.appendChild(grid);
 
-/* Кнопка забрать награду */
 const allDone = Daily.allDone();
 const claimed = Store.get("daily_streak_claimed", false);
 const claimRow = el("div", { class: "row", style: "margin-top:14px;justify-content:space-between;flex-wrap:wrap;gap:8px;" });
@@ -150,13 +149,13 @@ if (allDone && !claimed) {
 const btn = UI.btn("Забрать награду");
 btn.addEventListener("click", function () {
 if (Daily.claim()) {
-showDialog("Награда получена", "Ты выполнил все задания дня! Дневной стрик продолжается.", "success");
+showDialog("Награда получена", "Ты выполнил все задания дня!", "success");
 if (typeof switchPage !== "undefined") switchPage("dashboard");
 }
 });
 claimRow.appendChild(btn);
 } else if (claimed) {
-claimRow.appendChild(el("div", { style: "font-size:12px;color:var(--green);font-weight:600;" }, "✓ Сегодня награда получена"));
+claimRow.appendChild(el("div", { style: "font-size:12px;color:var(--green);font-weight:600;" }, "✓ Награда получена"));
 }
 card.appendChild(claimRow);
 

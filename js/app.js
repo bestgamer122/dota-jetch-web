@@ -1,4 +1,5 @@
-/* DOTA JETCH — APP v3.3 */
+/* DOTA JETCH — APP v3.3.2
+Роутинг с защитой от ошибок рендера. */
 
 const PAGES = {
 dashboard:    { title: "Главная",              render: renderDashboard },
@@ -13,9 +14,37 @@ export:       { title: "Экспорт / Импорт",     render: renderExport
 settings:     { title: "Настройки",            render: renderSettings },
 about:        { title: "О программе",          render: renderAbout },
 _404:         { title: "Страница не найдена",  render: render404 },
+_error:       { title: "Ошибка",               render: renderError },
 };
 
 let currentPage = "dashboard";
+let lastRenderError = null;
+
+function _safeRender(name) {
+try {
+if (typeof PAGES[name].render !== "function") {
+throw new Error("render не функция");
+}
+const node = PAGES[name].render();
+if (!node) throw new Error("render вернул пустой результат");
+return node;
+} catch (e) {
+lastRenderError = { page: name, error: e };
+console.error("Render error in", name, e);
+const frag = document.createDocumentFragment();
+const card = UI.card("⚠️ Ошибка на странице «" + PAGES[name].title + "»");
+card.appendChild(el("div", { class: "dim", style: "font-size:12px;line-height:1.6;margin-bottom:10px;" },
+"Что-то пошло не так при рендере этой страницы. Подробности в консоли браузера (F12)."));
+card.appendChild(el("div", {
+style: "font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--red);background:var(--bg-elev);padding:10px;border-radius:8px;word-break:break-word;"
+}, (e.message || String(e))));
+card.appendChild(el("div", { style: "margin-top:14px;" },
+UI.btn("На главную", { onclick: function() { switchPage("dashboard"); } })
+));
+frag.appendChild(card);
+return frag;
+}
+}
 
 function switchPage(name) {
 if (!PAGES[name]) name = "_404";
@@ -26,7 +55,11 @@ if (titleEl) titleEl.textContent = PAGES[name].title;
 const content = qs("#pageContent");
 if (!content) return;
 content.innerHTML = "";
-content.appendChild(PAGES[name].render());
+try {
+content.appendChild(_safeRender(name));
+} catch (e) {
+content.appendChild(el("div", { style: "padding:30px;color:var(--red);" }, "Критическая ошибка: " + (e.message || e)));
+}
 content.style.opacity = 0;
 requestAnimationFrame(function() {
 content.style.transition = "opacity 0.25s ease";
@@ -37,8 +70,24 @@ if (scroller) scroller.scrollTop = 0;
 location.hash = name === "_404" ? "404" : name;
 }
 
+function renderError() {
+const frag = document.createDocumentFragment();
+const card = UI.card("⚠️ Ошибка");
+card.appendChild(el("div", { style: "padding:20px;color:var(--red);font-size:13px;" },
+(lastRenderError && lastRenderError.error && lastRenderError.error.message) || "Неизвестная ошибка"));
+frag.appendChild(card);
+return frag;
+}
+
 function renderChartsPage() {
 if (typeof Daily !== "undefined") Daily.bump("chart");
+if (typeof Charts === "undefined") {
+const frag = document.createDocumentFragment();
+const card = UI.card("📈 Прогресс");
+card.appendChild(el("div", { class: "dim", style: "font-size:12px;padding:20px;" }, "Модуль графиков не загружен."));
+frag.appendChild(card);
+return frag;
+}
 return Charts.render();
 }
 
@@ -63,38 +112,43 @@ const plus = Store.get("license_active", false) === true;
 
 frag.appendChild(UI.heroBanner(
 "DOTA JETCH",
-plus ? "AI 2.0 активен" : "Веб-версия · анализ матчей, ИИ, дневник",
+plus ? "AI 2.0 активен" : "Веб-версия · анализ матчей, дневник, мини-игры",
 [
 UI.btn("Анализ матча", { onclick: function() { switchPage("analyze"); } }),
-UI.btn("ИИ-ассистент", { onclick: function() { switchPage("chat"); }, variant: "ghost" }),
 UI.btn("Мини-игры", { onclick: function() { switchPage("games"); }, variant: "ghost" }),
+UI.btn("Прогресс", { onclick: function() { switchPage("charts"); }, variant: "ghost" }),
 ]
 ));
 
-/* Задания дня */
-frag.appendChild(renderDailyWidget());
+/* Задания дня (безопасно) */
+if (typeof renderDailyWidget === "function") {
+try { frag.appendChild(renderDailyWidget()); } catch (e) { console.warn("Daily widget error:", e); }
+}
 
 /* Статистика */
 const stats = el("div", { class: "stat-grid" });
 const sessions = Store.get("sessions", 0);
 const analyzed = Store.get("analyzed_count", 0) || 0;
-const aiLeft = typeof aiQuotaRemaining === "function" ? aiQuotaRemaining() : "—";
+const analyzeLeft = typeof analyzeQuotaRemaining === "function"
+? (plus ? "∞" : String(analyzeQuotaRemaining()))
+: "—";
 stats.appendChild(UI.statCard("S", "var(--cyan)", "var(--cyan-bg)", "Сессий", String(sessions), "Всего"));
-stats.appendChild(UI.statCard("A", "var(--accent-light)", "var(--accent-bg)", "Анализов", String(analyzed), "Всего"));
-stats.appendChild(UI.statCard("AI", "var(--green)", "var(--green-bg)", "ИИ сегодня", String(aiLeft), plus ? "JETCH+" : "Free"));
+stats.appendChild(UI.statCard("A", "var(--accent-light)", "var(--accent-bg)", "Анализов сегодня", analyzeLeft, plus ? "JETCH+" : "из 5"));
+stats.appendChild(UI.statCard("T", "var(--yellow)", "var(--yellow-bg)", "Ачивки",
+(Store.get("achievements_unlocked", []) || []).length + " / 24", "Открыто"));
 frag.appendChild(stats);
 
 const stats2 = el("div", { class: "stat-grid" });
-const unlocked = (Store.get("achievements_unlocked", []) || []).length;
 const diaryCount = (Store.get("diary_notes", []) || []).length;
 const streak = Store.get("daily_streak", 0) || 0;
-stats2.appendChild(UI.statCard("T", "var(--yellow)", "var(--yellow-bg)", "Ачивки", unlocked + " / 24", "Открыто"));
+const histCount = (Store.get("recent_matches", []) || []).length;
 stats2.appendChild(UI.statCard("D", "var(--cyan)", "var(--cyan-bg)", "Дневник", String(diaryCount), "Записей"));
 stats2.appendChild(UI.statCard("F", "var(--orange)", "var(--orange-bg)", "Стрик дней", String(streak), streak > 0 ? "🔥" : "начни!"));
+stats2.appendChild(UI.statCard("H", "var(--green)", "var(--green-bg)", "История", String(histCount), "Матчей"));
 frag.appendChild(stats2);
 
 /* Последний матч */
-if (lastAnalysis) {
+if (lastAnalysis && lastAnalysis.hero && typeof heroImgEl === "function") {
 const last = UI.card("Последний разобранный матч");
 const row = el("div", { style: "display:flex;align-items:center;gap:14px;" });
 row.appendChild(heroImgEl(lastAnalysis.hero, 56));
@@ -110,17 +164,15 @@ frag.appendChild(last);
 }
 
 /* Что нового */
-const info = UI.card("✨ Что нового в v3.3");
+const info = UI.card("✨ Что нового");
 info.appendChild(el("div", { class: "dim", style: "font-size:12px;line-height:1.8;" },
-"📈 Графики прогресса (KDA, винрейт)",
+"📈 Графики прогресса",
 el("br"),
 "🎯 Ежедневные задания и стрик",
 el("br"),
-"💾 Экспорт / импорт данных в JSON",
+"💾 Экспорт / импорт данных",
 el("br"),
-"📱 PWA — установка на телефон",
-el("br"),
-"🎨 Красивые иконки героев (градиент + буквы) даже без интернета"
+"📱 PWA — установка на телефон"
 ));
 frag.appendChild(info);
 
@@ -129,6 +181,61 @@ return frag;
 
 function renderSettings() {
 const frag = document.createDocumentFragment();
+
+/* Подписка */
+const plus = Store.get("license_active", false) === true;
+const planCard = UI.card("✦ Подписка");
+if (plus) {
+planCard.appendChild(el("div", { style: "color:var(--gold);font-size:14px;font-weight:700;margin-bottom:10px;" },
+"✦ JETCH+ активен"));
+planCard.appendChild(el("div", { class: "dim", style: "font-size:12px;margin-bottom:14px;line-height:1.7;" },
+"✓ Безлимитные анализы матчей",
+el("br"),
+"✓ Полный доступ к ИИ-ассистенту",
+el("br"),
+"✓ Приоритетная поддержка (демо)"
+));
+planCard.appendChild(UI.btn("Отключить JETCH+ (тест FREE)", {
+variant: "ghost",
+onclick: function() {
+if (!confirm("Отключить JETCH+ и вернуться к FREE?")) return;
+Store.set("license_active", false);
+showDialog("Готово", "Ты вернулся к FREE-версии.", "success");
+setTimeout(function() { location.reload(); }, 800);
+}
+}));
+} else {
+planCard.appendChild(el("div", { style: "color:var(--gold);font-size:14px;font-weight:700;margin-bottom:10px;" },
+"FREE-версия"));
+planCard.appendChild(el("div", { class: "dim", style: "font-size:12px;margin-bottom:10px;line-height:1.7;" },
+"Сейчас доступно:",
+el("br"),
+"✓ 5 анализов матчей в день",
+el("br"),
+"✓ История, дневник, достижения",
+el("br"),
+"✓ Мини-игры, графики, экспорт",
+el("br"),
+"✗ ИИ-ассистент (только JETCH+)"
+));
+planCard.appendChild(el("div", { class: "dim", style: "font-size:12px;margin:14px 0 10px;line-height:1.7;" },
+"JETCH+ даёт:",
+el("br"),
+"✓ Безлимитные анализы",
+el("br"),
+"✓ Полный доступ к ИИ-ассистенту",
+el("br"),
+"✓ Приоритет (демо)"
+));
+planCard.appendChild(UI.btn("✦ Активировать JETCH+ (демо)", {
+onclick: function() {
+Store.set("license_active", true);
+showDialog("Готово", "JETCH+ активирован. Перезагрузи страницу.", "success");
+setTimeout(function() { location.reload(); }, 800);
+}
+}));
+}
+frag.appendChild(planCard);
 
 /* Тема */
 const themeCard = UI.card("🎨 Тема оформления");
@@ -146,18 +253,19 @@ showDialog("Тема применена", "Выбрана: " + THEMES[sel.value]
 themeCard.appendChild(sel);
 frag.appendChild(themeCard);
 
-/* Иконки CDN */
+/* Иконки */
 const iconsCard = UI.card("🖼 Загрузка иконок");
 iconsCard.appendChild(el("div", { class: "dim", style: "font-size:12px;margin-bottom:12px;line-height:1.6;" },
-"Если иконки Steam CDN не загружаются (блокировка провайдером), отключи эту опцию — " +
+"Если иконки Steam CDN не грузятся (блокировка провайдера) — отключи эту опцию, " +
 "будут показаны красивые fallback-иконки с буквами и градиентом."
 ));
 const toggleLabel = el("label", { style: "display:flex;align-items:center;gap:10px;font-size:13px;cursor:pointer;" });
 const toggle = el("input", { type: "checkbox" });
 toggle.style.cssText = "width:18px;height:18px;cursor:pointer;";
-toggle.checked = cdnEnabled();
+const cdnOn = typeof cdnEnabled === "function" ? cdnEnabled() : true;
+toggle.checked = cdnOn;
 toggle.addEventListener("change", function() {
-Store.set(CDN_TRY_ENABLED_KEY, toggle.checked);
+Store.set("cdn_try_enabled", toggle.checked);
 showDialog("Готово", "Перезагрузи страницу для применения.", "success");
 });
 toggleLabel.appendChild(toggle);
@@ -165,56 +273,14 @@ toggleLabel.appendChild(document.createTextNode("Пытаться загружа
 iconsCard.appendChild(toggleLabel);
 frag.appendChild(iconsCard);
 
-/* JETCH+ */
-const plus = Store.get("license_active", false) === true;
-const planCard = UI.card("✦ JETCH+");
-if (plus) {
-planCard.appendChild(el("div", { style: "color:var(--gold);font-size:13px;font-weight:600;margin-bottom:12px;" },
-"✓ JETCH+ активирован (демо)"));
-planCard.appendChild(el("div", { class: "dim", style: "font-size:12px;margin-bottom:12px;line-height:1.6;" },
-"Тебе доступно: 15 вопросов ИИ в день, без рекламы."));
-planCard.appendChild(UI.btn("Отключить JETCH+", {
-variant: "ghost",
-onclick: function() {
-if (!confirm("Отключить JETCH+ и вернуться к FREE?")) return;
-Store.set("license_active", false);
-showDialog("Готово", "Ты вернулся к FREE-версии.", "success");
-setTimeout(function() { location.reload(); }, 800);
-}
-}));
-} else {
-planCard.appendChild(el("div", { class: "dim", style: "font-size:12px;margin-bottom:12px;line-height:1.6;" },
-"FREE: 3 вопроса ИИ в день. JETCH+: 15 вопросов в день, приоритет."));
-planCard.appendChild(UI.btn("Активировать JETCH+ (демо)", {
-onclick: function() {
-Store.set("license_active", true);
-showDialog("Готово", "JETCH+ активирован. Перезагрузи страницу.", "success");
-setTimeout(function() { location.reload(); }, 800);
-}
-}));
-}
-frag.appendChild(planCard);
-
 /* Данные */
 const dataCard = UI.card("💾 Данные");
 dataCard.appendChild(el("div", { class: "dim", style: "font-size:12px;margin-bottom:12px;line-height:1.6;" },
-"Все данные хранятся в localStorage браузера. Сделай резервную копию перед сбросом."));
-const row1 = el("div", { class: "row", style: "gap:8px;flex-wrap:wrap;" });
-const exportBtn = UI.btn("Экспорт / Импорт");
-exportBtn.addEventListener("click", function() { switchPage("export"); });
-row1.appendChild(exportBtn);
-dataCard.appendChild(row1);
+"Все данные хранятся в localStorage браузера. Сделай резервную копию."));
+const expBtn = UI.btn("Экспорт / Импорт");
+expBtn.addEventListener("click", function() { switchPage("export"); });
+dataCard.appendChild(expBtn);
 frag.appendChild(dataCard);
-
-/* PWA */
-const pwaCard = UI.card("📱 Установка приложения");
-pwaCard.appendChild(el("div", { class: "dim", style: "font-size:12px;margin-bottom:10px;line-height:1.6;" },
-"В Chrome / Edge: ⋮ → «Установить приложение». В Safari: «Поделиться» → «На экран Домой»."
-));
-if ("serviceWorker" in navigator) {
-pwaCard.appendChild(el("div", { style: "font-size:11px;color:var(--green);" }, "✓ Service Worker активен — работает офлайн"));
-}
-frag.appendChild(pwaCard);
 
 return frag;
 }
@@ -230,15 +296,15 @@ frag.appendChild(head);
 
 const feat = UI.card("Что работает");
 const list = [
-["Анализ матчей", "KDA, GPM, XPM, ластхиты, урон, перцентили (OpenDota)"],
-["ИИ-ассистент", "Локальная база: герои, предметы, механики"],
+["Анализ матчей", "KDA, GPM, XPM, ластхиты, урон, перцентили"],
 ["История", "Сохранённые матчи, повторный разбор"],
-["Прогресс", "Графики KDA и винрейта по последним матчам"],
+["Прогресс", "Графики KDA и винрейта"],
 ["Дневник", "Записи с тегами, фильтр"],
-["Достижения", "24 ачивки, автоматическая разблокировка"],
+["Достижения", "24 ачивки"],
 ["Мини-игры", "Реакция, викторина, угадай героя"],
 ["Экспорт / Импорт", "Резервные копии в JSON"],
 ["Задания дня", "Ежедневные квесты и стрик"],
+["ИИ-ассистент", "Только для JETCH+"],
 ];
 for (const [t, d] of list) {
 feat.appendChild(el("div", { style: "display:flex;gap:14px;padding:6px 0;" },
@@ -258,6 +324,22 @@ frag.appendChild(ver);
 return frag;
 }
 
+function _updateSidebarPlan() {
+const plus = Store.get("license_active", false) === true;
+const planTitle = qs("#planTitle");
+const planInfo = qs("#planInfo");
+const planValue = qs("#planValue");
+if (planTitle) planTitle.textContent = plus ? "JETCH+" : "FREE";
+if (planInfo) planInfo.textContent = plus ? "AI 2.0 · безлимит" : "5 анализов/день · без ИИ";
+if (planValue) {
+if (plus) planValue.textContent = "∞";
+else {
+const left = typeof analyzeQuotaRemaining === "function" ? analyzeQuotaRemaining() : 5;
+planValue.textContent = left + " / 5";
+}
+}
+}
+
 function init() {
 applyTheme(loadTheme());
 
@@ -270,17 +352,10 @@ Store.set("sessions", (Store.get("sessions", 0) || 0) + 1);
 const hash = (location.hash || "#dashboard").slice(1);
 switchPage(PAGES[hash] ? hash : "dashboard");
 
-const plus = Store.get("license_active", false) === true;
-const planTitle = qs("#planTitle");
-const planInfo = qs("#planInfo");
-const planValue = qs("#planValue");
-if (planTitle) planTitle.textContent = plus ? "JETCH+" : "FREE";
-if (planInfo) planInfo.textContent = plus ? "AI 2.0 активен" : "3 вопроса ИИ / день";
-if (planValue) planValue.textContent = plus ? "15 / 15" : "3 / 3";
+_updateSidebarPlan();
 
 if (typeof Achievements !== "undefined") Achievements.check();
 
-/* Регистрация PWA Service Worker */
 if ("serviceWorker" in navigator) {
 navigator.serviceWorker.register("sw.js").then(function(reg) {
 console.log("DOTA JETCH — SW registered:", reg.scope);

@@ -1,4 +1,5 @@
-/* DOTA JETCH — АНАЛИЗ МАТЧА v5 (уведомляет Daily) */
+/* DOTA JETCH — АНАЛИЗ МАТЧА v6
+Лимит: FREE — 5 анализов в день, JETCH+ — без ограничений. */
 
 const RANK_NAMES = {0:"Uncalibrated",1:"Herald",2:"Guardian",3:"Crusader",4:"Archon",
 5:"Legend",6:"Ancient",7:"Divine",8:"Immortal"};
@@ -15,7 +16,46 @@ const POSITION_NAMES = {1:"Pos 1 · Керри",2:"Pos 2 · Мид",3:"Pos 3 · 
 4:"Pos 4 · Роум",5:"Pos 5 · Саппорт"};
 const POSITION_COLORS = {1:"#fbbf24",2:"#d946ef",3:"#ef4444",4:"#60a5fa",5:"#4ade80"};
 
+const ANALYZE_FREE_LIMIT = 5;
+
 let lastAnalysis = null;
+
+/* ─── Квота анализов ─── */
+function _todayKey() {
+const d = new Date();
+return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+}
+
+function analyzeQuota() {
+const today = _todayKey();
+let q = Store.get("analyze_quota", null);
+if (!q || typeof q !== "object" || q.date !== today) {
+q = { date: today, count: 0 };
+Store.set("analyze_quota", q);
+}
+return q;
+}
+
+function analyzeQuotaInc() {
+const q = analyzeQuota();
+q.count++;
+Store.set("analyze_quota", q);
+return q;
+}
+
+function analyzeQuotaRemaining() {
+const plus = Store.get("license_active", false) === true;
+if (plus) return Infinity;
+const q = analyzeQuota();
+return Math.max(0, ANALYZE_FREE_LIMIT - q.count);
+}
+
+function analyzeQuotaLabel() {
+const plus = Store.get("license_active", false) === true;
+if (plus) return "✦ Безлимит";
+const left = analyzeQuotaRemaining();
+return "FREE · " + left + " / " + ANALYZE_FREE_LIMIT;
+}
 
 async function fetchWithRetry(path, params, retries) {
 retries = retries === undefined ? 2 : retries;
@@ -76,8 +116,26 @@ rankTier: player.rank_tier || null,
 
 function renderAnalyze() {
 const frag = document.createDocumentFragment();
+const plus = Store.get("license_active", false) === true;
+const left = analyzeQuotaRemaining();
 
 const form = UI.card("▶  Новый анализ");
+
+/* Статус квоты */
+const quotaRow = el("div", { class: "row", style: "justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px;" });
+const label = el("div", { style: "font-size:12px;font-weight:600;color:" + (plus ? "var(--gold)" : (left > 0 ? "var(--text-muted)" : "var(--red)")) + ";" },
+plus ? "✦ JETCH+ · безлимит" : ("FREE · осталось " + left + " / " + ANALYZE_FREE_LIMIT + " сегодня"));
+quotaRow.appendChild(label);
+if (!plus) {
+const barWrap = el("div", { style: "flex:1;max-width:180px;height:5px;background:rgba(0,0,0,0.4);border-radius:3px;overflow:hidden;" });
+const used = ANALYZE_FREE_LIMIT - left;
+const pct = Math.min(100, (used / ANALYZE_FREE_LIMIT) * 100);
+const color = pct >= 100 ? "var(--red)" : pct >= 66 ? "var(--orange)" : "var(--accent)";
+barWrap.appendChild(el("div", { style: "height:100%;width:" + pct + "%;background:" + color + ";transition:width 0.4s ease;" }));
+quotaRow.appendChild(barWrap);
+}
+form.appendChild(quotaRow);
+
 form.appendChild(el("div", { class: "dim", style: "font-size:11px;margin-bottom:12px;" },
 "Введи ID матча и имя героя. Данные берутся из OpenDota API."));
 
@@ -100,11 +158,27 @@ form.appendChild(row);
 const btnRow = el("div", { class: "row" });
 const btn = UI.btn("▶  Анализировать", { id: "analyzeBtn" });
 btn.addEventListener("click", function() { onAnalyzeClick(); });
+if (!plus && left <= 0) {
+btn.disabled = true;
+btn.textContent = "🚫 Лимит исчерпан";
+}
 btnRow.appendChild(btn);
 const hint = el("span", { class: "dim", style: "font-size:11px;" });
 hint.id = "analyzeHint";
 btnRow.appendChild(hint);
 form.appendChild(btnRow);
+
+/* Подсказка про исчерпанный лимит */
+if (!plus && left <= 0) {
+const upsell = el("div", { class: "row", style: "margin-top:12px;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;" });
+upsell.appendChild(el("div", { class: "dim", style: "font-size:11px;flex:1;min-width:200px;line-height:1.5;" },
+"Лимит анализов на сегодня исчерпан. Активируй JETCH+ — анализы станут безлимитными, и откроется ИИ-ассистент."));
+const upBtn = UI.btn("✦ Активировать JETCH+", { variant: "ghost" });
+upBtn.addEventListener("click", function() { switchPage("settings"); });
+upsell.appendChild(upBtn);
+form.appendChild(upsell);
+}
+
 frag.appendChild(form);
 
 const report = el("div", { id: "analyzeReport" });
@@ -120,6 +194,14 @@ const hint = qs("#analyzeHint");
 const btn = qs("#analyzeBtn");
 const report = qs("#analyzeReport");
 
+const plus = Store.get("license_active", false) === true;
+const left = analyzeQuotaRemaining();
+
+if (!plus && left <= 0) {
+setHint(hint, "Лимит на сегодня исчерпан", "var(--red)");
+return;
+}
+
 const mid = (idInput.value || "").trim();
 const hero = (heroInput.value || "").trim();
 
@@ -134,6 +216,7 @@ report.appendChild(loadingCard("Загружаю матч из OpenDota..."));
 
 try {
 const result = await runAnalysis(parseInt(mid, 10), hero);
+analyzeQuotaInc();
 report.innerHTML = "";
 report.appendChild(buildReport(result));
 lastAnalysis = result;
@@ -142,7 +225,16 @@ Store.set("last_hero", hero);
 if (typeof History !== "undefined") History.add(result);
 if (typeof Achievements !== "undefined") Achievements.onAnalyze(result);
 if (typeof Daily !== "undefined") Daily.bump("analyze");
+
+const newLeft = analyzeQuotaRemaining();
+if (!plus) {
+setHint(hint, "Готово! Осталось " + newLeft + " анализов на сегодня", "var(--green)");
+if (newLeft <= 0) {
+setTimeout(function () { switchPage("analyze"); }, 1500);
+}
+} else {
 setHint(hint, "Готово!", "var(--green)");
+}
 } catch (e) {
 report.innerHTML = "";
 report.appendChild(errorCard(e.message || String(e)));
