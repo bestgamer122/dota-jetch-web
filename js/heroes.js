@@ -1,27 +1,161 @@
 /* ═══════════════════════════════════════════════════════════════════
-   DOTA JETCH — HEROES + ITEMS CATALOG
-   Алиасы + кэш героев + каталог предметов + fixCdnUrl.
+   DOTA JETCH — HEROES + ITEMS (multi-CDN fallback)
+   Решает проблему блокировки Steam CDN в некоторых регионах.
    ═══════════════════════════════════════════════════════════════════ */
 
-const HEROES_CACHE_VERSION = 3;
+const HEROES_CACHE_VERSION = 4;
 const HEROES_CACHE_KEY = 'heroes_cache_v' + HEROES_CACHE_VERSION;
-const ITEMS_CACHE_KEY = 'items_catalog_v1';
-const CDN_BASE = "https://cdn.cloudflare.steamstatic.com";
+const ITEMS_CACHE_KEY = 'items_catalog_v2';
 
-/* ─── Фикс URL картинок с OpenDota (trailing "?" ломает CDN) ─── */
-function fixCdnUrl(path) {
+/* Основные CDN Steam (пробуем по очереди) */
+const CDN_MIRRORS = [
+    "https://cdn.cloudflare.steamstatic.com",
+    "https://cdn.akamai.steamstatic.com",
+    "https://steamcdn-a.akamaihd.net",
+];
+
+/* Прокси weserv.nl — спасает, если CDN заблокирован провайдером */
+const WESERV = "https://images.weserv.nl/?url=";
+
+function normalizeCdnPath(path) {
     if (!path) return "";
-    let p = String(path);
-    if (p.startsWith("http://") || p.startsWith("https://")) {
-        // убираем query у абсолютных ссылок тоже
-        const q = p.indexOf("?");
-        if (q >= 0) p = p.slice(0, q);
-        return p;
-    }
+    let p = String(path).trim();
     const q = p.indexOf("?");
     if (q >= 0) p = p.slice(0, q);
+    if (/^https?:\/\//i.test(p)) return p;
     if (!p.startsWith("/")) p = "/" + p;
-    return CDN_BASE + p;
+    return p;
+}
+
+function cdnUrlVariants(path) {
+    if (!path) return [];
+    const p = normalizeCdnPath(path);
+    if (/^https?:\/\//i.test(p)) return [p];
+    const urls = [];
+    for (const base of CDN_MIRRORS) urls.push(base + p);
+    urls.push(WESERV + encodeURIComponent("cdn.cloudflare.steamstatic.com" + p));
+    return urls;
+}
+
+/* ─── Универсальный img с авто-перебором источников ─── */
+function makeSmartImg(urls, alt, fallbackText, style) {
+    if (!urls || !urls.length) return null;
+    let idx = 0;
+    const img = document.createElement("img");
+    img.alt = alt || "";
+    img.loading = "lazy";
+    img.referrerPolicy = "no-referrer";
+    img.style.cssText = style || "width:100%;height:100%;object-fit:cover;display:block;";
+    img.src = urls[0];
+
+    function next() {
+        idx++;
+        if (idx < urls.length) {
+            img.src = urls[idx];
+        } else {
+            img.style.display = "none";
+            if (fallbackText && img.parentNode) {
+                const fb = img.parentNode.querySelector(".smart-fallback");
+                if (fb) fb.style.opacity = "1";
+            }
+        }
+    }
+    img.addEventListener("error", next);
+    img.addEventListener("load", function () {
+        if (img.naturalWidth === 0) next();
+    });
+    return img;
+}
+
+/* ─── Hero image: фиксированного размера, круглые углы ─── */
+function heroImgEl(hero, size, extraStyle) {
+    size = size || 64;
+    const r = Math.max(8, Math.round(size * 0.14));
+    const border = Math.max(1, Math.round(size / 48));
+
+    const wrap = document.createElement("div");
+    wrap.style.cssText =
+        "position:relative;flex-shrink:0;overflow:hidden;" +
+        "width:" + size + "px;height:" + size + "px;" +
+        "border-radius:" + r + "px;" +
+        "border:" + border + "px solid rgba(167,139,250,0.7);" +
+        "background:linear-gradient(135deg,rgba(109,40,217,0.7),rgba(30,33,41,0.9));" +
+        "display:flex;align-items:center;justify-content:center;" +
+        (extraStyle || "");
+
+    // Фоллбэк-буквы ПОД картинкой
+    const letter = hero ? ((hero.name || "?").slice(0, 2).toUpperCase()) : "?";
+    const fb = document.createElement("div");
+    fb.className = "smart-fallback";
+    fb.style.cssText =
+        "position:absolute;inset:0;display:flex;align-items:center;justify-content:center;" +
+        "font-size:" + Math.round(size * 0.38) + "px;font-weight:800;" +
+        "color:rgba(255,255,255,0.45);font-family:'JetBrains Mono',monospace;" +
+        "letter-spacing:0.06em;pointer-events:none;user-select:none;opacity:1;z-index:0;";
+    fb.textContent = letter;
+    wrap.appendChild(fb);
+
+    const path = (hero && (hero.imgPath || hero.img)) || "";
+    const urls = cdnUrlVariants(path);
+    const img = makeSmartImg(urls, hero ? hero.name : "", letter,
+        "position:relative;z-index:1;width:100%;height:100%;object-fit:cover;display:block;");
+    if (img) wrap.appendChild(img);
+    return wrap;
+}
+
+/* ─── Item image: aspect 1:1, object-fit contain ─── */
+function itemImgEl(item) {
+    const wrap = document.createElement("div");
+    wrap.style.cssText =
+        "position:relative;width:100%;aspect-ratio:1/1;border-radius:10px;" +
+        "overflow:hidden;background:var(--bg-elev);border:1px solid var(--border);" +
+        "display:flex;align-items:center;justify-content:center;";
+
+    if (!item || !item.imgPath) return wrap;
+
+    const urls = cdnUrlVariants(item.imgPath);
+    const img = makeSmartImg(urls, item.name || "", null,
+        "width:100%;height:100%;object-fit:contain;display:block;padding:4px;");
+    if (img) wrap.appendChild(img);
+    return wrap;
+}
+
+/* ─── Hero tile (для состава команд): заполняет родителя ─── */
+function heroTileEl(hero, opts) {
+    opts = opts || {};
+    const wrap = document.createElement("div");
+    wrap.style.cssText =
+        "position:relative;width:100%;aspect-ratio:1/1;border-radius:10px;" +
+        "overflow:hidden;background:var(--bg-elev);" +
+        "border:2px solid " + (opts.borderColor || "transparent") + ";";
+
+    const letter = hero ? ((hero.name || "?").slice(0, 2).toUpperCase()) : "?";
+    const fb = document.createElement("div");
+    fb.className = "smart-fallback";
+    fb.style.cssText =
+        "position:absolute;inset:0;display:flex;align-items:center;justify-content:center;" +
+        "font-size:14px;font-weight:800;color:rgba(255,255,255,0.4);" +
+        "font-family:'JetBrains Mono',monospace;pointer-events:none;z-index:0;";
+    fb.textContent = letter;
+    wrap.appendChild(fb);
+
+    const path = (hero && (hero.imgPath || hero.img)) || "";
+    const urls = cdnUrlVariants(path);
+    const img = makeSmartImg(urls, hero ? hero.name : "", letter,
+        "position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:1;");
+    if (img) wrap.appendChild(img);
+
+    if (opts.kda) {
+        const kda = document.createElement("div");
+        kda.style.cssText =
+            "position:absolute;bottom:0;left:0;right:0;padding:4px;" +
+            "background:linear-gradient(0deg,rgba(0,0,0,0.9),transparent);" +
+            "font-size:9px;font-weight:700;color:#fff;text-align:center;" +
+            "font-family:'JetBrains Mono',monospace;z-index:2;";
+        kda.textContent = opts.kda;
+        wrap.appendChild(kda);
+    }
+    return wrap;
 }
 
 const HERO_ALIASES = {
@@ -84,8 +218,8 @@ async function getHeroes() {
             const heroes = data.map(h => ({
                 id: h.id,
                 name: h.localized_name,
-                img: fixCdnUrl(h.img),
-                icon: fixCdnUrl(h.icon),
+                imgPath: normalizeCdnPath(h.img),
+                iconPath: normalizeCdnPath(h.icon),
             }));
             _heroCache = heroes;
             Store.set(HEROES_CACHE_KEY, heroes);
@@ -99,7 +233,6 @@ async function getHeroes() {
     return _heroLoading;
 }
 
-/* ─── КАТАЛОГ ПРЕДМЕТОВ ─── */
 let _itemCatalog = null;
 let _itemLoading = null;
 
@@ -121,8 +254,10 @@ async function getItemCatalog() {
                 for (const [key, val] of Object.entries(data)) {
                     if (val && typeof val === "object" && val.id) {
                         map[val.id] = {
+                            id: val.id,
                             name: val.dname || key,
-                            img: fixCdnUrl(val.img || ""),
+                            imgPath: normalizeCdnPath(val.img || ""),
+                            cost: val.cost || 0,
                         };
                     }
                 }

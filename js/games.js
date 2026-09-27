@@ -40,7 +40,7 @@ function shuffle(a) {
 function renderGames() {
   const frag = document.createDocumentFragment();
 
-  const head = UI.heroBanner(
+  frag.appendChild(UI.heroBanner(
     "Мини-игры",
     "Тренируй реакцию, знания и память",
     [
@@ -48,8 +48,7 @@ function renderGames() {
       UI.btn("Викторина", { onclick: function() { openGame("quiz"); }, variant: "ghost" }),
       UI.btn("Угадай героя", { onclick: function() { openGame("guess"); }, variant: "ghost" }),
     ]
-  );
-  frag.appendChild(head);
+  ));
 
   const stats = el("div", { class: "stat-grid" });
   const rBest = Store.get("reaction_best", 0) || 0;
@@ -76,7 +75,6 @@ function renderGames() {
   return frag;
 }
 
-/* ИСПРАВЛЕНО: openGame теперь async, чтобы корректно ждать renderGuessGame */
 async function openGame(kind) {
   const area = qs("#gameArea");
   if (!area) return;
@@ -86,7 +84,6 @@ async function openGame(kind) {
   } else if (kind === "quiz") {
     area.appendChild(renderQuizGame());
   } else if (kind === "guess") {
-    // Сначала показываем карточку с индикатором загрузки
     const loading = UI.card("Угадай героя");
     loading.appendChild(el("div", { class: "dim", style: "text-align:center;padding:30px;" }, "Загружаю героев из OpenDota..."));
     area.appendChild(loading);
@@ -120,13 +117,13 @@ function renderReactionGame() {
   let goTs = 0;
   let timer = null;
 
-  pad.addEventListener("click", function() {
+  pad.addEventListener("click", function () {
     if (state === "idle" || state === "done") {
       state = "waiting";
       pad.style.background = "var(--orange)";
       label.textContent = "ЖДИ ЗЕЛЁНОГО...";
       result.textContent = "-";
-      timer = setTimeout(function() {
+      timer = setTimeout(function () {
         state = "go";
         pad.style.background = "var(--green)";
         label.textContent = "ЖМИ!";
@@ -177,9 +174,7 @@ function renderQuizGame() {
       if (score > best) Store.set("quiz_best", score);
       if (typeof Achievements !== "undefined") Achievements.check();
       const again = UI.btn("Ещё раз");
-      again.addEventListener("click", function() {
-        openGame("quiz");
-      });
+      again.addEventListener("click", function () { openGame("quiz"); });
       content.appendChild(el("div", { style: "text-align:center;" }, again));
       return;
     }
@@ -195,7 +190,7 @@ function renderQuizGame() {
       const b = el("button", {
         style: "display:block;width:100%;text-align:left;padding:12px 14px;margin-bottom:8px;background:var(--bg-elev);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:13px;cursor:pointer;font-family:inherit;transition:all 0.15s ease;"
       }, o);
-      b.addEventListener("click", function() {
+      b.addEventListener("click", function () {
         const correct = o === q.a;
         b.style.background = correct ? "var(--green-bg)" : "var(--red-bg)";
         b.style.borderColor = correct ? "var(--green)" : "var(--red)";
@@ -203,7 +198,7 @@ function renderQuizGame() {
         if (correct) score++;
         const allBtns = content.querySelectorAll("button");
         for (let i = 0; i < allBtns.length; i++) allBtns[i].disabled = true;
-        setTimeout(function() { idx++; showQuestion(); }, 700);
+        setTimeout(function () { idx++; showQuestion(); }, 700);
       });
       content.appendChild(b);
     }
@@ -225,9 +220,8 @@ async function renderGuessGame() {
   let best = Store.get("guess_best_streak", 0) || 0;
   let heroes = [];
 
-  try {
-    heroes = await getHeroes();
-  } catch (e) {
+  try { heroes = await getHeroes(); }
+  catch (e) {
     content.appendChild(el("div", { class: "dim", style: "padding:20px;color:var(--red);" }, "Не удалось загрузить героев: " + (e.message || e)));
     return card;
   }
@@ -253,21 +247,44 @@ async function renderGuessGame() {
     }
     const shuffledOpts = shuffle(opts);
 
-    const imgWrap = el("div", { style: "margin:14px auto;width:220px;" });
-    const img = el("img", {
-      src: target.img,
-      alt: target.name,
-      style: "width:220px;height:124px;border-radius:12px;border:1px solid var(--border-hl);display:block;background:var(--bg-elev);",
-      onerror: function(e) { e.target.style.opacity = 0.3; }
-    });
-    imgWrap.appendChild(img);
-    content.appendChild(imgWrap);
+    // Карточка с героем (большая картинка + название скрыто)
+    const heroCard = el("div", { style: "margin:14px auto;max-width:320px;" });
+    const bigWrap = el("div", { style: "position:relative;width:100%;aspect-ratio:16/9;border-radius:14px;overflow:hidden;border:1px solid var(--border-hl);background:var(--bg-elev);" });
+
+    const letter = target.name.slice(0, 2).toUpperCase();
+    const fb = el("div", {
+      style: "position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:48px;font-weight:800;color:rgba(255,255,255,0.25);font-family:'JetBrains Mono',monospace;z-index:0;"
+    }, letter);
+    bigWrap.appendChild(fb);
+
+    const path = target.imgPath || target.img || "";
+    const urls = cdnUrlVariants(path);
+    if (urls.length) {
+      let idx = 0;
+      const img = el("img", {
+        src: urls[0],
+        alt: target.name,
+        loading: "lazy",
+        referrerpolicy: "no-referrer",
+        style: "position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:1;display:block;",
+      });
+      function next() {
+        idx++;
+        if (idx < urls.length) img.src = urls[idx];
+        else img.style.display = "none";
+      }
+      img.addEventListener("error", next);
+      img.addEventListener("load", function () { if (img.naturalWidth === 0) next(); });
+      bigWrap.appendChild(img);
+    }
+    heroCard.appendChild(bigWrap);
+    content.appendChild(heroCard);
 
     for (const h of shuffledOpts) {
       const b = el("button", {
         style: "display:block;width:100%;text-align:left;padding:12px 14px;margin-bottom:8px;background:var(--bg-elev);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:13px;cursor:pointer;font-family:inherit;transition:all 0.15s ease;"
       }, h.name);
-      b.addEventListener("click", function() {
+      b.addEventListener("click", function () {
         const correct = h.id === target.id;
         b.style.background = correct ? "var(--green-bg)" : "var(--red-bg)";
         b.style.borderColor = correct ? "var(--green)" : "var(--red)";
