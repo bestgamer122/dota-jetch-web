@@ -1,5 +1,4 @@
-/* DOTA JETCH — APP v3.3.4
-Кастомный дропдаун тем + безопасный рендер. */
+/* DOTA JETCH — APP v3.3.6 */
 
 const PAGES = {
 dashboard:    { title: "Главная",              render: renderDashboard },
@@ -20,7 +19,7 @@ _error:       { title: "Ошибка",               render: renderError },
 let currentPage = "dashboard";
 let lastRenderError = null;
 
-function _safeRender(name) {
+function safeRender(name) {
 try {
 if (typeof PAGES[name].render !== "function") throw new Error("render не функция");
 const node = PAGES[name].render();
@@ -30,7 +29,7 @@ return node;
 lastRenderError = { page: name, error: e };
 console.error("Render error in", name, e);
 const frag = document.createDocumentFragment();
-const card = UI.card("⚠️ Ошибка на странице «" + PAGES[name].title + "»");
+const card = UI.card("Ошибка на странице " + PAGES[name].title);
 card.appendChild(el("div", { class: "dim", style: "font-size:12px;line-height:1.6;margin-bottom:10px;" },
 "Что-то пошло не так при рендере. Подробности в консоли (F12)."));
 card.appendChild(el("div", {
@@ -52,7 +51,7 @@ if (titleEl) titleEl.textContent = PAGES[name].title;
 const content = qs("#pageContent");
 if (!content) return;
 content.innerHTML = "";
-try { content.appendChild(_safeRender(name)); }
+try { content.appendChild(safeRender(name)); }
 catch (e) { content.appendChild(el("div", { style: "padding:30px;color:var(--red);" }, "Критическая ошибка: " + (e.message || e))); }
 content.style.opacity = 0;
 requestAnimationFrame(function() {
@@ -66,7 +65,7 @@ location.hash = name === "_404" ? "404" : name;
 
 function renderError() {
 const frag = document.createDocumentFragment();
-const card = UI.card("⚠️ Ошибка");
+const card = UI.card("Ошибка");
 card.appendChild(el("div", { style: "padding:20px;color:var(--red);font-size:13px;" },
 (lastRenderError && lastRenderError.error && lastRenderError.error.message) || "Неизвестная ошибка"));
 frag.appendChild(card);
@@ -77,7 +76,7 @@ function renderChartsPage() {
 if (typeof Daily !== "undefined") Daily.bump("chart");
 if (typeof Charts === "undefined") {
 const frag = document.createDocumentFragment();
-const card = UI.card("📈 Прогресс");
+const card = UI.card("Прогресс");
 card.appendChild(el("div", { class: "dim", style: "font-size:12px;padding:20px;" }, "Модуль графиков не загружен."));
 frag.appendChild(card);
 return frag;
@@ -89,7 +88,7 @@ function render404() {
 const frag = document.createDocumentFragment();
 const card = UI.card("404");
 card.appendChild(el("div", { style: "text-align:center;padding:40px;" },
-el("div", { style: "font-size:48px;margin-bottom:16px;" }, "🔍"),
+el("div", { style: "font-size:44px;margin-bottom:16px;" }, "🔍"),
 el("div", { style: "font-size:18px;font-weight:bold;margin-bottom:8px;color:var(--text);" }, "Страница не найдена"),
 el("div", { class: "dim", style: "font-size:13px;line-height:1.5;" }, "Возможно, ссылка устарела."),
 el("div", { style: "margin-top:20px;" },
@@ -114,12 +113,12 @@ UI.btn("Прогресс", { onclick: function() { switchPage("charts"); }, vari
 ));
 
 if (typeof renderDailyWidget === "function") {
-try { frag.appendChild(renderDailyWidget()); } catch (e) { console.warn("Daily widget error:", e); }
+try { frag.appendChild(renderDailyWidget()); }
+catch (e) { console.warn("Daily widget error:", e); }
 }
 
 const stats = el("div", { class: "stat-grid" });
 const sessions = Store.get("sessions", 0);
-const analyzed = Store.get("analyzed_count", 0) || 0;
 const analyzeLeft = typeof analyzeQuotaRemaining === "function"
 ? (plus ? "∞" : String(analyzeQuotaRemaining()))
 : "—";
@@ -153,7 +152,7 @@ last.appendChild(row);
 frag.appendChild(last);
 }
 
-const info = UI.card("✨ Что нового");
+const info = UI.card("Что нового");
 info.appendChild(el("div", { class: "dim", style: "font-size:12px;line-height:1.8;" },
 "🎨 Кастомный дропдаун тем",
 el("br"),
@@ -168,8 +167,7 @@ frag.appendChild(info);
 return frag;
 }
 
-/* ─── Кастомный дропдаун тем ─── */
-function _makeThemeDropdown(currentKey, onChange) {
+function makeThemeDropdown(currentKey, onChange) {
 const wrap = el("div", { class: "theme-dropdown", id: "themeDropdown" });
 const btn = el("button", { class: "theme-dropdown-btn", type: "button" });
 const label = el("span", {}, (THEMES[currentKey] && THEMES[currentKey].label) || currentKey);
@@ -210,9 +208,9 @@ function renderSettings() {
 const frag = document.createDocumentFragment();
 
 const plus = Store.get("license_active", false) === true;
-const planCard = UI.card("✦ Подписка");
+const planCard = UI.card("Подписка");
 if (plus) {
-planCard.appendChild(el("div", { style: "color:var(--gold);font-size:14px;font-weight:700;margin-bottom:10px;" }, "✦ JETCH+ активен"));
+planCard.appendChild(el("div", { style: "color:var(--gold);font-size:14px;font-weight:700;margin-bottom:10px;" }, "JETCH+ активен"));
 planCard.appendChild(el("div", { class: "dim", style: "font-size:12px;margin-bottom:14px;line-height:1.7;" },
 "✓ Безлимитные анализы матчей", el("br"),
 "✓ Полный доступ к ИИ-ассистенту", el("br"),
@@ -239,7 +237,7 @@ planCard.appendChild(el("div", { class: "dim", style: "font-size:12px;margin:14p
 "✓ Безлимитные анализы", el("br"),
 "✓ Полный доступ к ИИ-ассистенту", el("br"),
 "✓ Приоритет (демо)"));
-planCard.appendChild(UI.btn("✦ Активировать JETCH+ (демо)", {
+planCard.appendChild(UI.btn("Активировать JETCH+ (демо)", {
 onclick: function() {
 Store.set("license_active", true);
 showDialog("Готово", "JETCH+ активирован. Перезагрузи страницу.", "success");
@@ -249,9 +247,8 @@ setTimeout(function() { location.reload(); }, 800);
 }
 frag.appendChild(planCard);
 
-/* Тема через кастомный дропдаун */
-const themeCard = UI.card("🎨 Тема оформления");
-themeCard.appendChild(_makeThemeDropdown(loadTheme(), function (key) {
+const themeCard = UI.card("Тема оформления");
+themeCard.appendChild(makeThemeDropdown(loadTheme(), function (key) {
 applyTheme(key);
 if (typeof Daily !== "undefined") Daily.bump("theme");
 if (typeof Achievements !== "undefined") Achievements.onThemeChange();
@@ -259,8 +256,7 @@ showDialog("Тема применена", "Выбрана: " + THEMES[key].label
 }));
 frag.appendChild(themeCard);
 
-/* Иконки */
-const iconsCard = UI.card("🖼 Загрузка иконок");
+const iconsCard = UI.card("Загрузка иконок");
 iconsCard.appendChild(el("div", { class: "dim", style: "font-size:12px;margin-bottom:12px;line-height:1.6;" },
 "Если иконки Steam CDN не грузятся — отключи, будут показаны fallback-иконки с буквами и градиентом."));
 const toggleLabel = el("label", { style: "display:flex;align-items:center;gap:10px;font-size:13px;cursor:pointer;" });
@@ -276,8 +272,7 @@ toggleLabel.appendChild(document.createTextNode("Пытаться загружа
 iconsCard.appendChild(toggleLabel);
 frag.appendChild(iconsCard);
 
-/* Данные */
-const dataCard = UI.card("💾 Данные");
+const dataCard = UI.card("Данные");
 dataCard.appendChild(el("div", { class: "dim", style: "font-size:12px;margin-bottom:12px;line-height:1.6;" },
 "Все данные хранятся в localStorage. Сделай резервную копию."));
 const expBtn = UI.btn("Экспорт / Импорт");
@@ -325,7 +320,7 @@ frag.appendChild(ver);
 return frag;
 }
 
-function _updateSidebarPlan() {
+function updateSidebarPlan() {
 const plus = Store.get("license_active", false) === true;
 const planTitle = qs("#planTitle");
 const planInfo = qs("#planInfo");
@@ -353,7 +348,7 @@ Store.set("sessions", (Store.get("sessions", 0) || 0) + 1);
 const hash = (location.hash || "#dashboard").slice(1);
 switchPage(PAGES[hash] ? hash : "dashboard");
 
-_updateSidebarPlan();
+updateSidebarPlan();
 
 if (typeof Achievements !== "undefined") Achievements.check();
 
