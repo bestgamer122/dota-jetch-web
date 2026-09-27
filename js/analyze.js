@@ -14,6 +14,18 @@ const POSITION_COLORS = {1:"#fbbf24",2:"#d946ef",3:"#ef4444",4:"#60a5fa",5:"#4ad
 
 let lastAnalysis = null;
 
+/* ─── Утилита: запрос с повторами ─── */
+async function fetchWithRetry(path, params, retries = 2) {
+    for (let i = 0; i <= retries; i++) {
+        try {
+            return await apiGet(path, params);
+        } catch (e) {
+            if (i === retries) throw e;
+            await new Promise(r => setTimeout(r, 800 * (i + 1)));
+        }
+    }
+}
+
 function detectPosition(player, match) {
     const lane = player.lane_role;
     if (lane === 2) return 2;
@@ -29,14 +41,23 @@ async function runAnalysis(matchId, heroName) {
     const hero = await findHeroId(heroName);
     if (!hero) throw new Error(`Герой «${heroName}» не найден`);
 
-    const match = await apiGet(`/matches/${matchId}`);
-    if (!match || !match.players) throw new Error("Матч не найден или недоступен");
-    if (match.duration === undefined) throw new Error("Матч не распарсен (duration отсутствует)");
+    const match = await fetchWithRetry(`/matches/${matchId}`);
+    if (!match || !match.players || !Array.isArray(match.players)) {
+        throw new Error("Матч не найден или недоступен");
+    }
+    if (match.duration === undefined) {
+        throw new Error("Матч не распарсен (duration отсутствует)");
+    }
 
     const player = match.players.find(p => p.hero_id === hero.id);
     if (!player) throw new Error(`${hero.name} не играл в этом матче`);
 
-    const bench = await apiGet("/benchmarks", { hero_id: hero.id }) || {};
+    let bench = {};
+    try {
+        bench = await fetchWithRetry("/benchmarks", { hero_id: hero.id }) || {};
+    } catch (e) {
+        console.warn("benchmarks недоступны, перцентили пропущены", e);
+    }
 
     const isRadiant = player.player_slot < 128;
     const won = (match.radiant_win && isRadiant) || (!match.radiant_win && !isRadiant);
@@ -205,7 +226,7 @@ function buildReport(r) {
     metricsCard.appendChild(grid);
     frag.appendChild(metricsCard);
 
-    if (Object.keys(r.bench).length) {
+    if (r.bench && Object.keys(r.bench).length) {
         const pctCard = UI.card("📈 Перцентили (против других игроков на этом герое)");
         const pctItems = [
             ["GPM", "gold_per_min", p.gold_per_min],
@@ -227,6 +248,7 @@ function buildReport(r) {
     const link = el("a", {
         href: `https://www.opendota.com/matches/${m.match_id}`,
         target: "_blank",
+        rel: "noopener noreferrer",
         style: "color:var(--cyan);font-size:12px;"
     }, "🔗 Открыть матч на OpenDota");
     linkCard.appendChild(link);

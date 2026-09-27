@@ -10,12 +10,15 @@ const PAGES = {
     achievements: { title: "Достижения",      render: renderAchievements },
     settings:     { title: "Настройки",       render: renderSettings },
     about:        { title: "О программе",     render: renderAbout },
+    _404:         { title: "Страница не найдена", render: render404 },
 };
 
 let currentPage = "dashboard";
 
 function switchPage(name) {
-    if (!PAGES[name]) return;
+    if (!PAGES[name]) {
+        name = "_404";
+    }
     currentPage = name;
     qsa(".nav-btn").forEach(function(b) { b.classList.toggle("active", b.dataset.page === name); });
     const titleEl = qs("#pageTitle");
@@ -31,7 +34,22 @@ function switchPage(name) {
     });
     const scroller = qs(".page-scroll");
     if (scroller) scroller.scrollTop = 0;
-    location.hash = name;
+    location.hash = name === "_404" ? "404" : name;
+}
+
+function render404() {
+    const frag = document.createDocumentFragment();
+    const card = UI.card("404");
+    card.appendChild(el("div", { style: "text-align:center;padding:40px;" },
+        el("div", { style: "font-size:48px;margin-bottom:16px;" }, "🔍"),
+        el("div", { style: "font-size:18px;font-weight:bold;margin-bottom:8px;color:var(--text);" }, "Страница не найдена"),
+        el("div", { class: "dim", style: "font-size:13px;line-height:1.5;" }, "Возможно, ссылка устарела или содержит опечатку."),
+        el("div", { style: "margin-top:20px;" },
+            UI.btn("На главную", { onclick: function() { switchPage("dashboard"); } })
+        )
+    ));
+    frag.appendChild(card);
+    return frag;
 }
 
 function renderDashboard() {
@@ -70,6 +88,7 @@ function renderDashboard() {
         const row = el("div", { style: "display:flex;align-items:center;gap:14px;" });
         row.appendChild(el("img", {
             src: lastAnalysis.hero.img,
+            alt: lastAnalysis.hero.name,
             style: "width:56px;height:56px;border-radius:10px;border:1px solid var(--border-hl);"
         }));
         const info = el("div", { style: "flex:1;" });
@@ -209,4 +228,5 @@ window.addEventListener("DOMContentLoaded", init);
 window.addEventListener("hashchange", function() {
     const h = (location.hash || "#dashboard").slice(1);
     if (h !== currentPage && PAGES[h]) switchPage(h);
+    else if (!PAGES[h] && currentPage !== "_404") switchPage("_404");
 });

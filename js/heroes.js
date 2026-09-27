@@ -3,6 +3,9 @@
    Алиасы + кэш героев из OpenDota + поиск по имени.
    ═══════════════════════════════════════════════════════════════════ */
 
+const HEROES_CACHE_VERSION = 2;
+const HEROES_CACHE_KEY = 'heroes_cache_v' + HEROES_CACHE_VERSION;
+
 const HERO_ALIASES = {
     "жугер":"Juggernaut","жуггернаут":"Juggernaut","джагернаут":"Juggernaut",
     "сф":"Shadow Fiend","инвокер":"Invoker","вока":"Invoker",
@@ -49,7 +52,7 @@ let _heroLoading = null;
 async function getHeroes() {
     if (_heroCache) return _heroCache;
     try {
-        const cached = Store.get("heroes_cache");
+        const cached = Store.get(HEROES_CACHE_KEY);
         if (cached && Array.isArray(cached) && cached.length > 100) {
             _heroCache = cached;
             return cached;
@@ -67,7 +70,7 @@ async function getHeroes() {
                 icon: "https://cdn.cloudflare.steamstatic.com" + (h.icon || ""),
             }));
             _heroCache = heroes;
-            Store.set("heroes_cache", heroes);
+            Store.set(HEROES_CACHE_KEY, heroes);
             _heroLoading = null;
             return heroes;
         } catch (e) {
