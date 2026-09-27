@@ -1,0 +1,19 @@
+{
+  "name": "DOTA JETCH · AI 2.0",
+  "short_name": "DOTA JETCH",
+  "description": "Анализ матчей, ИИ-ассистент, дневник и мини-игры для Dota 2",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#05060a",
+  "theme_color": "#8b5cf6",
+  "lang": "ru",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='96' fill='%2305060a'/%3E%3Cpath fill='%238b5cf6' d='M256 64 L320 192 L448 256 L320 320 L256 448 L192 320 L64 256 L192 192 Z'/%3E%3C/svg%3E",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
