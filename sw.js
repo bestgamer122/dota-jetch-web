@@ -1,6 +1,8 @@
-/* DOTA JETCH — Service Worker (offline-first, кэш статики) */
+/* DOTA JETCH — Service Worker v3.3.3
+Сброс старого кэша при обновлении версии. */
 
-const CACHE_NAME = "dotajetch-v3.3.0";
+const CACHE_NAME = "dotajetch-v3.3.3";
+
 const STATIC_ASSETS = [
 "./",
 "./index.html",
@@ -15,57 +17,67 @@ const STATIC_ASSETS = [
 "./js/diary.js",
 "./js/assistant.js",
 "./js/games.js",
-"./js/analyze.js",
 "./js/charts.js",
 "./js/daily.js",
 "./js/export.js",
+"./js/analyze.js",
 "./js/app.js",
 "./js/visual.js",
 ];
 
-self.addEventListener("install", (e) => {
+self.addEventListener("install", function (e) {
 self.skipWaiting();
 e.waitUntil(
-caches.open(CACHE_NAME).then((cache) => {
+caches.open(CACHE_NAME).then(function (cache) {
 return Promise.allSettled(
-STATIC_ASSETS.map((url) => cache.add(url).catch(() => null))
+STATIC_ASSETS.map(function (url) { return cache.add(url).catch(function () { return null; }); })
 );
 })
 );
 });
 
-self.addEventListener("activate", (e) => {
+self.addEventListener("activate", function (e) {
 e.waitUntil(
-caches.keys().then((keys) =>
-Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))
-).then(() => self.clients.claim())
+caches.keys().then(function (keys) {
+return Promise.all(
+keys.filter(function (k) { return k !== CACHE_NAME; })
+.map(function (k) { return caches.delete(k); })
+);
+}).then(function () { return self.clients.claim(); })
 );
 });
 
-self.addEventListener("fetch", (e) => {
+self.addEventListener("fetch", function (e) {
 const req = e.request;
 if (req.method !== "GET") return;
 
 const url = new URL(req.url);
 
-// API OpenDota — только сеть (никогда не кэшируем актуальные данные)
+/* API — только сеть, никогда не кэшируем */
 if (url.hostname === "api.opendota.com") return;
 
-// Картинки Steam CDN — сеть (не кэшируем, потому что они могут блокироваться)
+/* Картинки Steam CDN — только сеть */
 if (/steamstatic|akamaihd|weserv|wsrv/.test(url.hostname)) return;
 
-// Остальное — stale-while-revalidate
+/* Google fonts — только сеть (иначе offline-версия может криво показать) */
+if (/fonts.(googleapis|gstatic).com/.test(url.hostname)) return;
+
+/* Всё остальное — stale-while-revalidate */
 e.respondWith(
-caches.match(req).then((cached) => {
-const fetchPromise = fetch(req).then((res) => {
+caches.match(req).then(function (cached) {
+const fetchPromise = fetch(req).then(function (res) {
 if (res && res.status === 200 && res.type === "basic") {
 const clone = res.clone();
-caches.open(CACHE_NAME).then((c) => c.put(req, clone));
+caches.open(CACHE_NAME).then(function (c) { c.put(req, clone); });
 }
 return res;
-}).catch(() => cached);
+}).catch(function () { return cached; });
 
 return cached || fetchPromise;
 })
 );
+});
+
+self.addEventListener("message", function (e) {
+if (e.data === "SKIP_WAITING") self.skipWaiting();
 });

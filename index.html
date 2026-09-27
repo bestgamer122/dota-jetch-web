@@ -14,7 +14,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/style.css?v=3.3.1">
+<link rel="stylesheet" href="css/style.css?v=3.3.3">
 </head>
 <body>
 
@@ -92,20 +92,47 @@
   </div>
 </div>
 
-<script src="js/config.js?v=3.3.1"></script>
-<script src="js/ui.js?v=3.3.1"></script>
-<script src="js/heroes.js?v=3.3.1"></script>
-<script src="js/knowledge.js?v=3.3.1"></script>
-<script src="js/achievements.js?v=3.3.1"></script>
-<script src="js/history.js?v=3.3.1"></script>
-<script src="js/diary.js?v=3.3.1"></script>
-<script src="js/assistant.js?v=3.3.1"></script>
-<script src="js/games.js?v=3.3.1"></script>
-<script src="js/charts.js?v=3.3.1"></script>
-<script src="js/daily.js?v=3.3.1"></script>
-<script src="js/export.js?v=3.3.1"></script>
-<script src="js/analyze.js?v=3.3.1"></script>
-<script src="js/app.js?v=3.3.1"></script>
-<script src="js/visual.js?v=3.3.1"></script>
+<script src="js/config.js?v=3.3.3"></script>
+<script src="js/ui.js?v=3.3.3"></script>
+<script src="js/heroes.js?v=3.3.3"></script>
+<script src="js/knowledge.js?v=3.3.3"></script>
+<script src="js/achievements.js?v=3.3.3"></script>
+<script src="js/history.js?v=3.3.3"></script>
+<script src="js/diary.js?v=3.3.3"></script>
+<script src="js/assistant.js?v=3.3.3"></script>
+<script src="js/games.js?v=3.3.3"></script>
+<script src="js/charts.js?v=3.3.3"></script>
+<script src="js/daily.js?v=3.3.3"></script>
+<script src="js/export.js?v=3.3.3"></script>
+<script src="js/analyze.js?v=3.3.3"></script>
+<script src="js/app.js?v=3.3.3"></script>
+<script src="js/visual.js?v=3.3.3"></script>
+
+<script>
+/* Диагностика: покажет в консоли, если какой-то скрипт не загрузился */
+window.addEventListener("load", function () {
+  var missing = [];
+  if (typeof Store === "undefined")             missing.push("config.js");
+  if (typeof UI === "undefined")                missing.push("ui.js");
+  if (typeof getHeroes !== "function")          missing.push("heroes.js");
+  if (typeof kbAnswer !== "function")           missing.push("knowledge.js");
+  if (typeof Achievements === "undefined")      missing.push("achievements.js");
+  if (typeof History === "undefined")           missing.push("history.js");
+  if (typeof Diary === "undefined")             missing.push("diary.js");
+  if (typeof renderChat !== "function")         missing.push("assistant.js");
+  if (typeof renderGames !== "function")        missing.push("games.js");
+  if (typeof Charts === "undefined")            missing.push("charts.js");
+  if (typeof Daily === "undefined")             missing.push("daily.js");
+  if (typeof Exporter === "undefined")          missing.push("export.js");
+  if (typeof renderAnalyze !== "function")      missing.push("analyze.js");
+  if (typeof switchPage !== "function")         missing.push("app.js");
+  if (missing.length) {
+    console.error("⚠️ DOTA JETCH — не загрузились скрипты:", missing.join(", "));
+    console.error("Проверь вкладку Network (F12), что эти файлы отдаются с кодом 200.");
+  } else {
+    console.log("✓ DOTA JETCH — все 15 скриптов загружены");
+  }
+});
+</script>
 </body>
 </html>
