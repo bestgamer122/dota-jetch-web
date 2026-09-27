@@ -1,28 +1,16 @@
-/* DOTA JETCH — Service Worker v3.3.3
-Сброс старого кэша при обновлении версии. */
+/* DOTA JETCH — Service Worker v3.3.4
+Сбрасывает старый кэш при обновлении. */
 
-const CACHE_NAME = "dotajetch-v3.3.3";
+const CACHE_NAME = "dotajetch-v3.3.4";
 
 const STATIC_ASSETS = [
-"./",
-"./index.html",
-"./manifest.json",
+"./", "./index.html", "./manifest.json",
 "./css/style.css",
-"./js/config.js",
-"./js/ui.js",
-"./js/heroes.js",
-"./js/knowledge.js",
-"./js/achievements.js",
-"./js/history.js",
-"./js/diary.js",
-"./js/assistant.js",
-"./js/games.js",
-"./js/charts.js",
-"./js/daily.js",
-"./js/export.js",
-"./js/analyze.js",
-"./js/app.js",
-"./js/visual.js",
+"./js/config.js", "./js/fallback.js", "./js/ui.js", "./js/heroes.js",
+"./js/knowledge.js", "./js/achievements.js", "./js/history.js",
+"./js/diary.js", "./js/assistant.js", "./js/games.js",
+"./js/charts.js", "./js/daily.js", "./js/export.js",
+"./js/analyze.js", "./js/app.js", "./js/visual.js",
 ];
 
 self.addEventListener("install", function (e) {
@@ -50,19 +38,10 @@ keys.filter(function (k) { return k !== CACHE_NAME; })
 self.addEventListener("fetch", function (e) {
 const req = e.request;
 if (req.method !== "GET") return;
-
 const url = new URL(req.url);
-
-/* API — только сеть, никогда не кэшируем */
 if (url.hostname === "api.opendota.com") return;
-
-/* Картинки Steam CDN — только сеть */
 if (/steamstatic|akamaihd|weserv|wsrv/.test(url.hostname)) return;
-
-/* Google fonts — только сеть (иначе offline-версия может криво показать) */
 if (/fonts.(googleapis|gstatic).com/.test(url.hostname)) return;
-
-/* Всё остальное — stale-while-revalidate */
 e.respondWith(
 caches.match(req).then(function (cached) {
 const fetchPromise = fetch(req).then(function (res) {
@@ -72,7 +51,6 @@ caches.open(CACHE_NAME).then(function (c) { c.put(req, clone); });
 }
 return res;
 }).catch(function () { return cached; });
-
 return cached || fetchPromise;
 })
 );
