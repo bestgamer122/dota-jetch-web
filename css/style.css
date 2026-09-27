@@ -3,8 +3,6 @@
    Glass · Aurora · Modern · Motion
    ═══════════════════════════════════════════════════════════════════ */
 
-@property --angle { syntax: '<angle>'; initial-value: 0deg; inherits: false; }
-
 /* ─── RESET ─── */
 *, *::before, *::after { box-sizing: border-box; }
 * { -webkit-tap-highlight-color: transparent; }
@@ -32,6 +30,13 @@ html, body {
   --glass-border-hi: rgba(255, 255, 255, 0.14);
   --glass-bg: rgba(20, 22, 32, 0.55);
   --glass-bg-hi: rgba(28, 30, 42, 0.72);
+}
+
+/* Focus-visible для доступности */
+:focus-visible {
+  outline: 2px solid var(--accent, #8b5cf6);
+  outline-offset: 2px;
+  border-radius: 8px;
 }
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -178,7 +183,6 @@ body.cursor-ready .cursor-ring { opacity: 1; }
   position: relative;
 }
 
-/* ─── TITLEBAR ─── */
 .titlebar {
   height: 42px;
   display: flex;
@@ -231,7 +235,6 @@ body.cursor-ready .cursor-ring { opacity: 1; }
   50%      { transform: scale(1.3); opacity: 0.7; }
 }
 
-/* ─── BODY ─── */
 .body {
   display: flex;
   flex: 1;
@@ -391,7 +394,6 @@ body.cursor-ready .cursor-ring { opacity: 1; }
 .nav-btn.active::after  { opacity: 1; }
 .nav-btn.active .nav-ico { color: #a78bfa; opacity: 1; filter: drop-shadow(0 0 8px rgba(167, 139, 250, 0.7)); }
 
-/* ─── PLAN BLOCK ─── */
 .sidebar-plan {
   position: relative;
   margin: 10px 12px 14px;
@@ -586,7 +588,6 @@ body.cursor-ready .cursor-ring { opacity: 1; }
   box-shadow: 0 0 10px rgba(167, 139, 250, 0.7);
 }
 
-/* Reveal animation */
 .card.reveal, .stat-card.reveal, .hero-banner.reveal {
   opacity: 0;
   transform: translateY(18px);
@@ -720,7 +721,6 @@ select.input { cursor: pointer; }
     inset 0 1px 0 rgba(255, 255, 255, 0.28);
 }
 
-/* Ripple */
 .btn .ripple {
   position: absolute;
   border-radius: 50%;
