@@ -1,4 +1,4 @@
-/* DOTA JETCH — МИНИ-ИГРЫ */
+/* DOTA JETCH — МИНИ-ИГРЫ (фикс alt) */
 
 const QUIZ_QUESTIONS = [
   { q: "Какая способность у Juggernaut даёт неуязвимость во время атаки?", a: "Omnislash", opts: ["Omnislash", "Blade Fury", "Blade Dance", "Healing Ward"] },
@@ -247,36 +247,46 @@ async function renderGuessGame() {
     }
     const shuffledOpts = shuffle(opts);
 
-    // Карточка с героем (большая картинка + название скрыто)
-    const heroCard = el("div", { style: "margin:14px auto;max-width:320px;" });
-    const bigWrap = el("div", { style: "position:relative;width:100%;aspect-ratio:16/9;border-radius:14px;overflow:hidden;border:1px solid var(--border-hl);background:var(--bg-elev);" });
+    // Большая карточка с героем. Без alt, чтобы не показывать название.
+    const heroCard = el("div", { style: "margin:14px auto;max-width:340px;" });
+    const bigWrap = el("div", {
+      style: "position:relative;width:100%;aspect-ratio:16/9;border-radius:14px;overflow:hidden;border:1px solid var(--border-hl);background:linear-gradient(135deg,rgba(139,92,246,0.18),var(--bg-elev));"
+    });
 
     const letter = target.name.slice(0, 2).toUpperCase();
     const fb = el("div", {
-      style: "position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:48px;font-weight:800;color:rgba(255,255,255,0.25);font-family:'JetBrains Mono',monospace;z-index:0;"
+      style: "position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:48px;font-weight:800;color:rgba(255,255,255,0.22);font-family:'JetBrains Mono',monospace;letter-spacing:0.05em;z-index:0;"
     }, letter);
     bigWrap.appendChild(fb);
 
     const path = target.imgPath || target.img || "";
     const urls = cdnUrlVariants(path);
     if (urls.length) {
+      const img = document.createElement("img");
+      img.alt = "";                            // НЕ показывать текст при ошибке
+      img.title = "";                          // и тултип тоже
+      img.loading = "lazy";
+      img.decoding = "async";
+      img.referrerPolicy = "no-referrer";
+      img.style.cssText = "position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:1;display:block;";
       let idx = 0;
-      const img = el("img", {
-        src: urls[0],
-        alt: target.name,
-        loading: "lazy",
-        referrerpolicy: "no-referrer",
-        style: "position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:1;display:block;",
-      });
+      img.src = urls[0];
+      let dead = false;
       function next() {
+        if (dead) return;
         idx++;
         if (idx < urls.length) img.src = urls[idx];
-        else img.style.display = "none";
+        else {
+          dead = true;
+          img.style.visibility = "hidden";
+          img.removeAttribute("src");
+        }
       }
       img.addEventListener("error", next);
       img.addEventListener("load", function () { if (img.naturalWidth === 0) next(); });
       bigWrap.appendChild(img);
     }
+
     heroCard.appendChild(bigWrap);
     content.appendChild(heroCard);
 

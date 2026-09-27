@@ -1,15 +1,68 @@
-/* DOTA JETCH — ИИ-АССИСТЕНТ */
+/* DOTA JETCH — ИИ-АССИСТЕНТ (с лимитом FREE) */
 
 let chatHistory = [];
+
+const AI_FREE_LIMIT = 5;         // FREE: 5 вопросов в день
+const AI_PLUS_LIMIT = 15;        // JETCH+: 15 в день
+
+function _todayKey() {
+  const d = new Date();
+  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+}
+
+function aiQuota() {
+  const today = _todayKey();
+  let q = Store.get("ai_quota", { date: "", count: 0 });
+  if (!q || typeof q !== "object" || q.date !== today) {
+    q = { date: today, count: 0 };
+    Store.set("ai_quota", q);
+  }
+  return q;
+}
+
+function aiQuotaInc() {
+  const q = aiQuota();
+  q.count++;
+  Store.set("ai_quota", q);
+  return q;
+}
+
+function aiQuotaRemaining() {
+  const plus = Store.get("license_active", false);
+  const limit = plus ? AI_PLUS_LIMIT : AI_FREE_LIMIT;
+  const q = aiQuota();
+  return Math.max(0, limit - q.count);
+}
+
+function aiQuotaLimit() {
+  return Store.get("license_active", false) ? AI_PLUS_LIMIT : AI_FREE_LIMIT;
+}
 
 function renderChat() {
   const frag = document.createDocumentFragment();
 
-  const head = UI.card("ИИ-ассистент · Локальная база знаний");
+  const head = UI.card("✦  ИИ-ассистент · Локальная база знаний");
   head.appendChild(el("div", { class: "dim", style: "font-size:12px;line-height:1.6;" },
     "Знаю про героев, предметы и механики. Спроси по-русски или по-английски."
   ));
-  const examples = el("div", { class: "row", style: "flex-wrap:wrap;margin-top:10px;" });
+
+  // Счётчик квоты
+  const quotaRow = el("div", { class: "row", style: "margin-top:12px;justify-content:space-between;flex-wrap:wrap;gap:8px;" });
+  const quotaText = el("div", { id: "aiQuotaText", style: "font-size:12px;font-weight:600;" });
+  const plus = Store.get("license_active", false);
+  const remaining = aiQuotaRemaining();
+  const limit = aiQuotaLimit();
+  if (plus) {
+    quotaText.style.color = "var(--gold)";
+    quotaText.textContent = "JETCH+ · осталось " + remaining + " / " + limit;
+  } else {
+    quotaText.style.color = remaining > 0 ? "var(--text-muted)" : "var(--red)";
+    quotaText.textContent = "FREE · осталось " + remaining + " / " + limit;
+  }
+  quotaRow.appendChild(quotaText);
+  head.appendChild(quotaRow);
+
+  const examples = el("div", { class: "row", style: "flex-wrap:wrap;margin-top:12px;" });
   for (const q of ["как играть на пудже", "что делает BKB", "предметы на АМ", "как стакать лес"]) {
     const chip = el("button", {
       class: "nav-btn",
@@ -39,9 +92,30 @@ function renderChat() {
   });
   const btn = UI.btn("Отправить", { id: "chatSendBtn" });
   btn.addEventListener("click", onChatSend);
+
+  if (remaining <= 0) {
+    inp.disabled = true;
+    btn.disabled = true;
+    inp.placeholder = "Лимит исчерпан — активируй JETCH+ в настройках";
+  }
+
   row.appendChild(inp);
   row.appendChild(btn);
   inputCard.appendChild(row);
+
+  // Если FREE и лимит исчерпан — показать подсказку с кнопкой
+  if (!plus && remaining <= 0) {
+    const hint = el("div", { class: "row", style: "margin-top:10px;justify-content:space-between;flex-wrap:wrap;gap:8px;" });
+    hint.appendChild(el("div", { class: "dim", style: "font-size:11px;flex:1;min-width:200px;line-height:1.5;" },
+      "Бесплатный лимит — " + AI_FREE_LIMIT + " вопросов в день. Активируй JETCH+ (в настройках) и получишь " + AI_PLUS_LIMIT + " вопросов."));
+    const upBtn = UI.btn("Активировать JETCH+", { variant: "ghost" });
+    upBtn.addEventListener("click", function () {
+      switchPage("settings");
+    });
+    hint.appendChild(upBtn);
+    inputCard.appendChild(hint);
+  }
+
   frag.appendChild(inputCard);
 
   setTimeout(() => {
@@ -58,6 +132,21 @@ function renderChat() {
   }, 0);
 
   return frag;
+}
+
+function _updateQuotaText() {
+  const elQ = qs("#aiQuotaText");
+  if (!elQ) return;
+  const plus = Store.get("license_active", false);
+  const remaining = aiQuotaRemaining();
+  const limit = aiQuotaLimit();
+  if (plus) {
+    elQ.style.color = "var(--gold)";
+    elQ.textContent = "JETCH+ · осталось " + remaining + " / " + limit;
+  } else {
+    elQ.style.color = remaining > 0 ? "var(--text-muted)" : "var(--red)";
+    elQ.textContent = "FREE · осталось " + remaining + " / " + limit;
+  }
 }
 
 function addChatMessage(log, role, text, scroll) {
@@ -85,11 +174,27 @@ async function onChatSend() {
   if (!inp || !log) return;
   const q = (inp.value || "").trim();
   if (!q) return;
+
+  // Проверка квоты
+  const plus = Store.get("license_active", false);
+  const remaining = aiQuotaRemaining();
+  if (remaining <= 0) {
+    addChatMessage(log, "assistant",
+      "🚫 Лимит исчерпан на сегодня.\n\n" +
+      (plus
+        ? "JETCH+ даёт " + AI_PLUS_LIMIT + " вопросов в день. Лимит обнулится завтра."
+        : "FREE-версия даёт " + AI_FREE_LIMIT + " вопросов в день. Активируй JETCH+ в настройках — получишь " + AI_PLUS_LIMIT + " вопросов.")
+    );
+    return;
+  }
+
   inp.value = "";
   addChatMessage(log, "user", q);
   chatHistory.push({ role: "user", text: q });
 
+  aiQuotaInc();
   Store.set("ai_questions", (Store.get("ai_questions", 0) || 0) + 1);
+  _updateQuotaText();
   if (typeof Achievements !== "undefined") Achievements.check();
 
   btn.disabled = true;
@@ -116,6 +221,13 @@ async function onChatSend() {
 
   if (chatHistory.length > 100) chatHistory = chatHistory.slice(-100);
   Store.set("chat_history", chatHistory);
+
+  // Если квота только что кончилась — перезагружаем страницу чата
+  if (aiQuotaRemaining() <= 0 && !plus) {
+    // отложенно, чтобы пользователь увидел ответ
+    setTimeout(function () { switchPage("chat"); }, 900);
+    return;
+  }
 
   btn.disabled = false;
   btn.textContent = "Отправить";

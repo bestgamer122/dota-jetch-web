@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════════════
-   DOTA JETCH — АНАЛИЗ МАТЧА (v3)
+   DOTA JETCH — АНАЛИЗ МАТЧА (v4, фикс бесконечного цикла)
    ═══════════════════════════════════════════════════════════════════ */
 
 const RANK_NAMES = {0:"Uncalibrated",1:"Herald",2:"Guardian",3:"Crusader",4:"Archon",
@@ -12,7 +12,7 @@ const LOBBY_NAMES = {0:"Normal",1:"Practice",2:"Tournament",5:"Team",6:"Solo",7:
 const REGION_NAMES = {1:"US West",2:"US East",3:"Europe West",5:"Singapore",6:"Dubai",
                       7:"Australia",8:"Stockholm",9:"Austria",10:"Brazil",11:"South Africa",
                       12:"China",13:"China",14:"Chile",15:"Peru",16:"India",17:"Europe East",
-                      18:"Europe",19:"US East",20:"US West",21:"Korea",22:"Japan",25:"China",37:"China"};
+                      18:"Europe",19:"US East",20:"US West",21:"Korea",22:"Japan"};
 const POSITION_NAMES = {1:"Pos 1 · Керри",2:"Pos 2 · Мид",3:"Pos 3 · Оффлейн",
                         4:"Pos 4 · Роум",5:"Pos 5 · Саппорт"};
 const POSITION_COLORS = {1:"#fbbf24",2:"#d946ef",3:"#ef4444",4:"#60a5fa",5:"#4ade80"};
@@ -30,7 +30,7 @@ async function fetchWithRetry(path, params, retries = 2) {
     }
 }
 
-function detectPosition(player, match) {
+function detectPosition(player) {
     const lane = player.lane_role;
     if (lane === 2) return 2;
     if (lane === 1) return 1;
@@ -70,7 +70,7 @@ async function runAnalysis(matchId, heroName) {
 
     return {
         match, player, hero, bench, items, heroes, won, durMin,
-        position: detectPosition(player, match),
+        position: detectPosition(player),
         rankTier: player.rank_tier || null,
     };
 }
@@ -225,7 +225,7 @@ function buildHeader(r) {
 function buildMatchInfoCard(r) {
     const m = r.match;
     const card = UI.card("ℹ️ Информация о матче");
-    const grid = el("div", { style: "display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;" });
+    const grid = el("div", { style: "display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:14px;" });
 
     function info(label, value) {
         const w = el("div");
@@ -247,13 +247,12 @@ function buildMatchInfoCard(r) {
     if (m.game_mode) grid.appendChild(info("Режим", MODE_NAMES[m.game_mode] || ("#" + m.game_mode)));
     if (m.lobby_type !== undefined) grid.appendChild(info("Лобби", LOBBY_NAMES[m.lobby_type] || ("#" + m.lobby_type)));
     if (m.radiant_win !== undefined) grid.appendChild(info("Победитель", m.radiant_win ? "Radiant" : "Dire"));
-    if (m.version) grid.appendChild(info("Версия парса", m.version ? "да" : "нет"));
 
     card.appendChild(grid);
     return card;
 }
 
-/* ─── ИНВЕНТАРЬ ─── */
+/* ─── ИНВЕНТАРЬ (ФИКС: убран бесконечный цикл) ─── */
 function buildInventoryCard(r) {
     const p = r.player;
     const items = r.items || {};
@@ -276,15 +275,11 @@ function buildInventoryCard(r) {
     if (p.aghanims_scepter) extras.appendChild(UI.badge("Aghanim's Scepter", "var(--gold)", "var(--gold-bg)"));
     if (p.aghanims_shard) extras.appendChild(UI.badge("Aghanim's Shard", "var(--gold)", "var(--gold-bg)"));
     if (p.item_neutral && items[p.item_neutral]) {
-        const n = el("div", { style: "display:flex;align-items:center;gap:6px;" });
-        const box = el("div", { style: "width:40px;height:40px;border-radius:8px;background:var(--bg-elev);border:1px solid var(--border);overflow:hidden;" });
-        box.appendChild(itemImgEl(items[p.item_neutral]));
-        // вставляем img внутрь box
-        while (box.firstChild) box.replaceChild(box.firstChild, box.firstChild);
-        // проще — просто создаём box через itemImgEl:
-        n.innerHTML = "";
+        const n = el("div", { style: "display:flex;align-items:center;gap:8px;" });
         const ni = itemImgEl(items[p.item_neutral]);
         ni.style.width = "40px";
+        ni.style.maxWidth = "40px";
+        ni.style.flexShrink = "0";
         n.appendChild(ni);
         n.appendChild(el("span", { class: "dim", style: "font-size:11px;" }, "Нейтральный: " + items[p.item_neutral].name));
         extras.appendChild(n);
@@ -296,16 +291,17 @@ function buildInventoryCard(r) {
 /* ─── МЕТРИКИ ─── */
 function buildMetricsCard(r) {
     const card = UI.card("📊 Статистика");
+    const p = r.player;
     const metrics = [
-        { icon: "💰", color: "var(--gold)", label: "GPM", value: Math.round(r.player.gold_per_min || 0) },
-        { icon: "⚡", color: "var(--cyan)", label: "XPM", value: Math.round(r.player.xp_per_min || 0) },
-        { icon: "🎯", color: "var(--green)", label: "Ластхиты", value: r.player.last_hits || 0 },
-        { icon: "🌾", color: "var(--accent-light)", label: "Денаи", value: r.player.denies || 0 },
-        { icon: "⚔️", color: "var(--red)", label: "Урон героям", value: Math.round(r.player.hero_damage || 0).toLocaleString() },
-        { icon: "🏰", color: "var(--orange)", label: "Урон строениям", value: Math.round(r.player.tower_damage || 0).toLocaleString() },
-        { icon: "❤️", color: "var(--green)", label: "Хил", value: Math.round(r.player.hero_healing || 0).toLocaleString() },
-        { icon: "💎", color: "var(--yellow)", label: "Нетфорс", value: Math.round(r.player.net_worth || 0).toLocaleString() },
-        { icon: "💀", color: "var(--red)", label: "Смертей/мин", value: (r.player.deaths / Math.max(r.durMin, 1)).toFixed(2) },
+        { icon: "💰", color: "var(--gold)", label: "GPM", value: Math.round(p.gold_per_min || 0) },
+        { icon: "⚡", color: "var(--cyan)", label: "XPM", value: Math.round(p.xp_per_min || 0) },
+        { icon: "🎯", color: "var(--green)", label: "Ластхиты", value: p.last_hits || 0 },
+        { icon: "🌾", color: "var(--accent-light)", label: "Денаи", value: p.denies || 0 },
+        { icon: "⚔️", color: "var(--red)", label: "Урон героям", value: Math.round(p.hero_damage || 0).toLocaleString() },
+        { icon: "🏰", color: "var(--orange)", label: "Урон строениям", value: Math.round(p.tower_damage || 0).toLocaleString() },
+        { icon: "❤️", color: "var(--green)", label: "Хил", value: Math.round(p.hero_healing || 0).toLocaleString() },
+        { icon: "💎", color: "var(--yellow)", label: "Нетфорс", value: Math.round(p.net_worth || 0).toLocaleString() },
+        { icon: "💀", color: "var(--red)", label: "Смертей/мин", value: (p.deaths / Math.max(r.durMin, 1)).toFixed(2) },
         { icon: "🎬", color: "var(--accent-light)", label: "Длительность", value: r.durMin.toFixed(0) + " мин" },
     ];
     const grid = el("div", { style: "display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;" });
@@ -433,8 +429,7 @@ function buildDeathsCard(r) {
     card.appendChild(el("div", {
         class: "dim",
         style: "font-size:11px;margin-top:10px;line-height:1.5;"
-    }, "Позиции и тайминги смертей доступны только для полностью распарсенных матчей. " +
-       "Открой матч на OpenDota и нажми «Request Parse» — после разбора появятся данные."));
+    }, "Позиции и тайминги смертей доступны только для полностью распарсенных матчей."));
     return card;
 }
 

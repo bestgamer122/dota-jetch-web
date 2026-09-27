@@ -1,21 +1,23 @@
 /* ═══════════════════════════════════════════════════════════════════
-   DOTA JETCH — HEROES + ITEMS (multi-CDN fallback)
-   Решает проблему блокировки Steam CDN в некоторых регионах.
+   DOTA JETCH — HEROES + ITEMS (multi-CDN fallback v2)
    ═══════════════════════════════════════════════════════════════════ */
 
-const HEROES_CACHE_VERSION = 4;
+const HEROES_CACHE_VERSION = 5;
 const HEROES_CACHE_KEY = 'heroes_cache_v' + HEROES_CACHE_VERSION;
-const ITEMS_CACHE_KEY = 'items_catalog_v2';
+const ITEMS_CACHE_KEY = 'items_catalog_v3';
 
-/* Основные CDN Steam (пробуем по очереди) */
+/* Зеркала Steam CDN + прокси. Перебираются по очереди. */
 const CDN_MIRRORS = [
     "https://cdn.cloudflare.steamstatic.com",
+    "https://cdn.fastly.steamstatic.com",
     "https://cdn.akamai.steamstatic.com",
     "https://steamcdn-a.akamaihd.net",
 ];
 
-/* Прокси weserv.nl — спасает, если CDN заблокирован провайдером */
-const WESERV = "https://images.weserv.nl/?url=";
+const IMAGE_PROXIES = [
+    function (raw) { return "https://wsrv.nl/?url=" + encodeURIComponent(raw) + "&n=-1"; },
+    function (raw) { return "https://images.weserv.nl/?url=" + encodeURIComponent(raw); },
+];
 
 function normalizeCdnPath(path) {
     if (!path) return "";
@@ -33,31 +35,35 @@ function cdnUrlVariants(path) {
     if (/^https?:\/\//i.test(p)) return [p];
     const urls = [];
     for (const base of CDN_MIRRORS) urls.push(base + p);
-    urls.push(WESERV + encodeURIComponent("cdn.cloudflare.steamstatic.com" + p));
+    // прокси: используем "сырой" путь с CDN cloudflare
+    const raw = "cdn.cloudflare.steamstatic.com" + p;
+    for (const fn of IMAGE_PROXIES) urls.push(fn(raw));
     return urls;
 }
 
 /* ─── Универсальный img с авто-перебором источников ─── */
-function makeSmartImg(urls, alt, fallbackText, style) {
+function makeSmartImg(urls, alt, style) {
     if (!urls || !urls.length) return null;
     let idx = 0;
     const img = document.createElement("img");
-    img.alt = alt || "";
+    img.alt = "";                       // НЕ показываем alt при ошибке
     img.loading = "lazy";
+    img.decoding = "async";
     img.referrerPolicy = "no-referrer";
+    if (alt) img.title = alt;
     img.style.cssText = style || "width:100%;height:100%;object-fit:cover;display:block;";
     img.src = urls[0];
 
+    let dead = false;
     function next() {
+        if (dead) return;
         idx++;
         if (idx < urls.length) {
             img.src = urls[idx];
         } else {
-            img.style.display = "none";
-            if (fallbackText && img.parentNode) {
-                const fb = img.parentNode.querySelector(".smart-fallback");
-                if (fb) fb.style.opacity = "1";
-            }
+            dead = true;
+            img.style.visibility = "hidden";
+            img.removeAttribute("src");
         }
     }
     img.addEventListener("error", next);
@@ -67,7 +73,7 @@ function makeSmartImg(urls, alt, fallbackText, style) {
     return img;
 }
 
-/* ─── Hero image: фиксированного размера, круглые углы ─── */
+/* ─── Hero image: фиксированного размера, с fallback-буквами ─── */
 function heroImgEl(hero, size, extraStyle) {
     size = size || 64;
     const r = Math.max(8, Math.round(size * 0.14));
@@ -83,21 +89,20 @@ function heroImgEl(hero, size, extraStyle) {
         "display:flex;align-items:center;justify-content:center;" +
         (extraStyle || "");
 
-    // Фоллбэк-буквы ПОД картинкой
     const letter = hero ? ((hero.name || "?").slice(0, 2).toUpperCase()) : "?";
     const fb = document.createElement("div");
     fb.className = "smart-fallback";
     fb.style.cssText =
         "position:absolute;inset:0;display:flex;align-items:center;justify-content:center;" +
         "font-size:" + Math.round(size * 0.38) + "px;font-weight:800;" +
-        "color:rgba(255,255,255,0.45);font-family:'JetBrains Mono',monospace;" +
-        "letter-spacing:0.06em;pointer-events:none;user-select:none;opacity:1;z-index:0;";
+        "color:rgba(255,255,255,0.55);font-family:'JetBrains Mono',monospace;" +
+        "letter-spacing:0.06em;pointer-events:none;user-select:none;z-index:0;";
     fb.textContent = letter;
     wrap.appendChild(fb);
 
     const path = (hero && (hero.imgPath || hero.img)) || "";
     const urls = cdnUrlVariants(path);
-    const img = makeSmartImg(urls, hero ? hero.name : "", letter,
+    const img = makeSmartImg(urls, hero ? hero.name : "",
         "position:relative;z-index:1;width:100%;height:100%;object-fit:cover;display:block;");
     if (img) wrap.appendChild(img);
     return wrap;
@@ -112,15 +117,14 @@ function itemImgEl(item) {
         "display:flex;align-items:center;justify-content:center;";
 
     if (!item || !item.imgPath) return wrap;
-
     const urls = cdnUrlVariants(item.imgPath);
-    const img = makeSmartImg(urls, item.name || "", null,
+    const img = makeSmartImg(urls, item.name || "",
         "width:100%;height:100%;object-fit:contain;display:block;padding:4px;");
     if (img) wrap.appendChild(img);
     return wrap;
 }
 
-/* ─── Hero tile (для состава команд): заполняет родителя ─── */
+/* ─── Hero tile (для состава команд) ─── */
 function heroTileEl(hero, opts) {
     opts = opts || {};
     const wrap = document.createElement("div");
@@ -134,14 +138,14 @@ function heroTileEl(hero, opts) {
     fb.className = "smart-fallback";
     fb.style.cssText =
         "position:absolute;inset:0;display:flex;align-items:center;justify-content:center;" +
-        "font-size:14px;font-weight:800;color:rgba(255,255,255,0.4);" +
+        "font-size:16px;font-weight:800;color:rgba(255,255,255,0.45);" +
         "font-family:'JetBrains Mono',monospace;pointer-events:none;z-index:0;";
     fb.textContent = letter;
     wrap.appendChild(fb);
 
     const path = (hero && (hero.imgPath || hero.img)) || "";
     const urls = cdnUrlVariants(path);
-    const img = makeSmartImg(urls, hero ? hero.name : "", letter,
+    const img = makeSmartImg(urls, hero ? hero.name : "",
         "position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:1;");
     if (img) wrap.appendChild(img);
 
