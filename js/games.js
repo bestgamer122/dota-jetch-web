@@ -76,13 +76,26 @@ function renderGames() {
   return frag;
 }
 
-function openGame(kind) {
+/* ИСПРАВЛЕНО: openGame теперь async, чтобы корректно ждать renderGuessGame */
+async function openGame(kind) {
   const area = qs("#gameArea");
   if (!area) return;
   area.innerHTML = "";
-  if (kind === "reaction") area.appendChild(renderReactionGame());
-  else if (kind === "quiz") area.appendChild(renderQuizGame());
-  else if (kind === "guess") area.appendChild(renderGuessGame());
+  if (kind === "reaction") {
+    area.appendChild(renderReactionGame());
+  } else if (kind === "quiz") {
+    area.appendChild(renderQuizGame());
+  } else if (kind === "guess") {
+    // Сначала показываем карточку с индикатором загрузки
+    const loading = UI.card("Угадай героя");
+    loading.appendChild(el("div", { class: "dim", style: "text-align:center;padding:30px;" }, "Загружаю героев из OpenDota..."));
+    area.appendChild(loading);
+    const game = await renderGuessGame();
+    if (game) {
+      area.innerHTML = "";
+      area.appendChild(game);
+    }
+  }
   area.scrollIntoView({ behavior: "smooth", block: "start" });
   Store.set("games_played", (Store.get("games_played", 0) || 0) + 1);
   if (typeof Achievements !== "undefined") Achievements.check();
@@ -156,7 +169,7 @@ function renderQuizGame() {
     content.innerHTML = "";
     if (idx >= bank.length) {
       content.appendChild(el("div", { style: "text-align:center;padding:20px;" },
-        el("div", { style: "font-size:42px;" }, score >= 8 ? "WIN" : score >= 5 ? "OK" : "MEH"),
+        el("div", { style: "font-size:42px;" }, score >= 8 ? "🏆" : score >= 5 ? "👍" : "😐"),
         el("div", { style: "font-size:22px;font-weight:bold;margin-top:8px;color:var(--text);" }, score + " / " + bank.length),
         el("div", { class: "dim", style: "font-size:12px;margin-top:6px;" }, score >= 8 ? "Отличный результат!" : score >= 5 ? "Неплохо, но можно лучше." : "Стоит повторить матчасть.")
       ));
@@ -165,9 +178,7 @@ function renderQuizGame() {
       if (typeof Achievements !== "undefined") Achievements.check();
       const again = UI.btn("Ещё раз");
       again.addEventListener("click", function() {
-        const area = qs("#gameArea");
-        area.innerHTML = "";
-        area.appendChild(renderQuizGame());
+        openGame("quiz");
       });
       content.appendChild(el("div", { style: "text-align:center;" }, again));
       return;
@@ -182,7 +193,7 @@ function renderQuizGame() {
     const opts = shuffle(q.opts);
     for (const o of opts) {
       const b = el("button", {
-        style: "display:block;width:100%;text-align:left;padding:12px 14px;margin-bottom:8px;background:var(--bg-elev);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:13px;cursor:pointer;font-family:inherit;"
+        style: "display:block;width:100%;text-align:left;padding:12px 14px;margin-bottom:8px;background:var(--bg-elev);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:13px;cursor:pointer;font-family:inherit;transition:all 0.15s ease;"
       }, o);
       b.addEventListener("click", function() {
         const correct = o === q.a;
@@ -208,7 +219,6 @@ async function renderGuessGame() {
     "Выбери правильное имя для показанной иконки."));
 
   const content = el("div", { style: "text-align:center;" });
-  content.appendChild(el("div", { class: "dim", style: "padding:20px;" }, "Загружаю героев..."));
   card.appendChild(content);
 
   let streak = 0;
@@ -218,12 +228,10 @@ async function renderGuessGame() {
   try {
     heroes = await getHeroes();
   } catch (e) {
-    content.innerHTML = "";
     content.appendChild(el("div", { class: "dim", style: "padding:20px;color:var(--red);" }, "Не удалось загрузить героев: " + (e.message || e)));
     return card;
   }
   if (!heroes.length) {
-    content.innerHTML = "";
     content.appendChild(el("div", { class: "dim", style: "padding:20px;color:var(--red);" }, "OpenDota не отдал список героев."));
     return card;
   }
@@ -235,7 +243,9 @@ async function renderGuessGame() {
 
     const target = heroes[Math.floor(Math.random() * heroes.length)];
     const opts = [target];
-    while (opts.length < 4) {
+    let tries = 0;
+    while (opts.length < 4 && tries < 50) {
+      tries++;
       const h = heroes[Math.floor(Math.random() * heroes.length)];
       let dup = false;
       for (const o of opts) if (o.id === h.id) dup = true;
@@ -243,15 +253,19 @@ async function renderGuessGame() {
     }
     const shuffledOpts = shuffle(opts);
 
+    const imgWrap = el("div", { style: "margin:14px auto;width:220px;" });
     const img = el("img", {
       src: target.img,
-      style: "width:220px;height:124px;border-radius:12px;border:1px solid var(--border-hl);margin:14px auto;display:block;"
+      alt: target.name,
+      style: "width:220px;height:124px;border-radius:12px;border:1px solid var(--border-hl);display:block;background:var(--bg-elev);",
+      onerror: function(e) { e.target.style.opacity = 0.3; }
     });
-    content.appendChild(img);
+    imgWrap.appendChild(img);
+    content.appendChild(imgWrap);
 
     for (const h of shuffledOpts) {
       const b = el("button", {
-        style: "display:block;width:100%;text-align:left;padding:12px 14px;margin-bottom:8px;background:var(--bg-elev);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:13px;cursor:pointer;font-family:inherit;"
+        style: "display:block;width:100%;text-align:left;padding:12px 14px;margin-bottom:8px;background:var(--bg-elev);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:13px;cursor:pointer;font-family:inherit;transition:all 0.15s ease;"
       }, h.name);
       b.addEventListener("click", function() {
         const correct = h.id === target.id;

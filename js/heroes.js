@@ -1,10 +1,28 @@
 /* ═══════════════════════════════════════════════════════════════════
-   DOTA JETCH — HEROES
-   Алиасы + кэш героев из OpenDota + поиск по имени.
+   DOTA JETCH — HEROES + ITEMS CATALOG
+   Алиасы + кэш героев + каталог предметов + fixCdnUrl.
    ═══════════════════════════════════════════════════════════════════ */
 
-const HEROES_CACHE_VERSION = 2;
+const HEROES_CACHE_VERSION = 3;
 const HEROES_CACHE_KEY = 'heroes_cache_v' + HEROES_CACHE_VERSION;
+const ITEMS_CACHE_KEY = 'items_catalog_v1';
+const CDN_BASE = "https://cdn.cloudflare.steamstatic.com";
+
+/* ─── Фикс URL картинок с OpenDota (trailing "?" ломает CDN) ─── */
+function fixCdnUrl(path) {
+    if (!path) return "";
+    let p = String(path);
+    if (p.startsWith("http://") || p.startsWith("https://")) {
+        // убираем query у абсолютных ссылок тоже
+        const q = p.indexOf("?");
+        if (q >= 0) p = p.slice(0, q);
+        return p;
+    }
+    const q = p.indexOf("?");
+    if (q >= 0) p = p.slice(0, q);
+    if (!p.startsWith("/")) p = "/" + p;
+    return CDN_BASE + p;
+}
 
 const HERO_ALIASES = {
     "жугер":"Juggernaut","жуггернаут":"Juggernaut","джагернаут":"Juggernaut",
@@ -66,8 +84,8 @@ async function getHeroes() {
             const heroes = data.map(h => ({
                 id: h.id,
                 name: h.localized_name,
-                img: "https://cdn.cloudflare.steamstatic.com" + (h.img || ""),
-                icon: "https://cdn.cloudflare.steamstatic.com" + (h.icon || ""),
+                img: fixCdnUrl(h.img),
+                icon: fixCdnUrl(h.icon),
             }));
             _heroCache = heroes;
             Store.set(HEROES_CACHE_KEY, heroes);
@@ -79,6 +97,46 @@ async function getHeroes() {
         }
     })();
     return _heroLoading;
+}
+
+/* ─── КАТАЛОГ ПРЕДМЕТОВ ─── */
+let _itemCatalog = null;
+let _itemLoading = null;
+
+async function getItemCatalog() {
+    if (_itemCatalog) return _itemCatalog;
+    try {
+        const cached = Store.get(ITEMS_CACHE_KEY);
+        if (cached && typeof cached === "object" && Object.keys(cached).length > 100) {
+            _itemCatalog = cached;
+            return cached;
+        }
+    } catch (e) {}
+    if (_itemLoading) return _itemLoading;
+    _itemLoading = (async () => {
+        try {
+            const data = await apiGet("/constants/items");
+            const map = {};
+            if (data && typeof data === "object") {
+                for (const [key, val] of Object.entries(data)) {
+                    if (val && typeof val === "object" && val.id) {
+                        map[val.id] = {
+                            name: val.dname || key,
+                            img: fixCdnUrl(val.img || ""),
+                        };
+                    }
+                }
+            }
+            _itemCatalog = map;
+            Store.set(ITEMS_CACHE_KEY, map);
+            _itemLoading = null;
+            return map;
+        } catch (e) {
+            _itemLoading = null;
+            return {};
+        }
+    })();
+    return _itemLoading;
 }
 
 async function findHeroId(nameOrAlias) {
