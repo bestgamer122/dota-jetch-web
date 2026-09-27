@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DOTA JETCH · AI 2.0</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="app">
+  <header class="titlebar">
+    <span class="titlebar-icon">◆</span>
+    <span class="titlebar-title">DOTA JETCH · AI 2.0 · WEB</span>
+    <span class="titlebar-spacer"></span>
+    <span class="titlebar-status" id="statusLabel">Готов к работе</span>
+    <span class="status-dot" id="statusDot">●</span>
+  </header>
+
+  <div class="body">
+    <aside class="sidebar">
+      <div class="sidebar-logo">
+        <div class="sidebar-logo-title">DOTA JETCH</div>
+        <div class="sidebar-logo-sub">AI 2.0 · WEB</div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <button class="nav-btn active" data-page="dashboard"><span>◆</span>Главная</button>
+        <button class="nav-btn" data-page="analyze"><span>▶</span>Анализ матча</button>
+        <button class="nav-btn" data-page="chat"><span>✦</span>ИИ-ассистент</button>
+        <button class="nav-btn" data-page="history"><span>☰</span>История</button>
+        <button class="nav-btn" data-page="diary"><span>📔</span>Дневник</button>
+        <button class="nav-btn" data-page="games"><span>🎮</span>Мини-игры</button>
+        <button class="nav-btn" data-page="achievements"><span>🏆</span>Достижения</button>
+        <button class="nav-btn" data-page="settings"><span>⚙</span>Настройки</button>
+        <button class="nav-btn" data-page="about"><span>ⓘ</span>О программе</button>
+      </nav>
+
+      <div class="sidebar-plan">
+        <div class="plan-title" id="planTitle">FREE</div>
+        <div class="plan-info" id="planInfo">5 анализов/день · без ИИ</div>
+        <div class="plan-value" id="planValue">5 / 5</div>
+        <div class="plan-bar"><div class="plan-bar-fill" id="planBar" style="width:100%"></div></div>
+        <div class="plan-hint">Обновляется каждые 24ч</div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <div class="page-header">
+        <div class="page-title" id="pageTitle">Главная</div>
+      </div>
+      <div class="page-scroll">
+        <div id="pageContent" class="page-content"></div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<script src="js/config.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/heroes.js"></script>
+<script src="js/knowledge.js"></script>
+<script src="js/achievements.js"></script>
+<script src="js/history.js"></script>
+<script src="js/diary.js"></script>
+<script src="js/assistant.js"></script>
+<script src="js/games.js"></script>
+<script src="js/analyze.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
