@@ -1,3 +1,7 @@
+/* ═══════════════════════════════════════════════════════════════════
+   DOTA JETCH — STYLES
+   ═══════════════════════════════════════════════════════════════════ */
+
 * { box-sizing: border-box; }
 
 html, body {
@@ -14,11 +18,13 @@ html, body {
 
 body { transition: background 0.25s ease, color 0.25s ease; }
 
+/* ─── Scroll ─── */
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 5px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--border-hl); }
 
+/* ─── Layout ─── */
 .app {
   display: flex;
   flex-direction: column;
@@ -50,6 +56,7 @@ body { transition: background 0.25s ease, color 0.25s ease; }
   overflow: hidden;
 }
 
+/* ─── Sidebar ─── */
 .sidebar {
   width: 232px;
   background: var(--bg-card);
@@ -120,6 +127,7 @@ body { transition: background 0.25s ease, color 0.25s ease; }
   border-color: var(--accent);
 }
 
+/* ─── Sidebar plan block ─── */
 .sidebar-plan {
   margin: 10px;
   padding: 12px;
@@ -165,6 +173,7 @@ body { transition: background 0.25s ease, color 0.25s ease; }
   letter-spacing: 0.5px;
 }
 
+/* ─── Main ─── */
 .main {
   flex: 1;
   display: flex;
@@ -200,6 +209,7 @@ body { transition: background 0.25s ease, color 0.25s ease; }
   margin: 0 auto;
 }
 
+/* ─── Cards ─── */
 .card {
   background: var(--bg-card);
   border: 1px solid var(--border);
@@ -218,15 +228,18 @@ body { transition: background 0.25s ease, color 0.25s ease; }
   margin-bottom: 12px;
 }
 
+/* ─── Text helpers ─── */
 .muted { color: var(--text-muted); }
 .dim { color: var(--text-dim); }
 
+/* ─── Row ─── */
 .row {
   display: flex;
   align-items: center;
   gap: 10px;
 }
 
+/* ─── Form controls ─── */
 .input {
   width: 100%;
   padding: 10px 12px;
@@ -244,6 +257,7 @@ body { transition: background 0.25s ease, color 0.25s ease; }
 .input::placeholder { color: var(--text-dim); }
 select.input { cursor: pointer; }
 
+/* ─── Buttons ─── */
 .btn {
   display: inline-flex;
   align-items: center;
@@ -283,6 +297,7 @@ select.input { cursor: pointer; }
 }
 .btn-danger:hover { background: #dc2626; border-color: #dc2626; }
 
+/* ─── Badges ─── */
 .badge {
   display: inline-flex;
   align-items: center;
@@ -295,6 +310,7 @@ select.input { cursor: pointer; }
   white-space: nowrap;
 }
 
+/* ─── Hero banner ─── */
 .hero-banner {
   padding: 26px 28px;
   border-radius: 14px;
@@ -323,6 +339,7 @@ select.input { cursor: pointer; }
   flex-wrap: wrap;
 }
 
+/* ─── Stat grid ─── */
 .stat-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -353,8 +370,7 @@ select.input { cursor: pointer; }
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 12px;
-  font-weight: bold;
+  font-size: 16px;
   background: var(--bg-elev);
   color: var(--accent);
   flex-shrink: 0;
@@ -379,6 +395,7 @@ select.input { cursor: pointer; }
   letter-spacing: 0.5px;
 }
 
+/* ─── Dialog ─── */
 .dialog-overlay {
   position: fixed;
   inset: 0;
@@ -404,18 +421,25 @@ select.input { cursor: pointer; }
   to   { opacity: 1; }
 }
 
+/* ─── Responsive ─── */
 @media (max-width: 720px) {
-  .sidebar { width: 60px; }
+  .sidebar {
+    width: 60px;
+  }
   .sidebar-logo-title,
   .sidebar-logo-sub,
   .sidebar-plan,
-  .nav-btn:not(.active) > span + * { display: none; }
+  .nav-btn:not(.active) > span + * {
+    display: none;
+  }
   .nav-btn {
     justify-content: center;
     font-size: 0;
     padding: 12px 0;
   }
-  .nav-btn span { font-size: 15px; }
+  .nav-btn span {
+    font-size: 15px;
+  }
   .page-content { padding: 14px 12px 30px; }
   .hero-title { font-size: 22px; }
 }
