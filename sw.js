@@ -1,4 +1,4 @@
-/* DOTA JETCH — Service Worker v3.3.7
+/* DOTA JETCH — Service Worker v3.3.8
 Kill-switch: удаляет себя и все кэши. */
 
 self.addEventListener("install", function () {
@@ -21,7 +21,6 @@ if (client.navigate) client.navigate(client.url);
 );
 });
 
-self.addEventListener("fetch", function (e) {
-/* Просто пропускаем — пусть всё идёт в сеть */
+self.addEventListener("fetch", function () {
 return;
 });
