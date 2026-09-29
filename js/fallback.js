@@ -104,7 +104,8 @@ var ALIASES = {
 "визаж":"Visage","джакиро":"Jakiro","котел":"Keeper of the Light"
 };
 
-var CDN = "https://cdn.cloudflare.steamstatic.com";
+/* ─── ИСПРАВЛЕНИЕ: заменяем CDN на Akamai (Cloudflare не работает) ─── */
+var CDN = "https://cdn.akamai.steamstatic.com";
 
 function heroImgUrl(slug) {
 if (!slug) return null;
@@ -314,5 +315,5 @@ if (p >= 25) return "var(--orange)";
 return "var(--red)";
 };
 
-console.log("fallback v8 ready (dynamic API, getHeroes fixed)");
+console.log("fallback v9 ready (Akamai CDN, getHeroes fixed)");
 })();
