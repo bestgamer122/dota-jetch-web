@@ -109,7 +109,7 @@ function renderDashboard() {
   s2.appendChild(UI.statCard("F", "var(--orange)", "var(--orange-bg)", "Стрик", String(Store.get("dailystreak", 0) || 0), "дней"));
   s2.appendChild(UI.statCard("H", "var(--green)", "var(--green-bg)", "История", String((Store.get("recentmatches", []) || []).length), "Матчей"));
   frag.appendChild(s2);
-  if (lastAnalysis && lastAnalysis.hero) {
+  if (typeof lastAnalysis !== "undefined" && lastAnalysis && lastAnalysis.hero) {
     var last = UI.card("Последний матч");
     var row = el("div", { style: "display:flex;align-items:center;gap:14px;" });
     row.appendChild(heroImgEl(lastAnalysis.hero, 56));
@@ -130,6 +130,64 @@ function applyLiteMode(on) {
   if (on) document.body.classList.add("lite-mode");
   else document.body.classList.remove("lite-mode");
   Store.set("litemode", !!on);
+}
+
+/* ═════ CUSTOM DROPDOWN ═════ */
+
+function makeDropdown(opts, currentValue, onChange) {
+  var wrap = el("div", { class: "dropdown", id: opts.id || "" });
+  var btn = el("button", { class: "dropdown-btn", type: "button" });
+  var label = el("span", { class: "dropdown-label" });
+  var arrow = el("span", { class: "dropdown-arrow" });
+  arrow.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>';
+  btn.appendChild(label);
+  btn.appendChild(arrow);
+  wrap.appendChild(btn);
+
+  var list = el("div", { class: "dropdown-list" });
+
+  function setLabel(v) {
+    for (var i = 0; i < opts.length; i++) {
+      if (opts[i].value === v) { label.textContent = opts[i].label; return; }
+    }
+    label.textContent = v;
+  }
+  setLabel(currentValue);
+
+  for (var i = 0; i < opts.length; i++) {
+    (function (o) {
+      var item = el("button", { class: "dropdown-item" + (o.value === currentValue ? " active" : ""), type: "button" });
+      if (o.color) item.appendChild(el("span", { class: "dropdown-dot", style: "background:" + o.color + ";" }));
+      item.appendChild(el("span", { class: "dropdown-item-label" }, o.label));
+      if (o.value === currentValue) item.appendChild(el("span", { class: "dropdown-check" }, "✓"));
+      item.addEventListener("click", function (e) {
+        e.stopPropagation();
+        list.classList.remove("open");
+        wrap.classList.remove("open");
+        var items = list.querySelectorAll(".dropdown-item");
+        for (var j = 0; j < items.length; j++) items[j].classList.remove("active");
+        item.classList.add("active");
+        setLabel(o.value);
+        onChange(o.value);
+      });
+      list.appendChild(item);
+    })(opts[i]);
+  }
+  wrap.appendChild(list);
+
+  btn.addEventListener("click", function (e) {
+    e.stopPropagation();
+    var wasOpen = list.classList.contains("open");
+    qsa(".dropdown-list").forEach(function (l) { l.classList.remove("open"); });
+    qsa(".dropdown").forEach(function (d) { d.classList.remove("open"); });
+    if (!wasOpen) { list.classList.add("open"); wrap.classList.add("open"); }
+  });
+  document.addEventListener("click", function () {
+    list.classList.remove("open");
+    wrap.classList.remove("open");
+  });
+
+  return wrap;
 }
 
 function renderSettings() {
@@ -159,25 +217,22 @@ function renderSettings() {
   frag.appendChild(plan);
 
   var theme = UI.card("Тема оформления");
-  var sel = el("select", { class: "input" });
+  var themeOpts = [];
   for (var key in THEMES) {
     if (!THEMES.hasOwnProperty(key)) continue;
-    var opt = el("option", { value: key }, THEMES[key].label);
-    if (key === loadTheme()) opt.selected = true;
-    sel.appendChild(opt);
+    themeOpts.push({ value: key, label: THEMES[key].label, color: THEMES[key].vars["--accent"] });
   }
-  sel.addEventListener("change", function () {
-    applyTheme(sel.value);
+  theme.appendChild(makeDropdown(themeOpts, loadTheme(), function (v) {
+    applyTheme(v);
     try { if (typeof Daily !== "undefined") Daily.bump("theme"); } catch (e) {}
     try { if (typeof Achievements !== "undefined") Achievements.onThemeChange(); } catch (e) {}
-    showDialog("Тема", THEMES[sel.value].label, "success");
-  });
-  theme.appendChild(sel);
+    showDialog("Тема применена", THEMES[v].label, "success");
+  }));
   frag.appendChild(theme);
 
   var perf = UI.card("Производительность");
   perf.appendChild(el("div", { class: "dim", style: "font-size:12px;margin-bottom:12px;line-height:1.6;" },
-    "Lite-режим для слабых ПК. Отключает тяжёлые анимации, размытие, курсор, tilt."));
+    "Lite-режим для слабых ПК. Отключает тяжёлые анимации, размытие, tilt карточек."));
   var lbl = el("label", { style: "display:flex;align-items:center;gap:10px;font-size:13px;cursor:pointer;" });
   var tgl = el("input", { type: "checkbox" });
   tgl.style.cssText = "width:18px;height:18px;cursor:pointer;";
@@ -205,13 +260,14 @@ function renderAbout() {
   var head = UI.card("");
   head.style.cssText = "background:linear-gradient(135deg,var(--accent-dark),var(--accent-bg));border-color:var(--accent);";
   head.appendChild(el("div", { style: "font-size:22px;font-weight:bold;color:var(--accent-light);" }, "DOTA JETCH AI 2.0"));
-  head.appendChild(el("div", { class: "muted", style: "font-size:12px;margin-top:8px;" }, "Web version"));
+  head.appendChild(el("div", { class: "muted", style: "font-size:12px;margin-top:8px;" }, "Web version v7"));
   frag.appendChild(head);
   var feat = UI.card("Что работает");
   var list = [
     "Анализ матчей с оценкой S/A/B/C/D",
     "Анализ смертей и рекомендации",
     "Рекомендации по предметам",
+    "Реальные иконки героев и предметов (4 зеркала CDN)",
     "История и прогресс (графики)",
     "Дневник с тегами",
     "24 достижения",
@@ -219,7 +275,8 @@ function renderAbout() {
     "Экспорт / Импорт",
     "Задания дня и стрик",
     "ИИ (JETCH+): 20 героев, 18 предметов",
-    "Lite-режим для слабых ПК"
+    "Lite-режим для слабых ПК",
+    "Кастомные выпадающие списки"
   ];
   for (var i = 0; i < list.length; i++) feat.appendChild(el("div", { style: "padding:6px 0;font-size:12px;color:var(--text-muted);" }, "* " + list[i]));
   frag.appendChild(feat);
