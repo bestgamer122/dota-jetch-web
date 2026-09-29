@@ -128,6 +128,8 @@ return "linear-gradient(135deg, hsl(" + h + " 75% 42%), hsl(" + h2 + " 70% 26%))
 }
 
 var _heroCache = null;
+
+/* ─── ИСПРАВЛЕНИЕ: привязываем getHeroes к window ─── */
 window.getHeroes = async function () {
 if (_heroCache) return _heroCache;
 try {
@@ -139,7 +141,9 @@ return { id: h.id, name: h.localized_name, slug: h.name.replace("npc_dota_hero*"
 return _heroCache;
 }
 } catch (e) { console.warn("API heroes unavailable, using fallback"); }
-_heroCache = HEROES_FALLBACK.map(function (h) { return { id: h.id, name: h.name, slug: h.slug, img: heroImgUrl(h.slug) }; });
+_heroCache = HEROES_FALLBACK.map(function (h) {
+return { id: h.id, name: h.name, slug: h.slug, img: heroImgUrl(h.slug) };
+});
 return _heroCache;
 };
 
@@ -233,6 +237,7 @@ return wrap;
 };
 
 var _itemCache = null;
+
 window.getItemCatalog = async function () {
 if (_itemCache) return _itemCache;
 try {
@@ -303,5 +308,5 @@ if (p >= 25) return "var(--orange)";
 return "var(--red)";
 };
 
-console.log("fallback v8 ready (dynamic API)");
+console.log("fallback v8 ready (dynamic API, getHeroes fixed)");
 })();
