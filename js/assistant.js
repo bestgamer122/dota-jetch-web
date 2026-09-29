@@ -1,32 +1,40 @@
+/* DOTA JETCH — ИИ-АССИСТЕНТ v12.0 */
+
 var chatHistory = [];
 
 function renderChat() {
   var plus = Store.get("license.active", false) === true;
   if (!plus) return renderChatLocked();
+
   var frag = document.createDocumentFragment();
-  var head = UI.card("ИИ-ассистент JETCH+");
-  head.appendChild(el("div", { class: "dim", style: "font-size:12px;" }, "Спроси про героя, предмет или механику."));
-  var ex = el("div", { class: "row", style: "flex-wrap:wrap;margin-top:12px;" });
-  var queries = ["как играть на пудже", "что делает BKB", "контрпики на СФ", "синергии с Магнусом", "тайминги башен"];
-  for (var i = 0; i < queries.length; i++) {
+
+  var head = UI.card("ИИ-ассистент · JETCH+ v12.0");
+  head.appendChild(el("div", { class: "dim", style: "font-size:12px;line-height:1.6;" },
+    "Думаю, чувствую эмоции, учусь на ошибках. Память: " + BrainLearn.count() + " фактов."));
+
+  var suggestions = el("div", { class: "row", style: "flex-wrap:wrap;margin-top:12px;gap:6px;" });
+  var examples = ["привет", "мне грустно", "как играть на пудже против АМ", "который час?", "расскажи факт", "запомни: ник = твой ник", "покажи мои ошибки"];
+  for (var i = 0; i < examples.length; i++) {
     (function (q) {
       var chip = el("button", { class: "nav-btn", style: "font-size:11px;padding:6px 10px;" }, q);
       chip.addEventListener("click", function () {
         var inp = qs("#chatInput");
         if (inp) { inp.value = q; inp.focus(); }
       });
-      ex.appendChild(chip);
-    })(queries[i]);
+      suggestions.appendChild(chip);
+    })(examples[i]);
   }
-  head.appendChild(ex);
+  head.appendChild(suggestions);
   frag.appendChild(head);
+
   var chatCard = UI.card("Чат");
-  var log = el("div", { id: "chatLog", style: "max-height:420px;overflow-y:auto;padding:4px 0;display:flex;flex-direction:column;gap:10px;" });
+  var log = el("div", { id: "chatLog", style: "max-height:440px;overflow-y:auto;padding:4px 0;display:flex;flex-direction:column;gap:10px;" });
   chatCard.appendChild(log);
   frag.appendChild(chatCard);
+
   var inputCard = el("div", { class: "card" });
   var row = el("div", { class: "row" });
-  var inp = UI.input("Спроси...");
+  var inp = UI.input("Напиши что-нибудь...");
   inp.id = "chatInput";
   inp.style.flex = "1";
   inp.addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); onChatSend(); } });
@@ -35,30 +43,41 @@ function renderChat() {
   row.appendChild(inp);
   row.appendChild(btn);
   inputCard.appendChild(row);
+
+  var commands = el("div", { class: "dim", style: "font-size:11px;margin-top:10px;line-height:1.7;" },
+    "• Эмоции: «мне грустно», «бесит»\n" +
+    "• Фидбек: скажи «правильно» или «не то»\n" +
+    "• Утилиты: «посчитай 2+2», «кубик», «пароль на 20»\n" +
+    "• Обучение: «запомни: X = Y», «покажи мои ошибки»"
+  );
+  inputCard.appendChild(commands);
   frag.appendChild(inputCard);
+
   setTimeout(function () {
     var saved = Store.get("chathistory", []);
     chatHistory = Array.isArray(saved) ? saved : [];
     var l = qs("#chatLog");
     if (!l) return;
     if (!chatHistory.length) {
-      addChatMessage(l, "assistant", "Привет! Спроси: что делает BKB, как играть на пудже, контрпики на АМ.");
+      var greet = (typeof BrainMood !== "undefined" ? BrainMood.greetByTime() : "Привет!");
+      addChatMessage(l, "assistant", greet + "\n\nЯ DotaJetch AI v12.0. Понимаю эмоции, учусь на ошибках, разбираю сложные вопросы. Чем помочь?");
     } else {
       for (var i = 0; i < chatHistory.length; i++) addChatMessage(l, chatHistory[i].role, chatHistory[i].text, false);
     }
     l.scrollTop = l.scrollHeight;
   }, 0);
+
   return frag;
 }
 
 function renderChatLocked() {
   var frag = document.createDocumentFragment();
-  var card = UI.card("ИИ-ассистент");
+  var card = UI.card("ИИ-ассистент v12.0");
   var wrap = el("div", { style: "text-align:center;padding:40px 20px;" });
   wrap.appendChild(el("div", { style: "font-size:52px;margin-bottom:16px;font-weight:800;color:var(--text-dim);" }, "X"));
   wrap.appendChild(el("div", { style: "font-size:18px;font-weight:700;color:var(--text);margin-bottom:10px;" }, "Только в JETCH+"));
   wrap.appendChild(el("div", { class: "dim", style: "font-size:13px;line-height:1.6;max-width:440px;margin:0 auto 20px;" },
-    "Расширенная база: 20 героев, 18 предметов, 15 механик. Контрпики и синергии."));
+    "v12.0: эмоциональный интеллект, фидбек, самопроверка."));
   var btn = UI.btn("Активировать JETCH+");
   btn.addEventListener("click", function () { switchPage("settings"); });
   wrap.appendChild(btn);
@@ -72,7 +91,7 @@ function addChatMessage(log, role, text, scroll) {
   var isUser = role === "user";
   var row = el("div", { style: "display:flex;gap:10px;align-items:flex-start;" + (isUser ? "flex-direction:row-reverse;" : "") });
   var avatar = el("div", {
-    style: "width:30px;height:30px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:bold;background:" + (isUser ? "var(--accent-bg)" : "var(--cyan-bg)") + ";color:" + (isUser ? "var(--accent-light)" : "var(--cyan)") + ";border:1px solid var(--border);"
+    style: "width:30px;height:30px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:bold;background:" + (isUser ? "var(--accent-bg)" : "var(--cyan-bg)") + ";color:" + (isUser ? "var(--accent-light)" : "var(--cyan)") + ";border:1px solid var(--border);"
   }, isUser ? "Я" : "AI");
   var bubble = el("div", {
     style: "max-width:80%;padding:10px 14px;border-radius:12px;font-size:13px;line-height:1.55;white-space:pre-wrap;word-break:break-word;background:var(--bg-elev);border:1px solid var(--border);"
@@ -81,6 +100,31 @@ function addChatMessage(log, role, text, scroll) {
   row.appendChild(bubble);
   log.appendChild(row);
   if (scroll) log.scrollTop = log.scrollHeight;
+}
+
+function addThinkingBlock(log) {
+  var wrap = el("div", { style: "display:flex;gap:10px;align-items:flex-start;opacity:0.75;" });
+  var avatar = el("div", {
+    style: "width:30px;height:30px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:bold;background:var(--accent-bg);color:var(--accent-light);border:1px solid var(--accent);"
+  }, "AI");
+  var box = el("div", {
+    style: "flex:1;padding:10px 14px;border-radius:12px;font-size:12px;line-height:1.6;background:var(--bg-card);border:1px dashed var(--accent);color:var(--text-muted);font-family:'JetBrains Mono',monospace;white-space:pre-wrap;"
+  });
+  var line = el("div", {}, "Думаю...");
+  box.appendChild(line);
+  wrap.appendChild(avatar);
+  wrap.appendChild(box);
+  log.appendChild(wrap);
+  log.scrollTop = log.scrollHeight;
+  return {
+    addStep: function (text) {
+      var sub = el("div", { style: "margin-top:2px;padding-left:10px;opacity:0.75;" }, "→ " + text);
+      box.appendChild(sub);
+      log.scrollTop = log.scrollHeight;
+    },
+    setStep: function (text) { line.textContent = text; log.scrollTop = log.scrollHeight; },
+    finalize: function () { wrap.remove(); }
+  };
 }
 
 async function onChatSend() {
@@ -98,14 +142,46 @@ async function onChatSend() {
   Store.set("aiquestions", (Store.get("aiquestions", 0) || 0) + 1);
   if (typeof Daily !== "undefined") Daily.bump("chat");
   if (typeof Achievements !== "undefined") Achievements.check();
+
+  if (typeof BrainFeedback !== "undefined" && BrainFeedback.detect(q)) {
+    var fbAnswer = brainAnswer(q);
+    addChatMessage(log, "assistant", fbAnswer.text);
+    chatHistory.push({ role: "assistant", text: fbAnswer.text });
+    Store.set("chathistory", chatHistory.slice(-100));
+    return;
+  }
+
   btn.disabled = true;
   btn.textContent = "Думаю...";
-  await new Promise(function (r) { setTimeout(r, 300); });
+  var think = addThinkingBlock(log);
+
+  think.setStep("Анализирую...");
+  await new Promise(function (r) { setTimeout(r, 200 + Math.random() * 200); });
+
   var answer;
-  try { answer = kbAnswer(q); } catch (e) { answer = { text: "Ошибка: " + (e.message || e) }; }
-  addChatMessage(log, "assistant", answer.text);
-  chatHistory.push({ role: "assistant", text: answer.text });
+  try { answer = brainAnswer(q); } catch (e) { answer = { text: "Ошибка: " + (e.message || e), confidence: 0, trace: [] }; }
+
+  if (answer.trace && answer.trace.length) {
+    for (var i = 0; i < answer.trace.length; i++) {
+      think.addStep(answer.trace[i]);
+      await new Promise(function (r) { setTimeout(r, 100 + Math.random() * 100); });
+    }
+  }
+
+  think.setStep("Формулирую ответ...");
+  await new Promise(function (r) { setTimeout(r, 180 + Math.random() * 180); });
+
+  think.finalize();
+
+  var finalText = answer.text;
+  if (typeof answer.confidence === "number" && answer.confidence < 0.6 && answer.confidence > 0) {
+    finalText += "\n\n(уверенность: " + Math.round(answer.confidence * 100) + "%)";
+  }
+
+  addChatMessage(log, "assistant", finalText);
+  chatHistory.push({ role: "assistant", text: finalText });
   Store.set("chathistory", chatHistory.slice(-100));
+
   btn.disabled = false;
   btn.textContent = "Отправить";
   inp.focus();
