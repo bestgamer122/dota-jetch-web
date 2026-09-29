@@ -107,9 +107,11 @@ var ALIASES = {
 var CDN = "https://cdn.cloudflare.steamstatic.com";
 
 function heroImgUrl(slug) {
+if (!slug) return null;
 return CDN + "/apps/dota2/images/dota_react/heroes/" + slug + ".png";
 }
 function itemImgUrl(slug) {
+if (!slug) return null;
 return CDN + "/apps/dota2/images/dota_react/items/" + slug + ".png";
 }
 
@@ -122,7 +124,8 @@ return w.slice(0, 3).map(function (x) { return x[0]; }).join("").toUpperCase();
 
 function grad(name) {
 var h = 0;
-for (var i = 0; i < name.length; i++) h = (Math.imul(h, 31) + name.charCodeAt(i)) % 360;
+var s = String(name || "?");
+for (var i = 0; i < s.length; i++) h = (Math.imul(h, 31) + s.charCodeAt(i)) % 360;
 var h2 = (h + 60) % 360;
 return "linear-gradient(135deg, hsl(" + h + " 75% 42%), hsl(" + h2 + " 70% 26%))";
 }
@@ -136,7 +139,7 @@ if (typeof apiGet === "function") {
 var data = await apiGet("/heroes");
 if (Array.isArray(data) && data.length > 0) {
 _heroCache = data.map(function (h) {
-return { id: h.id, name: h.localized_name, slug: h.name.replace("npc_dota_hero_", ""), img: CDN + h.img };
+return { id: h.id, name: h.localized_name, slug: h.name.replace("npc_dota_hero_", ""), img: h.img ? CDN + h.img : null };
 });
 return _heroCache;
 }
