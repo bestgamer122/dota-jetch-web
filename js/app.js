@@ -1,5 +1,3 @@
-/* DOTA JETCH — APP v3.4.0 */
-
 var PAGES = {
   dashboard: { title: "Главная", render: renderDashboard },
   analyze: { title: "Анализ матча", render: renderAnalyze },
@@ -18,13 +16,13 @@ var currentPage = "dashboard";
 
 var NAV = [
   { page: "dashboard", label: "Главная", icon: "M3 11l9-8 9 8v9a2 2 0 0 1-2 2h-4v-7h-6v7H5a2 2 0 0 1-2-2z" },
-  { page: "analyze", label: "Анализ матча", icon: "M5 3l14 9-14 9z" },
-  { page: "chat", label: "ИИ-ассистент", icon: "M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" },
+  { page: "analyze", label: "Анализ", icon: "M5 3l14 9-14 9z" },
+  { page: "chat", label: "ИИ", icon: "M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" },
   { page: "history", label: "История", icon: "M3 6h18M3 12h18M3 18h18" },
   { page: "charts", label: "Прогресс", icon: "M3 3v18h18M7 14l3-3 4 4 5-6" },
   { page: "diary", label: "Дневник", icon: "M4 4h12l4 4v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z" },
-  { page: "games", label: "Мини-игры", icon: "M3 7h18v12H3z" },
-  { page: "achievements", label: "Достижения", icon: "M12 9m-6 0a6 6 0 1 0 12 0a6 6 0 1 0 -12 0" },
+  { page: "games", label: "Игры", icon: "M3 7h18v12H3z" },
+  { page: "achievements", label: "Ачивки", icon: "M12 9m-6 0a6 6 0 1 0 12 0a6 6 0 1 0 -12 0" },
   { page: "export", label: "Экспорт", icon: "M12 3v12M8 7l4-4 4 4" },
   { page: "settings", label: "Настройки", icon: "M12 12m-3 0a3 3 0 1 0 6 0a3 3 0 1 0 -6 0" },
   { page: "about", label: "О программе", icon: "M12 12m-10 0a10 10 0 1 0 20 0a10 10 0 1 0 -20 0" }
@@ -49,10 +47,10 @@ function buildNav() {
 
 function safeRender(name) {
   try {
-    if (!PAGES[name]) throw new Error("Страница не найдена: " + name);
-    var node = PAGES[name].render();
-    if (!node) throw new Error("Пустой результат");
-    return node;
+    if (!PAGES[name]) throw new Error("Страница: " + name);
+    var n = PAGES[name].render();
+    if (!n) throw new Error("Пустой результат");
+    return n;
   } catch (e) {
     console.error("Render error:", name, e);
     var frag = document.createDocumentFragment();
@@ -67,15 +65,15 @@ function switchPage(name) {
   if (!PAGES[name]) name = "dashboard";
   currentPage = name;
   qsa(".nav-btn").forEach(function (b) { b.classList.toggle("active", b.getAttribute("data-page") === name); });
-  var titleEl = qs("#pageTitle");
-  if (titleEl) titleEl.textContent = PAGES[name].title;
-  var content = qs("#pageContent");
-  if (!content) return;
-  content.innerHTML = "";
-  try { content.appendChild(safeRender(name)); }
-  catch (e) { content.appendChild(el("div", { style: "padding:30px;color:var(--red);" }, "Ошибка: " + (e.message || e))); }
-  var scroller = qs(".page-scroll");
-  if (scroller) scroller.scrollTop = 0;
+  var t = qs("#pageTitle");
+  if (t) t.textContent = PAGES[name].title;
+  var c = qs("#pageContent");
+  if (!c) return;
+  c.innerHTML = "";
+  try { c.appendChild(safeRender(name)); }
+  catch (e) { c.appendChild(el("div", { style: "padding:30px;color:var(--red);" }, "Ошибка: " + (e.message || e))); }
+  var s = qs(".page-scroll");
+  if (s) s.scrollTop = 0;
   location.hash = name;
 }
 
@@ -90,7 +88,7 @@ function renderDashboard() {
   var plus = Store.get("license.active", false) === true;
   frag.appendChild(UI.heroBanner(
     "DOTA JETCH",
-    plus ? "AI 2.0 активен" : "Веб-версия · анализ матчей, дневник, мини-игры",
+    plus ? "AI 2.0 активен" : "Веб-версия",
     [
       UI.btn("Анализ матча", { onclick: function () { switchPage("analyze"); } }),
       UI.btn("Мини-игры", { onclick: function () { switchPage("games"); }, variant: "ghost" }),
@@ -101,17 +99,16 @@ function renderDashboard() {
     try { frag.appendChild(renderDailyWidget()); } catch (e) {}
   }
   var stats = el("div", { class: "stat-grid" });
-  var sessions = Store.get("sessions", 0);
-  var analyzeLeft = typeof analyzeQuotaRemaining === "function" ? (plus ? "∞" : String(analyzeQuotaRemaining())) : "—";
-  stats.appendChild(UI.statCard("S", "var(--cyan)", "var(--cyan-bg)", "Сессий", String(sessions), "Всего"));
-  stats.appendChild(UI.statCard("A", "var(--accent-light)", "var(--accent-bg)", "Анализов сегодня", analyzeLeft, plus ? "JETCH+" : "из 5"));
+  var left = typeof analyzeQuotaRemaining === "function" ? (plus ? "∞" : String(analyzeQuotaRemaining())) : "-";
+  stats.appendChild(UI.statCard("S", "var(--cyan)", "var(--cyan-bg)", "Сессий", String(Store.get("sessions", 0)), "Всего"));
+  stats.appendChild(UI.statCard("A", "var(--accent-light)", "var(--accent-bg)", "Анализов сегодня", left, plus ? "JETCH+" : "из 5"));
   stats.appendChild(UI.statCard("T", "var(--yellow)", "var(--yellow-bg)", "Ачивки", (Store.get("achievementsunlocked", []) || []).length + " / 24", "Открыто"));
   frag.appendChild(stats);
-  var stats2 = el("div", { class: "stat-grid" });
-  stats2.appendChild(UI.statCard("D", "var(--cyan)", "var(--cyan-bg)", "Дневник", String((Store.get("diarynotes", []) || []).length), "Записей"));
-  stats2.appendChild(UI.statCard("F", "var(--orange)", "var(--orange-bg)", "Стрик дней", String(Store.get("dailystreak", 0) || 0), "🔥"));
-  stats2.appendChild(UI.statCard("H", "var(--green)", "var(--green-bg)", "История", String((Store.get("recentmatches", []) || []).length), "Матчей"));
-  frag.appendChild(stats2);
+  var s2 = el("div", { class: "stat-grid" });
+  s2.appendChild(UI.statCard("D", "var(--cyan)", "var(--cyan-bg)", "Дневник", String((Store.get("diarynotes", []) || []).length), "Записей"));
+  s2.appendChild(UI.statCard("F", "var(--orange)", "var(--orange-bg)", "Стрик", String(Store.get("dailystreak", 0) || 0), "дней"));
+  s2.appendChild(UI.statCard("H", "var(--green)", "var(--green-bg)", "История", String((Store.get("recentmatches", []) || []).length), "Матчей"));
+  frag.appendChild(s2);
   if (lastAnalysis && lastAnalysis.hero) {
     var last = UI.card("Последний матч");
     var row = el("div", { style: "display:flex;align-items:center;gap:14px;" });
@@ -119,7 +116,7 @@ function renderDashboard() {
     var info = el("div", { style: "flex:1;" });
     info.appendChild(el("div", { style: "font-size:15px;font-weight:bold;" }, lastAnalysis.hero.name));
     info.appendChild(el("div", { class: "muted", style: "font-size:11px;margin-top:4px;" },
-      lastAnalysis.player.kills + "/" + lastAnalysis.player.deaths + "/" + lastAnalysis.player.assists + " · " + (lastAnalysis.won ? "победа" : "поражение")));
+      lastAnalysis.player.kills + "/" + lastAnalysis.player.deaths + "/" + lastAnalysis.player.assists + " - " + (lastAnalysis.won ? "победа" : "поражение")));
     row.appendChild(info);
     last.appendChild(row);
     frag.appendChild(last);
@@ -127,33 +124,41 @@ function renderDashboard() {
   return frag;
 }
 
+function isLiteMode() { return Store.get("litemode", false) === true; }
+
+function applyLiteMode(on) {
+  if (on) document.body.classList.add("lite-mode");
+  else document.body.classList.remove("lite-mode");
+  Store.set("litemode", !!on);
+}
+
 function renderSettings() {
   var frag = document.createDocumentFragment();
   var plus = Store.get("license.active", false) === true;
-  var planCard = UI.card("Подписка");
+  var plan = UI.card("Подписка");
   if (plus) {
-    planCard.appendChild(el("div", { style: "color:var(--gold);font-size:14px;font-weight:700;margin-bottom:10px;" }, "JETCH+ активен"));
-    planCard.appendChild(el("div", { class: "dim", style: "font-size:12px;margin-bottom:14px;line-height:1.7;" },
-      "✓ Безлимитные анализы", el("br"), "✓ Полный доступ к ИИ-ассистенту"));
-    planCard.appendChild(UI.btn("Отключить JETCH+", { variant: "ghost", onclick: function () {
+    plan.appendChild(el("div", { style: "color:var(--gold);font-size:14px;font-weight:700;margin-bottom:10px;" }, "JETCH+ активен"));
+    plan.appendChild(el("div", { class: "dim", style: "font-size:12px;margin-bottom:14px;line-height:1.7;" },
+      "+ Безлимитные анализы", el("br"), "+ ИИ-ассистент"));
+    plan.appendChild(UI.btn("Отключить JETCH+", { variant: "ghost", onclick: function () {
       if (!confirm("Отключить JETCH+?")) return;
       Store.set("license.active", false);
       showDialog("Готово", "Ты вернулся к FREE", "success");
       setTimeout(function () { location.reload(); }, 800);
     }}));
   } else {
-    planCard.appendChild(el("div", { style: "color:var(--gold);font-size:14px;font-weight:700;margin-bottom:10px;" }, "FREE-версия"));
-    planCard.appendChild(el("div", { class: "dim", style: "font-size:12px;margin-bottom:10px;line-height:1.7;" },
-      "Доступно:", el("br"), "✓ 5 анализов в день", el("br"), "✓ История, дневник, графики, мини-игры", el("br"), "✗ ИИ-ассистент"));
-    planCard.appendChild(UI.btn("Активировать JETCH+", { onclick: function () {
+    plan.appendChild(el("div", { style: "color:var(--gold);font-size:14px;font-weight:700;margin-bottom:10px;" }, "FREE"));
+    plan.appendChild(el("div", { class: "dim", style: "font-size:12px;margin-bottom:10px;line-height:1.7;" },
+      "+ 5 анализов в день", el("br"), "+ История, дневник, графики", el("br"), "- ИИ-ассистент"));
+    plan.appendChild(UI.btn("Активировать JETCH+", { onclick: function () {
       Store.set("license.active", true);
       showDialog("Готово", "JETCH+ активирован", "success");
       setTimeout(function () { location.reload(); }, 800);
     }}));
   }
-  frag.appendChild(planCard);
+  frag.appendChild(plan);
 
-  var themeCard = UI.card("Тема оформления");
+  var theme = UI.card("Тема оформления");
   var sel = el("select", { class: "input" });
   for (var key in THEMES) {
     if (!THEMES.hasOwnProperty(key)) continue;
@@ -165,16 +170,33 @@ function renderSettings() {
     applyTheme(sel.value);
     try { if (typeof Daily !== "undefined") Daily.bump("theme"); } catch (e) {}
     try { if (typeof Achievements !== "undefined") Achievements.onThemeChange(); } catch (e) {}
-    showDialog("Тема применена", THEMES[sel.value].label, "success");
+    showDialog("Тема", THEMES[sel.value].label, "success");
   });
-  themeCard.appendChild(sel);
-  frag.appendChild(themeCard);
+  theme.appendChild(sel);
+  frag.appendChild(theme);
 
-  var dataCard = UI.card("Данные");
-  var expBtn = UI.btn("Экспорт / Импорт");
-  expBtn.addEventListener("click", function () { switchPage("export"); });
-  dataCard.appendChild(expBtn);
-  frag.appendChild(dataCard);
+  var perf = UI.card("Производительность");
+  perf.appendChild(el("div", { class: "dim", style: "font-size:12px;margin-bottom:12px;line-height:1.6;" },
+    "Lite-режим для слабых ПК. Отключает тяжёлые анимации, размытие, курсор, tilt."));
+  var lbl = el("label", { style: "display:flex;align-items:center;gap:10px;font-size:13px;cursor:pointer;" });
+  var tgl = el("input", { type: "checkbox" });
+  tgl.style.cssText = "width:18px;height:18px;cursor:pointer;";
+  tgl.checked = isLiteMode();
+  tgl.addEventListener("change", function () {
+    applyLiteMode(tgl.checked);
+    showDialog("Готово", tgl.checked ? "Lite-режим включён" : "Lite отключён", "success");
+  });
+  lbl.appendChild(tgl);
+  lbl.appendChild(document.createTextNode("Lite-режим"));
+  perf.appendChild(lbl);
+  frag.appendChild(perf);
+
+  var data = UI.card("Данные");
+  var eb = UI.btn("Экспорт / Импорт");
+  eb.addEventListener("click", function () { switchPage("export"); });
+  data.appendChild(eb);
+  frag.appendChild(data);
+
   return frag;
 }
 
@@ -182,17 +204,27 @@ function renderAbout() {
   var frag = document.createDocumentFragment();
   var head = UI.card("");
   head.style.cssText = "background:linear-gradient(135deg,var(--accent-dark),var(--accent-bg));border-color:var(--accent);";
-  head.appendChild(el("div", { style: "font-size:22px;font-weight:bold;color:var(--accent-light);" }, "DOTA JETCH · AI 2.0"));
-  head.appendChild(el("div", { class: "muted", style: "font-size:12px;margin-top:8px;" }, "Match Analyzer · Веб-версия"));
+  head.appendChild(el("div", { style: "font-size:22px;font-weight:bold;color:var(--accent-light);" }, "DOTA JETCH AI 2.0"));
+  head.appendChild(el("div", { class: "muted", style: "font-size:12px;margin-top:8px;" }, "Web version"));
   frag.appendChild(head);
   var feat = UI.card("Что работает");
-  var list = ["Анализ матчей (OpenDota)", "История", "Прогресс (графики)", "Дневник", "Достижения", "Мини-игры", "Экспорт / Импорт", "Задания дня", "ИИ-ассистент (только JETCH+)"];
-  for (var i = 0; i < list.length; i++) {
-    feat.appendChild(el("div", { style: "padding:6px 0;font-size:12px;color:var(--text-muted);" }, "• " + list[i]));
-  }
+  var list = [
+    "Анализ матчей с оценкой S/A/B/C/D",
+    "Анализ смертей и рекомендации",
+    "Рекомендации по предметам",
+    "История и прогресс (графики)",
+    "Дневник с тегами",
+    "24 достижения",
+    "3 мини-игры",
+    "Экспорт / Импорт",
+    "Задания дня и стрик",
+    "ИИ (JETCH+): 20 героев, 18 предметов",
+    "Lite-режим для слабых ПК"
+  ];
+  for (var i = 0; i < list.length; i++) feat.appendChild(el("div", { style: "padding:6px 0;font-size:12px;color:var(--text-muted);" }, "* " + list[i]));
   frag.appendChild(feat);
   var ver = UI.card("Версия");
-  ver.appendChild(el("div", { class: "dim", style: "font-size:11px;" }, "APP_VERSION: " + APP_VERSION));
+  ver.appendChild(el("div", { class: "dim", style: "font-size:11px;" }, "v" + APP_VERSION));
   frag.appendChild(ver);
   return frag;
 }
@@ -207,13 +239,14 @@ function updateSidebarPlan() {
 
 function init() {
   try { applyTheme(loadTheme()); } catch (e) {}
+  try { applyLiteMode(isLiteMode()); } catch (e) {}
   buildNav();
   try { Store.set("sessions", (Store.get("sessions", 0) || 0) + 1); } catch (e) {}
-  var hash = (location.hash || "#dashboard").slice(1);
-  switchPage(PAGES[hash] ? hash : "dashboard");
+  var h = (location.hash || "#dashboard").slice(1);
+  switchPage(PAGES[h] ? h : "dashboard");
   updateSidebarPlan();
   try { if (typeof Achievements !== "undefined") Achievements.check(); } catch (e) {}
-  console.log("DOTA JETCH — init OK, version " + APP_VERSION);
+  console.log("DOTA JETCH v" + APP_VERSION + " init");
 }
 
 if (document.readyState === "loading") window.addEventListener("DOMContentLoaded", init);

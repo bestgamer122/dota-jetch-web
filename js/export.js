@@ -1,14 +1,7 @@
-/* DOTA JETCH — EXPORT v3.4.0 */
-
 var Exporter = {
-  KEYS: [
-    "sessions", "analyzedcount", "uniqueheroes", "aiquestions",
-    "diarynotes", "recentmatches", "achievementsunlocked",
-    "reactionbest", "quizbest", "guessbeststreak", "gamesplayed",
-    "theme", "themechanged", "license.active", "chathistory"
-  ],
+  KEYS: ["sessions", "analyzedcount", "uniqueheroes", "aiquestions", "diarynotes", "recentmatches", "achievementsunlocked", "reactionbest", "quizbest", "guessbeststreak", "gamesplayed", "theme", "themechanged", "license.active", "chathistory"],
   export: function () {
-    var data = { meta: { app: "DOTA JETCH WEB", version: APP_VERSION, exported: new Date().toISOString() } };
+    var data = { meta: { app: "DOTA JETCH", version: APP_VERSION, exported: new Date().toISOString() } };
     for (var i = 0; i < this.KEYS.length; i++) {
       var v = Store.get(this.KEYS[i], null);
       if (v !== null) data[this.KEYS[i]] = v;
@@ -24,7 +17,7 @@ var Exporter = {
     var d = new Date();
     var stamp = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
     a.href = url;
-    a.download = "dotajetch-backup-" + stamp + ".json";
+    a.download = "dotajetch-" + stamp + ".json";
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -46,15 +39,13 @@ var Exporter = {
 function renderExportPage() {
   var frag = document.createDocumentFragment();
   var head = UI.card("Резервная копия");
-  head.appendChild(el("div", { class: "dim", style: "font-size:12px;" }, "Сохрани или восстанови все данные."));
+  head.appendChild(el("div", { class: "dim", style: "font-size:12px;" }, "Сохрани или восстанови данные."));
   frag.appendChild(head);
-
   var expCard = UI.card("Экспорт");
   var dlBtn = UI.btn("Скачать JSON");
-  dlBtn.addEventListener("click", function () { Exporter.download(); showDialog("Готово", "Файл скачивается", "success"); });
+  dlBtn.addEventListener("click", function () { Exporter.download(); showDialog("Готово", "Файл скачан", "success"); });
   expCard.appendChild(dlBtn);
   frag.appendChild(expCard);
-
   var impCard = UI.card("Импорт");
   var fileInput = document.createElement("input");
   fileInput.type = "file";
@@ -64,18 +55,17 @@ function renderExportPage() {
   var impBtn = UI.btn("Загрузить");
   impBtn.addEventListener("click", function () {
     var f = fileInput.files && fileInput.files[0];
-    if (!f) { showDialog("Файл не выбран", "", "error"); return; }
+    if (!f) { showDialog("Не выбран", "", "error"); return; }
     var reader = new FileReader();
     reader.onload = function (e) {
       var res = Exporter.importText(e.target.result);
-      if (res.ok) { showDialog("Импорт OK", "Восстановлено " + res.count, "success"); setTimeout(function () { location.reload(); }, 1000); }
+      if (res.ok) { showDialog("OK", "Восстановлено " + res.count, "success"); setTimeout(function () { location.reload(); }, 1000); }
       else showDialog("Ошибка", res.reason, "error");
     };
     reader.readAsText(f);
   });
   impCard.appendChild(impBtn);
   frag.appendChild(impCard);
-
   var danger = UI.card("Опасная зона");
   var wipe = UI.btn("Сбросить всё", { variant: "danger" });
   wipe.addEventListener("click", function () {

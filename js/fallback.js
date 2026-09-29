@@ -1,7 +1,7 @@
 (function () {
   "use strict";
 
-  var FALLBACK_HEROES = [
+  var HEROES = [
     { id: 1, name: "Anti-Mage" }, { id: 2, name: "Axe" }, { id: 3, name: "Bane" },
     { id: 4, name: "Bloodseeker" }, { id: 5, name: "Crystal Maiden" }, { id: 6, name: "Drow Ranger" },
     { id: 7, name: "Earthshaker" }, { id: 8, name: "Juggernaut" }, { id: 9, name: "Mirana" },
@@ -93,6 +93,30 @@
     "Doom":"DOOM","Dazzle":"DZ","Tusk":"TUSK"
   };
 
+  var ITEMS = {
+    1:["Blink Dagger","BLNK"],29:["Boots of Speed","BOOT"],36:["Magic Wand","WAND"],
+    50:["Phase Boots","PHS"],63:["Power Treads","TRDS"],65:["Hand of Midas","MIDS"],
+    79:["Aghanim's Scepter","AGHS"],96:["Scythe of Vyse","HEX"],108:["Aghanim's Shard","SHRD"],
+    116:["Black King Bar","BKB"],119:["Force Staff","FORC"],127:["Blade Mail","BM"],
+    133:["Linken's Sphere","LNKN"],141:["Scythe of Vyse","HEX"],145:["Battle Fury","BF"],
+    147:["Manta Style","MNTA"],149:["Crystalys","CRYS"],151:["Daedalus","DAED"],
+    154:["Abyssal Blade","ABYS"],156:["Satanic","SATN"],158:["Mithril Hammer","MTHR"],
+    160:["Radiance","RADN"],168:["Desolator","DSOL"],174:["Diffusal Blade","DIFF"],
+    185:["Basher","BASH"],188:["Smoke of Deceit","SMK"],201:["Dagon","DGON"],
+    206:["Ethereal Blade","ETHR"],208:["Eye of Skadi","SKDI"],212:["Heart","HRT"],
+    214:["Tranquil Boots","TRQL"],220:["Mekansm","MEKA"],231:["Mjollnir","MJOL"],
+    235:["Octarine Core","OCTA"],236:["Dragon Lance","LNCE"],237:["Bloodthorn","BLTH"],
+    238:["Nullifier","NULL"],242:["Crimson Guard","CG"],247:["Moon Shard","MOON"],
+    249:["Silver Edge","SLVR"],250:["Sange and Yasha","S&Y"],252:["Echo Sabre","ECHO"],
+    254:["Glimmer Cape","GLIM"],255:["Pipe of Insight","PIPE"],256:["Solar Crest","SOLR"],
+    257:["Lotus Orb","LOTS"],259:["Aether Lens","AETH"],263:["Hurricane Pike","HURR"],
+    266:["Spirit Vessel","VESS"],267:["Bloodstone","BLSR"],271:["Veil","VEIL"],
+    273:["Aeon Disk","AEON"],277:["Shiva's Guard","SHIV"],279:["Kaya","KAYA"],
+    280:["Sange","SANG"],281:["Yasha","YASH"],282:["Mage Slayer","MAGE"],
+    597:["Eternal Shroud","ETRN"],603:["Overwhelming Blink","OBLK"],604:["Swift Blink","SBLK"],
+    605:["Arcane Blink","ABLK"]
+  };
+
   function shortName(name) {
     if (!name) return "?";
     if (SHORT[name]) return SHORT[name];
@@ -101,19 +125,14 @@
     return w.slice(0, 3).map(function (x) { return x[0]; }).join("").toUpperCase();
   }
 
-  function hue(name) {
+  function grad(name) {
     var h = 0;
     for (var i = 0; i < name.length; i++) h = (Math.imul(h, 31) + name.charCodeAt(i)) % 360;
-    return h;
-  }
-
-  function grad(name) {
-    var h = hue(name || "?");
     var h2 = (h + 60) % 360;
     return "linear-gradient(135deg, hsl(" + h + " 75% 42%), hsl(" + h2 + " 70% 26%))";
   }
 
-  window.getHeroes = async function () { return FALLBACK_HEROES.slice(); };
+  window.getHeroes = async function () { return HEROES.slice(); };
 
   window.findHeroId = async function (q) {
     if (!q) return null;
@@ -122,7 +141,6 @@
     var alias = ALIASES[s];
     var needle = alias ? alias.toLowerCase() : s;
     var list = await window.getHeroes();
-    if (!list.length) return null;
     for (var i = 0; i < list.length; i++) if (list[i].name.toLowerCase() === needle) return list[i];
     for (var j = 0; j < list.length; j++) if (needle.length >= 3 && list[j].name.toLowerCase().indexOf(needle) >= 0) return list[j];
     if (needle.length >= 4) for (var k = 0; k < list.length; k++) if (list[k].name.toLowerCase().indexOf(needle.slice(0, 4)) === 0) return list[k];
@@ -132,7 +150,7 @@
   window.heroShort = shortName;
   window.heroGradient = grad;
 
-  window.heroImgEl = function (hero, size, extraStyle) {
+  window.heroImgEl = function (hero, size, extra) {
     size = size || 64;
     var r = Math.max(8, Math.round(size * 0.14));
     var wrap = document.createElement("div");
@@ -141,8 +159,7 @@
       "width:" + size + "px;height:" + size + "px;" +
       "border-radius:" + r + "px;border:2px solid rgba(167,139,250,0.55);" +
       "background:" + grad(hero ? hero.name : "?") + ";" +
-      "display:flex;align-items:center;justify-content:center;" +
-      "box-shadow:inset 0 1px 0 rgba(255,255,255,0.15);" + (extraStyle || "");
+      "display:flex;align-items:center;justify-content:center;" + (extra || "");
     var fb = document.createElement("div");
     fb.style.cssText =
       "position:absolute;inset:0;display:flex;align-items:center;justify-content:center;" +
@@ -165,8 +182,7 @@
     fb.style.cssText =
       "position:absolute;inset:0;display:flex;align-items:center;justify-content:center;" +
       "font-size:15px;font-weight:800;color:rgba(255,255,255,0.92);" +
-      "font-family:'JetBrains Mono',monospace;text-shadow:0 2px 5px rgba(0,0,0,0.5);" +
-      "pointer-events:none;";
+      "font-family:'JetBrains Mono',monospace;pointer-events:none;";
     fb.textContent = shortName(hero ? hero.name : "?");
     wrap.appendChild(fb);
     if (opts.kda) {
@@ -189,31 +205,24 @@
       "overflow:hidden;background:var(--bg-elev);border:1px solid var(--border);" +
       "display:flex;align-items:center;justify-content:center;";
     if (!item) return wrap;
-    var short = item.short || (function () {
-      var w = String(item.name || "?").split(/\s+/).filter(Boolean);
-      if (w.length === 1) return w[0].slice(0, 3).toUpperCase();
-      return w.slice(0, 3).map(function (x) { return x[0]; }).join("").toUpperCase();
-    })();
+    var short = item.short || "?";
     var fb = document.createElement("div");
     fb.style.cssText =
       "position:absolute;inset:0;display:flex;align-items:center;justify-content:center;" +
-      "font-size:11px;font-weight:800;color:rgba(255,255,255,0.35);" +
+      "font-size:11px;font-weight:800;color:rgba(255,255,255,0.55);" +
       "font-family:'JetBrains Mono',monospace;text-align:center;padding:2px;z-index:0;";
     fb.textContent = short;
     wrap.appendChild(fb);
-    if (item.imgUrl) {
-      var img = document.createElement("img");
-      img.alt = "";
-      img.loading = "lazy";
-      img.referrerPolicy = "no-referrer";
-      img.style.cssText = "position:relative;z-index:1;width:100%;height:100%;object-fit:contain;padding:4px;";
-      img.onerror = function () { img.style.display = "none"; };
-      img.onload = function () { if (img.naturalWidth === 0) img.style.display = "none"; };
-      img.src = item.imgUrl;
-      wrap.appendChild(img);
-    }
     if (item.name) wrap.title = item.name;
     return wrap;
+  };
+
+  window.getItemCatalog = async function () {
+    var map = {};
+    for (var id in ITEMS) {
+      map[id] = { id: parseInt(id, 10), name: ITEMS[id][0], short: ITEMS[id][1] };
+    }
+    return map;
   };
 
   window.cdnUrlVariants = function () { return []; };
@@ -242,65 +251,22 @@
     return null;
   };
 
-  window.pctGrade = function (pct) {
-    if (pct === null || pct === undefined) return "—";
-    if (pct >= 90) return "S";
-    if (pct >= 75) return "A";
-    if (pct >= 50) return "B";
-    if (pct >= 25) return "C";
+  window.pctGrade = function (p) {
+    if (p === null || p === undefined) return "-";
+    if (p >= 90) return "S";
+    if (p >= 75) return "A";
+    if (p >= 50) return "B";
+    if (p >= 25) return "C";
     return "D";
   };
 
-  window.pctColor = function (pct) {
-    if (pct === null || pct === undefined) return "var(--text-dim)";
-    if (pct >= 75) return "var(--green)";
-    if (pct >= 50) return "var(--yellow)";
-    if (pct >= 25) return "var(--orange)";
+  window.pctColor = function (p) {
+    if (p === null || p === undefined) return "var(--text-dim)";
+    if (p >= 75) return "var(--green)";
+    if (p >= 50) return "var(--yellow)";
+    if (p >= 25) return "var(--orange)";
     return "var(--red)";
   };
 
-  window.getItemCatalog = async function () {
-    var FALLBACK_ITEMS = {
-      1: { name: "Blink Dagger", short: "BLNK" }, 29: { name: "Boots of Speed", short: "BOOT" },
-      36: { name: "Magic Wand", short: "WAND" }, 50: { name: "Phase Boots", short: "PHS" },
-      63: { name: "Power Treads", short: "TRDS" }, 65: { name: "Hand of Midas", short: "MIDS" },
-      79: { name: "Aghanim's Scepter", short: "AGHS" }, 96: { name: "Sheepstick", short: "HEX" },
-      108: { name: "Aghanim's Shard", short: "SHRD" }, 116: { name: "Black King Bar", short: "BKB" },
-      119: { name: "Force Staff", short: "FORC" }, 127: { name: "Blade Mail", short: "BM" },
-      133: { name: "Linken's Sphere", short: "LNKN" }, 141: { name: "Scythe of Vyse", short: "HEX" },
-      145: { name: "Battle Fury", short: "BF" }, 147: { name: "Manta Style", short: "MNTA" },
-      149: { name: "Crystalys", short: "CRYS" }, 151: { name: "Daedalus", short: "DAED" },
-      154: { name: "Abyssal Blade", short: "ABYS" }, 156: { name: "Satanic", short: "SATN" },
-      158: { name: "Mithril Hammer", short: "MTHR" }, 160: { name: "Radiance", short: "RADN" },
-      168: { name: "Desolator", short: "DSOL" }, 174: { name: "Diffusal Blade", short: "DIFF" },
-      185: { name: "Basher", short: "BASH" }, 188: { name: "Smoke of Deceit", short: "SMK" },
-      201: { name: "Dagon", short: "DGON" }, 206: { name: "Ethereal Blade", short: "ETHR" },
-      208: { name: "Eye of Skadi", short: "SKDI" }, 212: { name: "Heart of Tarrasque", short: "HRT" },
-      214: { name: "Tranquil Boots", short: "TRQL" }, 220: { name: "Mekansm", short: "MEKA" },
-      231: { name: "Mjollnir", short: "MJOL" }, 235: { name: "Octarine Core", short: "OCTA" },
-      236: { name: "Dragon Lance", short: "LNCE" }, 237: { name: "Bloodthorn", short: "BLTH" },
-      238: { name: "Nullifier", short: "NULL" }, 242: { name: "Crimson Guard", short: "CG" },
-      247: { name: "Moon Shard", short: "MOON" }, 249: { name: "Silver Edge", short: "SLVR" },
-      250: { name: "Sange and Yasha", short: "S&Y" }, 252: { name: "Echo Sabre", short: "ECHO" },
-      254: { name: "Glimmer Cape", short: "GLIM" }, 255: { name: "Pipe of Insight", short: "PIPE" },
-      256: { name: "Solar Crest", short: "SOLR" }, 257: { name: "Lotus Orb", short: "LOTS" },
-      259: { name: "Aether Lens", short: "AETH" }, 263: { name: "Hurricane Pike", short: "HURR" },
-      266: { name: "Spirit Vessel", short: "VESS" }, 267: { name: "Bloodstone", short: "BLSR" },
-      271: { name: "Veil of Discord", short: "VEIL" }, 273: { name: "Aeon Disk", short: "AEON" },
-      277: { name: "Shiva's Guard", short: "SHIV" }, 279: { name: "Kaya", short: "KAYA" },
-      280: { name: "Sange", short: "SANG" }, 281: { name: "Yasha", short: "YASH" },
-      282: { name: "Mage Slayer", short: "MAGE" }, 597: { name: "Eternal Shroud", short: "ETRN" },
-      603: { name: "Overwhelming Blink", short: "OBLK" }, 604: { name: "Swift Blink", short: "SBLK" },
-      605: { name: "Arcane Blink", short: "ABLK" }, 607: { name: "Fallen Sky", short: "SKY" },
-      608: { name: "Pirate Hat", short: "PIR" }, 609: { name: "Dandelion Amulet", short: "DAND" },
-      610: { name: "Telescope", short: "TLSC" }, 611: { name: "Magic Lamp", short: "LAMP" }
-    };
-    var map = {};
-    for (var id in FALLBACK_ITEMS) {
-      map[id] = { id: parseInt(id, 10), name: FALLBACK_ITEMS[id].name, short: FALLBACK_ITEMS[id].short };
-    }
-    return map;
-  };
-
-  console.log("[fallback.js] Готов");
+  console.log("fallback ready");
 })();
