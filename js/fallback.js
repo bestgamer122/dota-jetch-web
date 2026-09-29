@@ -104,16 +104,16 @@ var ALIASES = {
 "визаж":"Visage","джакиро":"Jakiro","котел":"Keeper of the Light"
 };
 
-/* ─── ИСПРАВЛЕНИЕ: заменяем CDN на Akamai (Cloudflare не работает) ─── */
-var CDN = "https://cdn.akamai.steamstatic.com";
+/* ─── ИСПРАВЛЕНИЕ: OpenDota API (работает в РФ) ─── */
+var CDN = "https://api.opendota.com";
 
 function heroImgUrl(slug) {
 if (!slug) return null;
-return CDN + "/apps/dota2/images/dota_react/heroes/" + slug + ".png";
+return CDN + "/apps/dota2/images/heroes/" + slug + "_full.png";
 }
 function itemImgUrl(slug) {
 if (!slug) return null;
-return CDN + "/apps/dota2/images/dota_react/items/" + slug + ".png";
+return CDN + "/apps/dota2/images/items/" + slug + "_lg.png";
 }
 
 function shortName(name) {
@@ -140,7 +140,7 @@ if (typeof apiGet === "function") {
 var data = await apiGet("/heroes");
 if (Array.isArray(data) && data.length > 0) {
 _heroCache = data.map(function (h) {
-return { id: h.id, name: h.localized_name, slug: h.name.replace("npc_dota_hero_", ""), img: h.img ? CDN + h.img : null };
+return { id: h.id, name: h.localized_name, slug: h.name.replace("npc_dota_hero_", ""), img: heroImgUrl(h.name.replace("npc_dota_hero_", "")) };
 });
 return _heroCache;
 }
@@ -254,7 +254,7 @@ for (var key in data) {
 if (!data.hasOwnProperty(key)) continue;
 var val = data[key];
 if (val && val.id) {
-map[val.id] = { id: val.id, name: val.dname || key, slug: key, img: val.img ? CDN + val.img : null, short: shortName(val.dname || key) };
+map[val.id] = { id: val.id, name: val.dname || key, slug: key, img: itemImgUrl(key), short: shortName(val.dname || key) };
 }
 }
 _itemCache = map;
@@ -315,5 +315,4 @@ if (p >= 25) return "var(--orange)";
 return "var(--red)";
 };
 
-console.log("fallback v9 ready (Akamai CDN, getHeroes fixed)");
-})();
+console.log("fallback v10 ready (OpenDota CDN, works in
