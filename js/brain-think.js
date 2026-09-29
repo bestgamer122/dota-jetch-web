@@ -1,12 +1,12 @@
-/* DOTA JETCH — BRAIN THINK v1.0 */
+/* DOTA JETCH — BRAIN THINK v1.1 (без подсказок в fallback) */
 
 var BrainThink = {
   analyze: function (query) {
     var raw = String(query || "").trim();
     var norm = raw.toLowerCase().replace(/[^a-zа-яё0-9\s]/g, " ").replace(/\s+/g, " ").trim();
     var tokens = norm.split(" ").filter(function (t) { return t.length >= 2; });
-    var isQuestion = /\?|^(кто|что|где|когда|как|почему|зачем|сколько|какой|чей)/.test(raw.toLowerCase());
-    var isCommand = /^(запомни|забудь|посчитай|брось|сгенерируй|покажи|расскажи)/.test(raw.toLowerCase());
+    var isQuestion = /\?/.test(raw) || (norm.indexOf("кто ") === 0) || (norm.indexOf("что ") === 0) || (norm.indexOf("где ") === 0) || (norm.indexOf("когда ") === 0) || (norm.indexOf("как ") === 0) || (norm.indexOf("почему ") === 0) || (norm.indexOf("зачем ") === 0) || (norm.indexOf("сколько ") === 0);
+    var isCommand = norm.indexOf("запомни") === 0 || norm.indexOf("забудь") === 0 || norm.indexOf("посчитай") === 0 || norm.indexOf("брось") === 0 || norm.indexOf("сгенерируй") === 0;
     return { raw: raw, norm: norm, tokens: tokens, isQuestion: isQuestion, isCommand: isCommand, length: tokens.length };
   },
 
@@ -80,10 +80,7 @@ var BrainThink = {
     if (c.source === "mood") return { kind: "mood", text: BrainMood.answer(c.kind), confidence: 0.9 };
     if (c.source === "stats") return { kind: "stats", text: c.kind === "self" ? BrainStats.selfText() : BrainStats.userText(), confidence: 0.9 };
     if (c.source === "fact") return { kind: "fact", text: BrainFacts.answer(c.kind), confidence: 0.85 };
-    if (c.source === "opinion") {
-      var ot = BrainOpinions.answer(c.kind);
-      if (ot) return { kind: "opinion", text: ot, confidence: 0.8 };
-    }
+    if (c.source === "opinion") { var ot = BrainOpinions.answer(c.kind); if (ot) return { kind: "opinion", text: ot, confidence: 0.8 }; }
     if (c.source === "core") {
       var map = { greeting: BrainCore.greetings, howareyou: BrainCore.howAreYou, thanks: BrainCore.thanks, farewell: BrainCore.farewell, whoareyou: BrainCore.whoAreYou, whatcanyoudo: BrainCore.whatCanYouDo, help: BrainCore.help, joke: BrainCore.jokes };
       if (c.kind === "whatknow") return { kind: "know", text: BrainLearn.formatList(), confidence: 1 };
@@ -103,12 +100,12 @@ var BrainThink = {
     var trace = [];
     trace.push("Анализирую запрос...");
     var analysis = this.analyze(query);
-    trace.push("Ищу ответы...");
+    trace.push("Ищу варианты ответа...");
     var candidates = this.gather(query);
     for (var i = 0; i < candidates.length; i++) candidates[i].score = this.score(candidates[i], analysis);
     candidates.sort(function (a, b) { return b.score - a.score; });
     if (!candidates.length) {
-      return { kind: "none", text: "Не знаю ответа.\n\nМогу: Dota, утилиты, время, статистику, факты, поддержку, обучение.", confidence: 0, trace: trace };
+      return { kind: "none", text: "Хм, не знаю что ответить на это.\n\nПопробуй переформулировать или научи меня: «запомни: вопрос = ответ».", confidence: 0, trace: trace };
     }
     trace.push("Формулирую ответ...");
     var answer = this.synthesize(candidates[0], analysis);
