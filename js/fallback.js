@@ -233,16 +233,24 @@ var ALIASES = {
 "котел": "Keeper of the Light"
 };
 
-var CDN = "https://api.opendota.com";
-
-function heroImgUrl(slug) {
-if (!slug) return null;
-return CDN + "/apps/dota2/images/heroes/" + slug + "_full.png";
+/* ─── Мульти-CDN: строим список кандидатов, пробуем по очереди ─── */
+function heroCandidates(id, slug) {
+var out = [];
+if (id) out.push("https://cdn.jsdelivr.net/gh/HighGroundVision/Hyperstone@master/images/heroes/icon/" + id + ".png");
+if (slug) out.push("https://cdn.jsdelivr.net/gh/odota/web@master/public/assets/heroes/" + slug + ".png");
+if (slug) out.push("https://api.opendota.com/apps/dota2/images/heroes/" + slug + "_full.png");
+if (slug) out.push("https://cdn.cloudflare.steamstatic.com/apps/dota2/images/dota_react/heroes/" + slug + ".png");
+if (slug) out.push("https://cdn.akamai.steamstatic.com/apps/dota2/images/dota_react/heroes/" + slug + ".png");
+return out;
 }
 
-function itemImgUrl(slug) {
-if (!slug) return null;
-return CDN + "/apps/dota2/images/items/" + slug + "_lg.png";
+function itemCandidates(id, slug) {
+var out = [];
+if (id) out.push("https://cdn.jsdelivr.net/gh/HighGroundVision/Hyperstone@master/images/items/" + id + ".png");
+if (slug) out.push("https://api.opendota.com/apps/dota2/images/items/" + slug + "_lg.png");
+if (slug) out.push("https://cdn.cloudflare.steamstatic.com/apps/dota2/images/dota_react/items/" + slug + ".png");
+if (slug) out.push("https://cdn.akamai.steamstatic.com/apps/dota2/images/dota_react/items/" + slug + ".png");
+return out;
 }
 
 function shortName(name) {
@@ -260,6 +268,25 @@ var h2 = (h + 60) % 360;
 return "linear-gradient(135deg, hsl(" + h + " 75% 42%), hsl(" + h2 + " 70% 26%))";
 }
 
+/* Умная картинка: пробует URL по очереди, первый успешный остаётся */
+function smartImg(candidates, style) {
+var img = document.createElement("img");
+img.alt = "";
+img.loading = "lazy";
+img.style.cssText = style;
+var idx = 0;
+img.onerror = function () {
+idx++;
+if (idx < candidates.length) {
+img.src = candidates[idx];
+} else {
+img.style.display = "none";
+}
+};
+if (candidates.length) img.src = candidates[0];
+return img;
+}
+
 var _heroCache = null;
 
 window.getHeroes = async function () {
@@ -270,14 +297,14 @@ var data = await apiGet("/heroes");
 if (Array.isArray(data) && data.length > 0) {
 _heroCache = data.map(function (h) {
 var slug = h.name.replace("npc_dota_hero_", "");
-return { id: h.id, name: h.localized_name, slug: slug, img: heroImgUrl(slug) };
+return { id: h.id, name: h.localized_name, slug: slug };
 });
 return _heroCache;
 }
 }
 } catch (e) { console.warn("API heroes unavailable, using fallback"); }
 _heroCache = HEROES_FALLBACK.map(function (h) {
-return { id: h.id, name: h.name, slug: h.slug, img: heroImgUrl(h.slug) };
+return { id: h.id, name: h.name, slug: h.slug };
 });
 return _heroCache;
 };
@@ -307,14 +334,12 @@ var fb = document.createElement("div");
 fb.style.cssText = "position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:" + Math.round(size * 0.34) + "px;font-weight:800;color:rgba(255,255,255,0.92);font-family:'JetBrains Mono',monospace;text-shadow:0 2px 6px rgba(0,0,0,0.55);pointer-events:none;user-select:none;z-index:0;";
 fb.textContent = shortName(hero ? hero.name : "?");
 wrap.appendChild(fb);
-if (hero && hero.img) {
-var img = document.createElement("img");
-img.alt = "";
-img.loading = "lazy";
-img.style.cssText = "position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:1;display:block;";
-img.onerror = function () { img.style.display = "none"; };
-img.src = hero.img;
+if (hero) {
+var cands = heroCandidates(hero.id, hero.slug);
+if (cands.length) {
+var img = smartImg(cands, "position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:1;display:block;");
 wrap.appendChild(img);
+}
 }
 return wrap;
 };
@@ -327,14 +352,12 @@ var fb = document.createElement("div");
 fb.style.cssText = "position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800;color:rgba(255,255,255,0.92);font-family:'JetBrains Mono',monospace;pointer-events:none;z-index:0;";
 fb.textContent = shortName(hero ? hero.name : "?");
 wrap.appendChild(fb);
-if (hero && hero.img) {
-var img = document.createElement("img");
-img.alt = "";
-img.loading = "lazy";
-img.style.cssText = "position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:1;display:block;";
-img.onerror = function () { img.style.display = "none"; };
-img.src = hero.img;
+if (hero) {
+var cands = heroCandidates(hero.id, hero.slug);
+if (cands.length) {
+var img = smartImg(cands, "position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:1;display:block;");
 wrap.appendChild(img);
+}
 }
 if (opts.kda) {
 var kda = document.createElement("div");
@@ -358,13 +381,9 @@ var fb = document.createElement("div");
 fb.style.cssText = "position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:rgba(255,255,255,0.55);font-family:'JetBrains Mono',monospace;text-align:center;padding:2px;z-index:0;";
 fb.textContent = short;
 wrap.appendChild(fb);
-if (item.img) {
-var img = document.createElement("img");
-img.alt = "";
-img.loading = "lazy";
-img.style.cssText = "position:absolute;inset:0;width:100%;height:100%;object-fit:contain;padding:4px;z-index:1;display:block;";
-img.onerror = function () { img.style.display = "none"; };
-img.src = item.img;
+var cands = itemCandidates(item.id, item.slug);
+if (cands.length) {
+var img = smartImg(cands, "position:absolute;inset:0;width:100%;height:100%;object-fit:contain;padding:4px;z-index:1;display:block;");
 wrap.appendChild(img);
 }
 if (item.name) wrap.title = item.name;
@@ -384,7 +403,7 @@ for (var key in data) {
 if (!data.hasOwnProperty(key)) continue;
 var val = data[key];
 if (val && val.id) {
-map[val.id] = { id: val.id, name: val.dname || key, slug: key, img: itemImgUrl(key), short: shortName(val.dname || key) };
+map[val.id] = { id: val.id, name: val.dname || key, slug: key, short: shortName(val.dname || key) };
 }
 }
 _itemCache = map;
@@ -396,7 +415,7 @@ var fallback = {};
 for (var id in ITEMS_FALLBACK) {
 if (!ITEMS_FALLBACK.hasOwnProperty(id)) continue;
 var n = ITEMS_FALLBACK[id][0], sl = ITEMS_FALLBACK[id][1];
-fallback[id] = { id: parseInt(id, 10), name: n, slug: sl, img: itemImgUrl(sl), short: shortName(n) };
+fallback[id] = { id: parseInt(id, 10), name: n, slug: sl, short: shortName(n) };
 }
 _itemCache = fallback;
 return fallback;
@@ -445,5 +464,5 @@ if (p >= 25) return "var(--orange)";
 return "var(--red)";
 };
 
-console.log("fallback v11 ready (no syntax errors, OpenDota CDN)");
+console.log("fallback v12 ready (multi-CDN fallback, works in RU)");
 })();
