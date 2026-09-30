@@ -1,4 +1,5 @@
-/* DOTA JETCH — AI MATCH v1.5 (без MutationObserver, вызов из analyze.js) */
+/* DOTA JETCH — AI MATCH v1.6 (приветствия работают)
+   Контекст матча добавляется только к содержательным вопросам. */
 
 (function () {
   "use strict";
@@ -36,6 +37,26 @@
     if (ctx.deathsCount) parts.push("Смертей: " + ctx.deathsCount);
     if (ctx.result) parts.push("Результат: " + ctx.result);
     return parts.join(". ");
+  }
+
+  /* Проверка: является ли вопрос приветствием / благодарностью / прощанием */
+  function isSmallTalk(q) {
+    var s = String(q || "").toLowerCase().trim();
+    if (!s) return false;
+    var helloWords = ["привет", "прив", "здарова", "здоров", "хай", "ку", "hi", "hello", "hey", "здравствуй", "добрый день", "добрый вечер", "доброе утро"];
+    for (var i = 0; i < helloWords.length; i++) {
+      if (s.indexOf(helloWords[i]) === 0) return true;
+    }
+    var thanksWords = ["спасиб", "благодар", "спс", "thanks", "thx"];
+    for (var j = 0; j < thanksWords.length; j++) {
+      if (s.indexOf(thanksWords[j]) === 0) return true;
+    }
+    var byeWords = ["пока", "до свид", "бай", "bye"];
+    for (var k = 0; k < byeWords.length; k++) {
+      if (s.indexOf(byeWords[k]) === 0) return true;
+    }
+    if (s.indexOf("как дела") >= 0 || s.indexOf("как ты") >= 0 || s.indexOf("как жизнь") >= 0) return true;
+    return false;
   }
 
   function typeWriter(el, text, speed, callback) {
@@ -100,11 +121,17 @@
         style: "padding:8px 12px;background:var(--accent-bg);border-radius:10px;font-size:13px;align-self:flex-end;max-width:80%;"
       }, q));
 
-      var ctx = collectMatchContext();
-      var ctxStr = buildContextString(ctx);
-      var fullQ = "Контекст матча: " + ctxStr + ". Вопрос: " + q;
-
-      var ans = typeof brainAnswer === "function" ? brainAnswer(fullQ) : { text: "ИИ недоступен." };
+      var ans;
+      if (isSmallTalk(q)) {
+        /* Приветствие / благодарность / прощание — вызываем чистый brainAnswer */
+        ans = typeof brainAnswer === "function" ? brainAnswer(q) : { text: "ИИ недоступен." };
+      } else {
+        /* Содержательный вопрос — добавляем контекст матча */
+        var ctx = collectMatchContext();
+        var ctxStr = buildContextString(ctx);
+        var fullQ = ctxStr ? ("Контекст матча: " + ctxStr + ". Вопрос: " + q) : q;
+        ans = typeof brainAnswer === "function" ? brainAnswer(fullQ) : { text: "ИИ недоступен." };
+      }
 
       var botDiv = el("div", {
         style: "padding:10px 12px;background:var(--bg-elev);border-radius:10px;font-size:13px;line-height:1.55;white-space:pre-wrap;max-width:85%;"
@@ -126,5 +153,5 @@
     report.appendChild(card);
   };
 
-  console.log("ai-match v1.5 ready");
+  console.log("ai-match v1.6 ready");
 })();
