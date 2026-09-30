@@ -1,14 +1,13 @@
-/* DOTA JETCH — APP v4.1 */
+/* DOTA JETCH — APP v6.0 */
 
-var APP_VERSION = "4.1";
+var APP_VERSION = "6.0";
 
-/* ─── Навигация ─── */
 var PAGES = {
   dashboard:    { title: "Главная",         render: renderDashboard },
   analyze:      { title: "Анализ матча",    render: renderAnalyze },
   chat:         { title: "ИИ-ассистент",    render: renderChat },
   history:      { title: "История",         render: renderHistory },
-  charts:       { title: "Прогресс",        render: renderChartsPage },
+  charts:       { title: "Прогресс",        render: Charts.render },
   diary:        { title: "Дневник",         render: renderDiary },
   games:        { title: "Мини-игры",       render: renderGames },
   achievements: { title: "Достижения",      render: renderAchievements },
@@ -33,7 +32,6 @@ var NAV = [
 
 var currentPage = "dashboard";
 
-/* ─── Строим навигацию ─── */
 function buildNav() {
   var nav = qs("#sidebarNav");
   if (!nav) return;
@@ -49,7 +47,6 @@ function buildNav() {
   }
 }
 
-/* ─── Безопасный рендер ─── */
 function safeRender(name) {
   try {
     if (!PAGES[name]) throw new Error("Страница не найдена: " + name);
@@ -66,7 +63,6 @@ function safeRender(name) {
   }
 }
 
-/* ─── Переключение страниц ─── */
 function switchPage(name) {
   if (!PAGES[name]) name = "dashboard";
   currentPage = name;
@@ -85,12 +81,10 @@ function switchPage(name) {
   location.hash = name;
 }
 
-/* ─── Обновление плана в сайдбаре ─── */
 function updateSidebarPlan() {
   if (typeof updateSidebarPlanImpl === "function") updateSidebarPlanImpl();
 }
 
-/* ─── Дашборд ─── */
 function renderDashboard() {
   var frag = document.createDocumentFragment();
   var plus = (typeof checkLicense === "function") ? checkLicense() : (Store.get("license.active", false) === true);
@@ -118,7 +112,6 @@ function renderDashboard() {
   s2.appendChild(UI.statCard("H", "var(--green)", "var(--green-bg)", "История", String((Store.get("recentmatches", []) || []).length), "Матчей"));
   frag.appendChild(s2);
 
-  /* Последний матч */
   if (typeof lastAnalysis !== "undefined" && lastAnalysis && lastAnalysis.hero) {
     var last = UI.card("Последний матч");
     var row = el("div", { style: "display:flex;align-items:center;gap:14px;" });
@@ -135,7 +128,6 @@ function renderDashboard() {
   return frag;
 }
 
-/* ─── Инициализация ─── */
 function init() {
   try { if (typeof applyTheme === "function") applyTheme(loadTheme()); } catch (e) {}
   try { if (typeof applyLiteMode === "function") applyLiteMode(isLiteMode()); } catch (e) {}
