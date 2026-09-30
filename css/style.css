@@ -281,6 +281,112 @@ border-radius: 18px; text-align: center;
 .sidebar-logo > div:last-child, .sidebar-plan, .nav-btn > :not(.nav-ico) { display: none; }
 .sidebar-logo { justify-content: center; padding: 16px 8px; }
 .nav-btn { justify-content: center; padding: 12px 0; font-size: 0; }
+  /* ============================================
+   DOTA JETCH — ПАТЧ СТИЛЕЙ (dropdown + checkbox + темы)
+   ============================================ */
+
+/* 1. ВЫПАДАЮЩИЙ СПИСОК */
+.dropdown { position: relative; width: 100%; }
+
+.dropdown-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  color: var(--text);
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.dropdown-btn:hover { border-color: var(--border-hl); }
+
+.dropdown-list {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: var(--bg-card);
+  border: 1px solid var(--border-hl);
+  border-radius: 12px;
+  padding: 6px;
+  z-index: 1000;
+  max-height: 260px;
+  overflow-y: auto;
+  display: none;
+  box-shadow: 0 12px 30px rgba(0,0,0,0.5);
+}
+
+.dropdown-list.open { display: block; }
+
+.dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 9px 10px;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.dropdown-item:hover { background: var(--accent-bg); }
+.dropdown-item.active { background: var(--accent-bg); color: var(--accent-light); }
+
+/* 2. ЧЕКБОКСЫ */
+input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  border: 1.5px solid var(--border-hl);
+  border-radius: 5px;
+  background: var(--bg-elev);
+  cursor: pointer;
+  position: relative;
+  flex-shrink: 0;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+input[type="checkbox"]:checked {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+input[type="checkbox"]:checked::after {
+  content: "✓";
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+/* 3. ПЕРЕОПРЕДЕЛЕНИЕ ЖЁСТКИХ ЦВЕТОВ НА ПЕРЕМЕННЫЕ */
+.titlebar { background: var(--bg-card) !important; border-bottom-color: var(--border) !important; }
+.sidebar { background: var(--bg-card) !important; border-right-color: var(--border) !important; }
+.card { background: var(--bg-card) !important; border-color: var(--border) !important; }
+.stat-card { background: var(--bg-card) !important; border-color: var(--border) !important; }
+.hero-banner { background: var(--bg-card) !important; border-color: var(--border) !important; }
+.nav-btn { color: var(--text-muted) !important; }
+.nav-btn:hover { color: var(--text) !important; background: var(--bg-elev) !important; }
+.nav-btn.active { color: var(--text) !important; border-color: var(--accent) !important; background: var(--accent-bg) !important; }
+.btn { background: var(--accent) !important; border-color: var(--accent) !important; }
+.btn-ghost { background: var(--bg-elev) !important; color: var(--text) !important; border-color: var(--border) !important; }
+.page-header { background: var(--bg-card) !important; border-bottom-color: var(--border) !important; }
 .page-content { padding: 16px 14px 40px; }
 .hero-title { font-size: 26px; }
 }
