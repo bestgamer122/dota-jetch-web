@@ -10,53 +10,25 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/style.css?v=17.0">
-<link rel="stylesheet" href="css/lite.css?v=17.0">
+<link rel="stylesheet" href="css/style.css?v=18.0">
+<link rel="stylesheet" href="css/lite.css?v=18.0">
 <style>
-#authScreen {
-  position: fixed;
-  inset: 0;
-  z-index: 99999;
-  background: var(--bg-base, #0b0c10);
-  display: none;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-}
-#authScreen .auth-card {
-  max-width: 420px;
-  width: 100%;
-  background: var(--bg-card, #15161b);
-  border: 1px solid var(--border, #2a2b33);
-  border-radius: 16px;
-  padding: 32px 28px;
-  box-shadow: 0 20px 60px rgba(0,0,0,0.6);
-}
+#authScreen { position: fixed; inset: 0; z-index: 99999; background: var(--bg-base, #0b0c10); display: none; align-items: center; justify-content: center; padding: 20px; }
+#authScreen .auth-card { max-width: 420px; width: 100%; background: var(--bg-card, #15161b); border: 1px solid var(--border, #2a2b33); border-radius: 16px; padding: 32px 28px; box-shadow: 0 20px 60px rgba(0,0,0,0.6); }
 #authScreen .auth-logo { text-align: center; margin-bottom: 24px; }
 #authScreen .auth-logo svg { width: 48px; height: 48px; color: #8b5cf6; margin-bottom: 12px; }
 #authScreen h1 { font-size: 20px; font-weight: 800; color: var(--text, #fff); margin: 0 0 6px; text-align: center; }
 #authScreen .auth-sub { font-size: 12px; color: var(--text-dim, #888); text-align: center; margin-bottom: 22px; line-height: 1.5; }
-#authScreen input {
-  width: 100%; box-sizing: border-box; padding: 12px 14px; margin-bottom: 10px;
-  background: var(--bg-elev, #1c1d24); border: 1px solid var(--border, #2a2b33);
-  border-radius: 10px; color: var(--text, #fff); font-size: 14px; font-family: inherit;
-}
+#authScreen input { width: 100%; box-sizing: border-box; padding: 12px 14px; margin-bottom: 10px; background: var(--bg-elev, #1c1d24); border: 1px solid var(--border, #2a2b33); border-radius: 10px; color: var(--text, #fff); font-size: 14px; font-family: inherit; }
 #authScreen input:focus { outline: none; border-color: #8b5cf6; }
-#authScreen .auth-btn {
-  width: 100%; padding: 12px; border-radius: 10px; border: none;
-  font-size: 14px; font-weight: 700; cursor: pointer; font-family: inherit;
-  transition: opacity 0.15s;
-}
+#authScreen .auth-btn { width: 100%; padding: 12px; border-radius: 10px; border: none; font-size: 14px; font-weight: 700; cursor: pointer; font-family: inherit; transition: opacity 0.15s; }
 #authScreen .auth-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 #authScreen .auth-btn-primary { background: #8b5cf6; color: #fff; margin-bottom: 10px; }
-#authScreen .auth-btn-primary:hover:not(:disabled) { opacity: 0.9; }
 #authScreen .auth-btn-outline { background: transparent; color: #8b5cf6; border: 1px solid #8b5cf6; }
-#authScreen .auth-btn-outline:hover:not(:disabled) { background: rgba(139,92,246,0.1); }
 #authScreen .auth-error { color: #ef4444; font-size: 12px; min-height: 16px; margin-bottom: 8px; text-align: center; }
 #authScreen .auth-hint { font-size: 11px; color: var(--text-dim, #666); text-align: center; margin-top: 18px; }
 #authScreen .auth-forgot { text-align: center; margin-top: 14px; }
 #authScreen .auth-forgot a { font-size: 12px; color: #8b5cf6; text-decoration: none; }
-#authScreen .auth-forgot a:hover { text-decoration: underline; }
 </style>
 </head>
 <body>
@@ -74,11 +46,7 @@
 
 <div class="app">
   <header class="titlebar">
-    <span class="titlebar-icon">
-      <svg viewBox="0 0 24 24" fill="none" width="14" height="14" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M12 2 L15 9 L22 12 L15 15 L12 22 L9 15 L2 12 L9 9 Z"/>
-      </svg>
-    </span>
+    <span class="titlebar-icon"><svg viewBox="0 0 24 24" fill="none" width="14" height="14" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 L15 9 L22 12 L15 15 L12 22 L9 15 L2 12 L9 9 Z"/></svg></span>
     <span class="titlebar-title">DOTA JETCH AI 2.0</span>
     <span class="titlebar-spacer"></span>
     <span class="titlebar-status">Готов</span>
@@ -88,15 +56,8 @@
   <div class="body">
     <aside class="sidebar">
       <div class="sidebar-logo">
-        <div class="sidebar-logo-mark">
-          <svg viewBox="0 0 24 24" fill="none" width="20" height="20" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 2 L15 9 L22 12 L15 15 L12 22 L9 15 L2 12 L9 9 Z"/>
-          </svg>
-        </div>
-        <div>
-          <div class="sidebar-logo-title">DOTA JETCH</div>
-          <div class="sidebar-logo-sub">AI 2.0</div>
-        </div>
+        <div class="sidebar-logo-mark"><svg viewBox="0 0 24 24" fill="none" width="20" height="20" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 L15 9 L22 12 L15 15 L12 22 L9 15 L2 12 L9 9 Z"/></svg></div>
+        <div><div class="sidebar-logo-title">DOTA JETCH</div><div class="sidebar-logo-sub">AI 2.0</div></div>
       </div>
       <nav class="sidebar-nav" id="sidebarNav"></nav>
       <div class="sidebar-plan">
@@ -112,57 +73,54 @@
     </aside>
 
     <main class="main">
-      <div class="page-header">
-        <div class="page-title" id="pageTitle">Главная</div>
-      </div>
-      <div class="page-scroll">
-        <div id="pageContent" class="page-content"></div>
-      </div>
+      <div class="page-header"><div class="page-title" id="pageTitle">Главная</div></div>
+      <div class="page-scroll"><div id="pageContent" class="page-content"></div></div>
     </main>
   </div>
 </div>
 
-<script src="js/firebase-config.js?v=17.0"></script>
-<script type="module" src="js/auth.js?v=17.0"></script>
-<script src="js/config.js?v=17.0"></script>
-<script src="js/fallback.js?v=17.0"></script>
-<script src="js/ui.js?v=17.0"></script>
-<script src="js/knowledge.js?v=17.0"></script>
-<script src="js/brain-core.js?v=17.0"></script>
-<script src="js/brain-learn.js?v=17.0"></script>
-<script src="js/brain-time.js?v=17.0"></script>
-<script src="js/brain-stats.js?v=17.0"></script>
-<script src="js/brain-context.js?v=17.0"></script>
-<script src="js/brain-opinions.js?v=17.0"></script>
-<script src="js/brain-tools.js?v=17.0"></script>
-<script src="js/brain-mood.js?v=17.0"></script>
-<script src="js/brain-facts.js?v=17.0"></script>
-<script src="js/brain-user.js?v=17.0"></script>
-<script src="js/brain-personality.js?v=17.0"></script>
-<script src="js/brain-variation.js?v=17.0"></script>
-<script src="js/brain-suggest.js?v=17.0"></script>
-<script src="js/brain-lang.js?v=17.0"></script>
-<script src="js/brain-reason.js?v=17.0"></script>
-<script src="js/brain-infer.js?v=17.0"></script>
-<script src="js/brain-graph.js?v=17.0"></script>
-<script src="js/brain-memory-long.js?v=17.0"></script>
-<script src="js/brain-think.js?v=17.0"></script>
-<script src="js/brain-chain.js?v=17.0"></script>
-<script src="js/brain-emotion.js?v=17.0"></script>
-<script src="js/brain-feedback.js?v=17.0"></script>
-<script src="js/brain-selfcheck.js?v=17.0"></script>
-<script src="js/brain.js?v=17.0"></script>
-<script src="js/achievements.js?v=17.0"></script>
-<script src="js/history.js?v=17.0"></script>
-<script src="js/diary.js?v=17.0"></script>
-<script src="js/assistant.js?v=17.0"></script>
-<script src="js/games.js?v=17.0"></script>
-<script src="js/charts.js?v=17.0"></script>
-<script src="js/daily.js?v=17.0"></script>
-<script src="js/export.js?v=17.0"></script>
-<script src="js/analyze.js?v=17.0"></script>
-<script src="js/settings.js?v=17.0"></script>
-<script src="js/app.js?v=17.0"></script>
-<script src="js/visual.js?v=17.0"></script>
+<script src="js/firebase-config.js?v=18.0"></script>
+<script src="js/uid-store.js?v=18.0"></script>
+<script type="module" src="js/auth.js?v=18.0"></script>
+<script src="js/config.js?v=18.0"></script>
+<script src="js/fallback.js?v=18.0"></script>
+<script src="js/ui.js?v=18.0"></script>
+<script src="js/knowledge.js?v=18.0"></script>
+<script src="js/brain-core.js?v=18.0"></script>
+<script src="js/brain-learn.js?v=18.0"></script>
+<script src="js/brain-time.js?v=18.0"></script>
+<script src="js/brain-stats.js?v=18.0"></script>
+<script src="js/brain-context.js?v=18.0"></script>
+<script src="js/brain-opinions.js?v=18.0"></script>
+<script src="js/brain-tools.js?v=18.0"></script>
+<script src="js/brain-mood.js?v=18.0"></script>
+<script src="js/brain-facts.js?v=18.0"></script>
+<script src="js/brain-user.js?v=18.0"></script>
+<script src="js/brain-personality.js?v=18.0"></script>
+<script src="js/brain-variation.js?v=18.0"></script>
+<script src="js/brain-suggest.js?v=18.0"></script>
+<script src="js/brain-lang.js?v=18.0"></script>
+<script src="js/brain-reason.js?v=18.0"></script>
+<script src="js/brain-infer.js?v=18.0"></script>
+<script src="js/brain-graph.js?v=18.0"></script>
+<script src="js/brain-memory-long.js?v=18.0"></script>
+<script src="js/brain-think.js?v=18.0"></script>
+<script src="js/brain-chain.js?v=18.0"></script>
+<script src="js/brain-emotion.js?v=18.0"></script>
+<script src="js/brain-feedback.js?v=18.0"></script>
+<script src="js/brain-selfcheck.js?v=18.0"></script>
+<script src="js/brain.js?v=18.0"></script>
+<script src="js/achievements.js?v=18.0"></script>
+<script src="js/history.js?v=18.0"></script>
+<script src="js/diary.js?v=18.0"></script>
+<script src="js/assistant.js?v=18.0"></script>
+<script src="js/games.js?v=18.0"></script>
+<script src="js/charts.js?v=18.0"></script>
+<script src="js/daily.js?v=18.0"></script>
+<script src="js/export.js?v=18.0"></script>
+<script src="js/analyze.js?v=18.0"></script>
+<script src="js/settings.js?v=18.0"></script>
+<script src="js/app.js?v=18.0"></script>
+<script src="js/visual.js?v=18.0"></script>
 </body>
 </html>
