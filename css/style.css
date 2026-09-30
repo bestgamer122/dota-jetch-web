@@ -1,4 +1,4 @@
-/* DOTA JETCH — STYLE v5.0 (универсальные переменные для всех тем) */
+/* DOTA JETCH — STYLE v6.0 (визуальные эффекты + переменные для тем) */
 
 *, *::before, *::after { box-sizing: border-box; }
 
@@ -11,7 +11,6 @@ html, body {
 }
 
 :root {
-  /* Базовые значения (тема Purple) — переопределяются через applyTheme */
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --bg: #0b0c10;
   --bg-card: #16181f;
@@ -44,7 +43,7 @@ html, body {
 
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 8px; }
 
-/* ФОНЫ */
+/* ФОНЫ С ГРАДИЕНТАМИ */
 .bg-base {
   position: fixed; inset: 0; z-index: -5;
   background: radial-gradient(120% 80% at 50% 0%, var(--bg) 0%, var(--bg) 45%, var(--bg) 100%);
@@ -102,7 +101,7 @@ body.cursor-ready .cursor-dot, body.cursor-ready .cursor-ring { opacity: 1; }
 .app { display: flex; flex-direction: column; height: 100vh; width: 100%; }
 .titlebar {
   height: 42px; display: flex; align-items: center; gap: 10px; padding: 0 16px;
-  background: var(--bg-card);
+  background: rgba(10, 12, 20, 0.55);
   backdrop-filter: blur(20px) saturate(1.4);
   border-bottom: 1px solid var(--border);
   flex-shrink: 0; user-select: none; position: relative; z-index: 10;
@@ -123,7 +122,7 @@ body.cursor-ready .cursor-dot, body.cursor-ready .cursor-ring { opacity: 1; }
 
 /* САЙДБАР */
 .sidebar {
-  width: 244px; background: var(--bg-card);
+  width: 244px; background: rgba(11, 13, 22, 0.6);
   backdrop-filter: blur(28px) saturate(1.5);
   border-right: 1px solid var(--border);
   display: flex; flex-direction: column; flex-shrink: 0;
@@ -168,7 +167,7 @@ body.cursor-ready .cursor-dot, body.cursor-ready .cursor-ring { opacity: 1; }
 .main { flex: 1; display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
 .page-header {
   height: 56px; display: flex; align-items: center; padding: 0 28px;
-  background: var(--bg-card);
+  background: rgba(11, 13, 22, 0.35);
   backdrop-filter: blur(16px) saturate(1.4);
   border-bottom: 1px solid var(--border); flex-shrink: 0;
 }
@@ -184,7 +183,7 @@ body.cursor-ready .cursor-dot, body.cursor-ready .cursor-ring { opacity: 1; }
 /* КАРТОЧКИ */
 .card {
   position: relative;
-  background: var(--bg-card);
+  background: linear-gradient(160deg, rgba(28, 30, 44, 0.6), rgba(16, 18, 28, 0.5));
   backdrop-filter: blur(24px) saturate(1.5);
   border: 1px solid var(--border);
   border-radius: 18px; padding: 20px 22px; margin-bottom: 16px;
@@ -235,7 +234,7 @@ body.cursor-ready .cursor-dot, body.cursor-ready .cursor-ring { opacity: 1; }
 .btn:hover { transform: translateY(-1.5px); filter: brightness(1.06); }
 .btn:active { transform: translateY(0.5px); }
 .btn:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
-.btn-ghost { background: var(--bg-elev); color: var(--text); border-color: var(--border); }
+.btn-ghost { background: rgba(255, 255, 255, 0.04); color: var(--text); border-color: var(--border); }
 .btn-ghost:hover { background: var(--accent-bg); border-color: var(--accent); color: var(--text); }
 .btn-danger { background: linear-gradient(135deg, var(--red) 0%, #dc2626 100%); border-color: var(--red); }
 
@@ -252,7 +251,7 @@ body.cursor-ready .cursor-dot, body.cursor-ready .cursor-ring { opacity: 1; }
   background:
     radial-gradient(120% 100% at 0% 0%, var(--accent-bg), transparent 60%),
     radial-gradient(80% 90% at 100% 100%, var(--cyan-bg), transparent 55%),
-    var(--bg-card);
+    linear-gradient(135deg, rgba(28, 20, 55, 0.9), rgba(10, 12, 22, 0.9));
   border: 1px solid var(--accent);
   margin-bottom: 20px;
 }
@@ -269,7 +268,7 @@ body.cursor-ready .cursor-dot, body.cursor-ready .cursor-ring { opacity: 1; }
 /* СТАТИСТИКА */
 .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px; margin-bottom: 18px; }
 .stat-card {
-  background: var(--bg-card);
+  background: linear-gradient(160deg, rgba(28, 30, 44, 0.6), rgba(16, 18, 28, 0.5));
   backdrop-filter: blur(20px) saturate(1.4);
   border: 1px solid var(--border);
   border-radius: 18px; padding: 18px 20px;
@@ -296,7 +295,7 @@ body.cursor-ready .cursor-dot, body.cursor-ready .cursor-ring { opacity: 1; }
 }
 .dialog {
   min-width: 320px; max-width: 480px; padding: 24px;
-  background: var(--bg-card);
+  background: linear-gradient(160deg, rgba(28, 30, 44, 0.95), rgba(14, 16, 26, 0.95));
   border: 1px solid var(--accent);
   border-radius: 18px; text-align: center;
 }
@@ -351,10 +350,7 @@ body.cursor-ready .cursor-dot, body.cursor-ready .cursor-ring { opacity: 1; }
 .dropdown-dot { width: 14px; height: 14px; border-radius: 50%; flex-shrink: 0; box-shadow: 0 0 8px currentColor; }
 .dropdown-check { color: var(--green); font-weight: 700; font-size: 11px; }
 
-.card.card-elevated {
-  z-index: 500;
-  position: relative;
-}
+.card.card-elevated { z-index: 500; position: relative; }
 
 /* ЧЕКБОКСЫ */
 input[type="checkbox"] {
@@ -370,10 +366,7 @@ input[type="checkbox"] {
   flex-shrink: 0;
   transition: background 0.15s, border-color 0.15s;
 }
-input[type="checkbox"]:checked {
-  background: var(--accent);
-  border-color: var(--accent);
-}
+input[type="checkbox"]:checked { background: var(--accent); border-color: var(--accent); }
 input[type="checkbox"]:checked::after {
   content: "✓";
   position: absolute;
