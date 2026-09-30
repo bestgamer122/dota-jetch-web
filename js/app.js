@@ -1,7 +1,8 @@
-/* DOTA JETCH — APP v6.0 */
+/* DOTA JETCH — APP v7.0 */
 
-var APP_VERSION = "6.0";
+var APP_VERSION = "7.0";
 
+/* ─── Навигация ─── */
 var PAGES = {
   dashboard:    { title: "Главная",         render: renderDashboard },
   analyze:      { title: "Анализ матча",    render: renderAnalyze },
@@ -79,12 +80,22 @@ function switchPage(name) {
   var s = qs(".page-scroll");
   if (s) s.scrollTop = 0;
   location.hash = name;
+  if (typeof updateSidebarPlan === "function") updateSidebarPlan();
 }
 
+/* ─── Обновление плана в сайдбаре ─── */
 function updateSidebarPlan() {
-  if (typeof updateSidebarPlanImpl === "function") updateSidebarPlanImpl();
+  var plus = (typeof checkLicense === "function") ? checkLicense() : (Store.get("license.active", false) === true);
+  var t = qs("#planTitle"), i = qs("#planInfo"), v = qs("#planValue");
+  if (t) t.textContent = plus ? "JETCH+" : "FREE";
+  if (i) i.textContent = plus ? "Бессрочно" : "5 анализов/день";
+  if (v) {
+    var rem = (typeof analyzeQuotaRemaining === "function") ? analyzeQuotaRemaining() : 5;
+    v.textContent = plus ? "∞" : String(rem) + " / 5";
+  }
 }
 
+/* ─── Дашборд ─── */
 function renderDashboard() {
   var frag = document.createDocumentFragment();
   var plus = (typeof checkLicense === "function") ? checkLicense() : (Store.get("license.active", false) === true);
@@ -128,6 +139,7 @@ function renderDashboard() {
   return frag;
 }
 
+/* ─── Инициализация ─── */
 function init() {
   try { if (typeof applyTheme === "function") applyTheme(loadTheme()); } catch (e) {}
   try { if (typeof applyLiteMode === "function") applyLiteMode(isLiteMode()); } catch (e) {}
