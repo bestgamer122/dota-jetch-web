@@ -1,5 +1,5 @@
-/* DOTA JETCH — FIREBASE AUTH v3.1 (исправлены анимации кнопок)
-   Регистрация + вход + сессия не слетает + верификация + сброс пароля + анимации. */
+/* DOTA JETCH — FIREBASE AUTH v3.2 (фикс ключей с точками)
+   Регистрация + вход + сессия + верификация + сброс пароля + анимации. */
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.8.0/firebase-app.js";
 import {
@@ -26,6 +26,18 @@ setPersistence(auth, browserLocalPersistence).catch(function (e) {
 let currentUser = null;
 let autoSaveInterval = null;
 
+/* ─── Кодирование ключей Firebase (точки запрещены) ─── */
+function encodeKey(k) {
+  return String(k).replace(/\./g, "__DOT__").replace(/\//g, "__SLASH__")
+                  .replace(/#/g, "__HASH__").replace(/\$/g, "__DOLLAR__")
+                  .replace(/\[/g, "__LB__").replace(/\]/g, "__RB__");
+}
+function decodeKey(k) {
+  return String(k).replace(/__DOT__/g, ".").replace(/__SLASH__/g, "/")
+                  .replace(/__HASH__/g, "#").replace(/__DOLLAR__/g, "$")
+                  .replace(/__LB__/g, "[").replace(/__RB__/g, "]");
+}
+
 /* ─── ВСТРОЕННЫЕ CSS-АНИМАЦИИ ─── */
 function injectAuthAnimations() {
   if (document.getElementById("authAnimationsStyle")) return;
@@ -37,10 +49,7 @@ function injectAuthAnimations() {
       60% { transform: translateY(-4px) scale(1.01); }
       100% { opacity: 1; transform: translateY(0) scale(1); }
     }
-    @keyframes authFadeIn {
-      from { opacity: 0; }
-      to { opacity: 1; }
-    }
+    @keyframes authFadeIn { from { opacity: 0; } to { opacity: 1; } }
     @keyframes authIconFloat {
       0%, 100% { transform: translateY(0) rotate(0); }
       50% { transform: translateY(-8px) rotate(6deg); }
@@ -74,15 +83,9 @@ function injectAuthAnimations() {
     #authScreen .auth-logo svg {
       animation: authIconFloat 3s ease-in-out infinite, authGlow 2.5s ease-in-out infinite;
     }
-    #authScreen h1 {
-      animation: authSlideDown 0.5s ease-out 0.15s both;
-    }
-    #authScreen .auth-sub {
-      animation: authSlideDown 0.5s ease-out 0.25s both;
-    }
-    #authScreen input {
-      animation: authFadeIn 0.45s ease-out both;
-    }
+    #authScreen h1 { animation: authSlideDown 0.5s ease-out 0.15s both; }
+    #authScreen .auth-sub { animation: authSlideDown 0.5s ease-out 0.25s both; }
+    #authScreen input { animation: authFadeIn 0.45s ease-out both; }
     #authScreen input:nth-of-type(1) { animation-delay: 0.25s; }
     #authScreen input:nth-of-type(2) { animation-delay: 0.35s; }
     #authScreen .auth-btn {
@@ -94,12 +97,8 @@ function injectAuthAnimations() {
     #authScreen .auth-btn-outline { animation-delay: 0.4s; }
     #authScreen .auth-forgot { animation: authFadeIn 0.5s ease-out 0.5s both; }
     #authScreen .auth-hint { animation: authFadeIn 0.5s ease-out 0.6s both; }
-    #authScreen .auth-error-shake {
-      animation: authShake 0.4s ease-in-out;
-    }
-    #authScreen .auth-error {
-      transition: color 0.2s ease, opacity 0.2s ease;
-    }
+    #authScreen .auth-error-shake { animation: authShake 0.4s ease-in-out; }
+    #authScreen .auth-error { transition: color 0.2s ease, opacity 0.2s ease; }
   `;
   document.head.appendChild(style);
 }
@@ -127,10 +126,7 @@ function showVerificationScreen(email) {
 
 function hideAuthScreen() {
   const el = document.getElementById("authScreen");
-  if (el) {
-    el.style.display = "none";
-    el.innerHTML = "";
-  }
+  if (el) { el.style.display = "none"; el.innerHTML = ""; }
   document.body.style.overflow = "";
 }
 
@@ -288,7 +284,7 @@ function collectLocalData() {
   for (const key of SYNC_KEYS) {
     const val = localStorage.getItem(key);
     if (val !== null) {
-      try { data[key] = JSON.parse(val); } catch (e) { data[key] = val; }
+      try { data[encodeKey(key)] = JSON.parse(val); } catch (e) { data[encodeKey(key)] = val; }
     }
   }
   return data;
@@ -301,11 +297,12 @@ async function loadUserData(uid) {
     if (data && typeof data === "object") {
       for (const key in data) {
         if (!Object.prototype.hasOwnProperty.call(data, key)) continue;
+        const realKey = decodeKey(key);
         const val = data[key];
         try {
-          localStorage.setItem(key, typeof val === "string" ? val : JSON.stringify(val));
+          localStorage.setItem(realKey, typeof val === "string" ? val : JSON.stringify(val));
         } catch (e) {
-          localStorage.setItem(key, String(val));
+          localStorage.setItem(realKey, String(val));
         }
       }
     }
@@ -326,8 +323,11 @@ function setupStoreSync(uid) {
     window.Store.set = function (key, value) {
       originalSet(key, value);
       const patch = {};
-      patch[key] = value;
-      update(ref(db, "users/" + uid), patch).catch(function () {});
+      /* Кодируем ключ, чтобы убрать точки и слеши */
+      patch[encodeKey(key)] = value;
+      update(ref(db, "users/" + uid), patch).catch(function (e) {
+        console.warn("Firebase sync error:", e);
+      });
     };
     window.Store.__fbSync = true;
   }
