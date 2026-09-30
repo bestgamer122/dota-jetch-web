@@ -1,11 +1,10 @@
-/* DOTA JETCH — AI MATCH v1.3
-   Блок ИИ-разбора появляется ТОЛЬКО на странице анализа.
-   Передаёт контекст матча в brainAnswer. */
+/* DOTA JETCH — AI MATCH v1.4 (антиспам + анимация печати) */
 
 (function () {
   "use strict";
 
   var AI_BLOCK_ID = "aiMatchBlock";
+  var isAiMatchResponding = false;
 
   function collectMatchContext() {
     var report = qs("#analyzeReport");
@@ -15,11 +14,7 @@
     var heroMatch = text.match(/([A-Z][a-z]+(?: [A-Z][a-z]+)?)\n/);
     if (heroMatch) ctx.hero = heroMatch[1];
     var kdaMatch = text.match(/(\d+)\s*\/\s*(\d+)\s*\/\s*(\d+)/);
-    if (kdaMatch) {
-      ctx.kills = kdaMatch[1];
-      ctx.deaths = kdaMatch[2];
-      ctx.assists = kdaMatch[3];
-    }
+    if (kdaMatch) { ctx.kills = kdaMatch[1]; ctx.deaths = kdaMatch[2]; ctx.assists = kdaMatch[3]; }
     var gpmMatch = text.match(/GPM\s*(\d+)/i);
     if (gpmMatch) ctx.gpm = gpmMatch[1];
     var xpmMatch = text.match(/XPM\s*(\d+)/i);
@@ -41,6 +36,24 @@
     if (ctx.deathsCount) parts.push("Смертей: " + ctx.deathsCount);
     if (ctx.result) parts.push("Результат: " + ctx.result);
     return parts.join(". ");
+  }
+
+  function typeWriter(el, text, speed, callback) {
+    speed = speed || 12;
+    var i = 0;
+    el.textContent = "";
+    function tick() {
+      if (i < text.length) {
+        el.textContent += text.charAt(i);
+        i++;
+        var log = qs("#aiMatchLog");
+        if (log) log.scrollTop = log.scrollHeight;
+        setTimeout(tick, speed);
+      } else {
+        if (callback) callback();
+      }
+    }
+    tick();
   }
 
   function addAiBlockToReport() {
@@ -74,8 +87,13 @@
     card.appendChild(row);
 
     function ask() {
+      if (isAiMatchResponding) return;
       var q = (inp.value || "").trim();
       if (!q) return;
+
+      isAiMatchResponding = true;
+      inp.disabled = true;
+      btn.disabled = true;
       inp.value = "";
 
       log.appendChild(el("div", {
@@ -86,21 +104,24 @@
       var ctxStr = buildContextString(ctx);
       var fullQ = "Контекст матча: " + ctxStr + ". Вопрос: " + q;
 
-      var ans = typeof brainAnswer === "function"
-        ? brainAnswer(fullQ)
-        : { text: "ИИ недоступен." };
+      var ans = typeof brainAnswer === "function" ? brainAnswer(fullQ) : { text: "ИИ недоступен." };
 
-      log.appendChild(el("div", {
+      var botDiv = el("div", {
         style: "padding:10px 12px;background:var(--bg-elev);border-radius:10px;font-size:13px;line-height:1.55;white-space:pre-wrap;max-width:85%;"
-      }, ans.text));
-
+      });
+      log.appendChild(botDiv);
       log.scrollTop = log.scrollHeight;
+
+      typeWriter(botDiv, ans.text, 12, function () {
+        isAiMatchResponding = false;
+        inp.disabled = false;
+        btn.disabled = false;
+        inp.focus();
+      });
     }
 
     btn.addEventListener("click", ask);
-    inp.addEventListener("keydown", function (e) {
-      if (e.key === "Enter") { e.preventDefault(); ask(); }
-    });
+    inp.addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); ask(); } });
 
     report.appendChild(card);
   }
@@ -115,5 +136,5 @@
     }, 1500);
   });
 
-  console.log("ai-match v1.3 ready");
+  console.log("ai-match v1.4 ready");
 })();
