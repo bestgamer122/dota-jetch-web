@@ -1,4 +1,4 @@
-/* DOTA JETCH — FIREBASE CONFIG (значения из консоли dotajetch) */
+/* DOTA JETCH — FIREBASE CONFIG */
 
 window.FIREBASE_CONFIG = {
   apiKey: "AIzaSyB-RfIBKtrVcAaaXqLH8ZecT2hlqcFgpDA",
