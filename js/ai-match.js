@@ -1,4 +1,4 @@
-/* DOTA JETCH — AI MATCH v1.4 (антиспам + анимация печати) */
+/* DOTA JETCH — AI MATCH v1.5 (без MutationObserver, вызов из analyze.js) */
 
 (function () {
   "use strict";
@@ -56,7 +56,7 @@
     tick();
   }
 
-  function addAiBlockToReport() {
+  window.addAiBlockToReport = function () {
     if (document.getElementById(AI_BLOCK_ID)) return;
     if (Store.get("ai.enabled", true) === false) return;
     if (!Store.get("license.active", false)) return;
@@ -124,17 +124,7 @@
     inp.addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); ask(); } });
 
     report.appendChild(card);
-  }
+  };
 
-  window.addAiBlockToReport = addAiBlockToReport;
-
-  document.addEventListener("DOMContentLoaded", function () {
-    setTimeout(function () {
-      if (qs("#analyzeReport") && qs("#analyzeReport").children.length > 0) {
-        addAiBlockToReport();
-      }
-    }, 1500);
-  });
-
-  console.log("ai-match v1.4 ready");
+  console.log("ai-match v1.5 ready");
 })();
