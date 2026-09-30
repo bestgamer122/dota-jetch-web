@@ -93,7 +93,7 @@ function renderReaction() {
       clearTimeout(timer);
       state = "idle";
       pad.style.background = "var(--red)";
-      label.textContent = "ФАЛЬСТАРТ!";
+      label.textContent = "РАНО";
     } else if (state === "go") {
       var dt = Math.round(performance.now() - goTs);
       state = "done";
