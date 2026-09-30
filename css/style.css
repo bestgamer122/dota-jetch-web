@@ -391,3 +391,86 @@ input[type="checkbox"]:checked::after {
   .page-content { padding: 16px 14px 40px; }
   .hero-title { font-size: 26px; }
 }
+/* ============================================
+   АНИМАЦИИ ДЛЯ ЭКРАНОВ АВТОРИЗАЦИИ
+   ============================================ */
+
+/* 1. Появление карточки снизу с эффектом "пружины" */
+@keyframes authCardIn {
+  0% {
+    opacity: 0;
+    transform: translateY(40px) scale(0.96);
+  }
+  60% {
+    transform: translateY(-4px) scale(1.01);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* 2. Появление полей ввода с задержкой */
+@keyframes authFieldIn {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* 3. Пульсация кнопки при наведении */
+@keyframes authBtnPulse {
+  0%, 100% { box-shadow: 0 0 0 0 var(--accent-bg); }
+  50% { box-shadow: 0 0 0 8px transparent; }
+}
+
+/* 4. Покачивание иконки */
+@keyframes authIconFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+/* 5. Тряска при ошибке */
+@keyframes authShake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-8px); }
+  40% { transform: translateX(8px); }
+  60% { transform: translateX(-5px); }
+  80% { transform: translateX(5px); }
+}
+
+/* Применяем анимации */
+#authScreen .auth-card {
+  animation: authCardIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+#authScreen .auth-logo svg {
+  animation: authIconFloat 3s ease-in-out infinite;
+}
+
+#authScreen input {
+  animation: authFieldIn 0.4s ease-out both;
+}
+
+#authScreen input:nth-child(1) { animation-delay: 0.1s; }
+#authScreen input:nth-child(2) { animation-delay: 0.2s; }
+
+#authScreen .auth-btn {
+  animation: authFieldIn 0.4s ease-out both;
+}
+
+#authScreen .auth-btn-primary { animation-delay: 0.3s; }
+#authScreen .auth-btn-outline { animation-delay: 0.4s; }
+
+#authScreen .auth-btn-primary:hover:not(:disabled) {
+  animation: authBtnPulse 1.5s ease-in-out infinite;
+}
+
+/* Класс для тряски при ошибке — добавляется через JS */
+#authScreen .auth-error-shake {
+  animation: authShake 0.4s ease-in-out;
+}
