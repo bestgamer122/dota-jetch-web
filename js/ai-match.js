@@ -1,20 +1,23 @@
-/* DOTA JETCH — AI MATCH v1.0 */
+/* DOTA JETCH — AI MATCH v1.2
+   Не требует правок в analyze.js. Использует MutationObserver. */
 
 (function () {
   "use strict";
 
   var AI_BLOCK_ID = "aiMatchBlock";
+  var observer = null;
 
   function addAiBlock() {
-    if (!Store.get("ai.enabled", true) !== false) return;
+    if (document.getElementById(AI_BLOCK_ID)) return;
+    if (Store.get("ai.enabled", true) === false) return;
     if (!Store.get("license.active", false)) return;
 
-    var page = qs("#pageContent");
-    if (!page) return;
+    /* Ищем контейнер с отчётом. Пробуем разные варианты ID. */
+    var report = qs("#analyzeReport") || qs("#pageContent");
+    if (!report) return;
 
-    var html = page.innerHTML || "";
-    if (html.indexOf("KDA") < 0 && html.indexOf("Анализ матча") < 0) return;
-    if (document.getElementById(AI_BLOCK_ID)) return;
+    /* Проверяем, что отчёт уже построен (есть карточки) */
+    if (!report.children || report.children.length === 0) return;
 
     var card = UI.card("🤖 ИИ-разбор матча");
     card.id = AI_BLOCK_ID;
@@ -24,10 +27,9 @@
       style: "max-height:240px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;padding:4px 0;margin-bottom:10px;"
     });
 
-    var autoDiv = el("div", {
+    log.appendChild(el("div", {
       style: "padding:10px 12px;background:var(--bg-elev);border-radius:10px;font-size:13px;line-height:1.55;white-space:pre-wrap;"
-    }, "Задай вопрос про этот матч — ИИ разберёт твою игру.");
-    log.appendChild(autoDiv);
+    }, "Задай вопрос про этот матч — ИИ разберёт твою игру."));
 
     card.appendChild(log);
 
@@ -38,40 +40,68 @@
     row.appendChild(inp);
     row.appendChild(btn);
     card.appendChild(row);
-        function ask() {
+
+    function ask() {
       var q = (inp.value || "").trim();
       if (!q) return;
       inp.value = "";
-      var userDiv = el("div", {
+
+      log.appendChild(el("div", {
         style: "padding:8px 12px;background:var(--accent-bg);border-radius:10px;font-size:13px;align-self:flex-end;max-width:80%;"
-      }, q);
-      log.appendChild(userDiv);
-      var ctx = "Разбери матч. Вопрос: " + q;
-      var ans = typeof brainAnswer === "function" ? brainAnswer(ctx) : { text: "ИИ недоступен." };
-      var botDiv = el("div", {
+      }, q));
+
+      var ans = typeof brainAnswer === "function"
+        ? brainAnswer("Разбери матч. Вопрос: " + q)
+        : { text: "ИИ недоступен." };
+
+      log.appendChild(el("div", {
         style: "padding:10px 12px;background:var(--bg-elev);border-radius:10px;font-size:13px;line-height:1.55;white-space:pre-wrap;max-width:85%;"
-      }, ans.text);
-      log.appendChild(botDiv);
+      }, ans.text));
+
       log.scrollTop = log.scrollHeight;
     }
 
     btn.addEventListener("click", ask);
-    inp.addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); ask(); } });
+    inp.addEventListener("keydown", function (e) {
+      if (e.key === "Enter") { e.preventDefault(); ask(); }
+    });
 
-    page.appendChild(card);
+    report.appendChild(card);
+    console.log("ai-match: блок добавлен");
   }
 
+  /* Наблюдаем за изменениями в #pageContent */
+  function startObserver() {
+    var target = qs("#pageContent");
+    if (!target) {
+      setTimeout(startObserver, 500);
+      return;
+    }
+
+    if (observer) observer.disconnect();
+
+    observer = new MutationObserver(function () {
+      /* Небольшая задержка, чтобы отчёт успел построиться */
+      setTimeout(addAiBlock, 200);
+    });
+
+    observer.observe(target, { childList: true, subtree: true });
+    console.log("ai-match: observer запущен");
+  }
+
+  /* Запускаем при загрузке */
+  document.addEventListener("DOMContentLoaded", function () {
+    setTimeout(startObserver, 1000);
+  });
+
+  /* Также пробуем добавить блок при переключении страниц */
   var origSwitch = window.switchPage;
   if (typeof origSwitch === "function") {
     window.switchPage = function (name) {
       origSwitch.apply(this, arguments);
-      setTimeout(addAiBlock, 500);
+      setTimeout(addAiBlock, 1500);
     };
   }
 
-  document.addEventListener("DOMContentLoaded", function () {
-    setTimeout(addAiBlock, 1000);
-  });
-
-  console.log("ai-match v1.0 ready");
+  console.log("ai-match v1.2 ready");
 })();
