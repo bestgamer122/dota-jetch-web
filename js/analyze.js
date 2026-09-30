@@ -1,4 +1,4 @@
-/* DOTA JETCH — ANALYZE v3.0 */
+/* DOTA JETCH — ANALYZE v3.1 (возвращён вызов ИИ-разбора) */
 
 var MODE_NAMES = { 1:"All Pick", 2:"Captains Mode", 3:"Random Draft", 4:"Single Draft", 5:"All Random", 22:"Ranked", 23:"Turbo" };
 var POS_NAMES = { 1:"Pos 1 Керри", 2:"Pos 2 Мид", 3:"Pos 3 Оффлейн", 4:"Pos 4 Роум", 5:"Pos 5 Саппорт" };
@@ -21,8 +21,6 @@ function analyzeQuota() {
 }
 
 function analyzeQuotaRemaining() {
-  /* ВАЖНО: используем checkLicense() вместо Store.get напрямую,
-     чтобы подхватывалась лицензия по ключу */
   var plus = (typeof checkLicense === "function") ? checkLicense() : (Store.get("license.active", false) === true);
   if (plus) return Infinity;
   var q = analyzeQuota();
@@ -155,7 +153,6 @@ function renderAnalyze() {
   var frag = document.createDocumentFragment();
   var plus = (typeof checkLicense === "function") ? checkLicense() : (Store.get("license.active", false) === true);
 
-  /* ЕСЛИ ЕСТЬ СОХРАНЁННЫЙ АНАЛИЗ — показываем его (не тратим лимит) */
   if (lastAnalysis && lastAnalysis.match) {
     var report = el("div", { id: "analyzeReport" });
     report.appendChild(buildReport(lastAnalysis));
@@ -222,7 +219,6 @@ async function onAnalyzeClick() {
     report.appendChild(buildReport(res));
     if (typeof addAiBlockToReport === "function") setTimeout(addAiBlockToReport, 100);
 
-    /* СОХРАНЯЕМ АНАЛИЗ — не слетит при переключении вкладок */
     lastAnalysis = res;
 
     if (typeof History !== "undefined") History.add(res);
@@ -358,7 +354,6 @@ function buildMetrics(r) {
   return card;
 }
 
-/* СБРОС АНАЛИЗА (для кнопки «Новый анализ») */
 function resetLastAnalysis() {
   lastAnalysis = null;
   if (typeof switchPage === "function") switchPage("analyze");
