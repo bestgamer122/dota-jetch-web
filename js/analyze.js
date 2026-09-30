@@ -212,6 +212,7 @@ async function onAnalyzeClick() {
     if (!plus) analyzeQuotaInc();
     report.innerHTML = "";
     report.appendChild(buildReport(res));
+    if (typeof addAiBlockToReport === "function") setTimeout(addAiBlockToReport, 100);
     lastAnalysis = res;
     if (typeof History !== "undefined") History.add(res);
     if (typeof Achievements !== "undefined") Achievements.onAnalyze(res);
