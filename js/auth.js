@@ -1,5 +1,5 @@
-/* DOTA JETCH — FIREBASE AUTH v2.2
-   Сессия не слетает, данные не текут между аккаунтами. */
+/* DOTA JETCH — FIREBASE AUTH v2.3
+   Сессия не слетает, данные не текут между аккаунтами, кнопка выхода работает. */
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.8.0/firebase-app.js";
 import {
@@ -226,6 +226,26 @@ function bindVerificationHandlers() {
   }
 }
 
+/* ★ НОВАЯ ФУНКЦИЯ: привязывает обработчик к кнопке «Выйти» */
+function bindLogoutHandler() {
+  const logoutBtn = document.getElementById("logoutBtn");
+  if (!logoutBtn || logoutBtn.__bound) return;
+  logoutBtn.__bound = true;
+
+  logoutBtn.addEventListener("click", async function () {
+    try {
+      if (currentUser) await saveUserData(currentUser.uid);
+    } catch (e) {
+      console.warn("save before logout error:", e);
+    }
+    try {
+      await signOut(auth);
+    } catch (e) {
+      console.error("signOut error:", e);
+    }
+  });
+}
+
 /* ─── Работа с данными пользователя ─── */
 function collectLocalData() {
   const data = {};
@@ -333,6 +353,7 @@ onAuthStateChanged(auth, async function (user) {
     hideAuthScreen();
     setupStoreSync(user.uid);
     startAutoSave(user.uid);
+    bindLogoutHandler();   // ← ПРИВЯЗЫВАЕМ КНОПКУ «ВЫЙТИ»
 
     const lb = document.getElementById("logoutBtn");
     if (lb) lb.style.display = "block";
