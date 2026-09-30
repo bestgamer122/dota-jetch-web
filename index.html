@@ -10,264 +10,10 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/style.css?v=27.0">
-<link rel="stylesheet" href="css/lite.css?v=27.0">
-<style>
-/* ═══════════ ЗАГРУЗОЧНЫЙ ЭКРАН ═══════════ */
-#splashScreen {
-  position: fixed !important;
-  top: 0 !important;
-  left: 0 !important;
-  width: 100vw !important;
-  height: 100vh !important;
-  z-index: 999999 !important;
-  background: radial-gradient(circle at 50% 40%, #1a1030 0%, #0b0c10 55%, #04050a 100%);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: 'Inter', sans-serif;
-  transition: opacity 0.7s cubic-bezier(0.4, 0, 0.2, 1);
-  overflow: hidden;
-}
-#splashScreen.splash-hide {
-  opacity: 0;
-  pointer-events: none;
-}
-
-.splash-card {
-  text-align: center;
-  padding: 40px 60px;
-  animation: splashCardIn 0.9s cubic-bezier(0.34, 1.56, 0.64, 1) both;
-}
-
-@keyframes splashCardIn {
-  0% { opacity: 0; transform: scale(0.85) translateY(30px); }
-  100% { opacity: 1; transform: scale(1) translateY(0); }
-}
-
-.splash-logo {
-  width: 120px;
-  height: 120px;
-  margin: 0 auto 30px;
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-/* Пульсирующий ореол */
-.splash-logo::before {
-  content: '';
-  position: absolute;
-  top: 0; left: 0; right: 0; bottom: 0;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(139, 92, 246, 0.55) 0%, rgba(139, 92, 246, 0) 70%);
-  animation: splashGlow 2.5s ease-in-out infinite;
-}
-
-/* Вращающееся градиентное кольцо */
-.splash-logo::after {
-  content: '';
-  position: absolute;
-  top: 0; left: 0; right: 0; bottom: 0;
-  border-radius: 50%;
-  border: 2px solid transparent;
-  border-top-color: #8b5cf6;
-  border-right-color: #22d3ee;
-  animation: splashSpin 1.6s linear infinite;
-}
-
-@keyframes splashGlow {
-  0%, 100% { transform: scale(0.9); opacity: 0.5; }
-  50% { transform: scale(1.35); opacity: 1; }
-}
-
-@keyframes splashSpin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-
-/* Свечение и лёгкое покачивание логотипа */
-.splash-logo svg {
-  width: 64px !important;
-  height: 64px !important;
-  max-width: 64px !important;
-  max-height: 64px !important;
-  display: block;
-  color: #c4b5fd;
-  filter: drop-shadow(0 0 18px rgba(196, 181, 253, 0.95));
-  animation: splashLogoPulse 2s ease-in-out infinite;
-  position: relative;
-  z-index: 1;
-}
-
-@keyframes splashLogoPulse {
-  0%, 100% { transform: scale(1) rotate(0deg); }
-  25% { transform: scale(1.08) rotate(45deg); }
-  50% { transform: scale(1.12) rotate(180deg); }
-  75% { transform: scale(1.08) rotate(225deg); }
-}
-
-/* Заголовок с переливающимся градиентом */
-.splash-title {
-  font-size: 42px;
-  font-weight: 900;
-  letter-spacing: 0.1em;
-  background: linear-gradient(90deg, #ffffff, #c4b5fd, #67e8f9, #a78bfa, #ffffff);
-  background-size: 300% 100%;
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  color: #c4b5fd;
-  animation: splashTitleShift 4s linear infinite;
-  margin-bottom: 10px;
-}
-
-@keyframes splashTitleShift {
-  0% { background-position: 0% 50%; }
-  100% { background-position: 300% 50%; }
-}
-
-.splash-sub {
-  font-size: 12px;
-  color: #8b93a8;
-  letter-spacing: 0.38em;
-  text-transform: uppercase;
-  margin-bottom: 40px;
-  animation: splashSubIn 0.7s ease-out 0.35s both;
-}
-
-@keyframes splashSubIn {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-/* Прогресс-бар */
-.splash-bar {
-  width: 300px;
-  height: 4px;
-  background: rgba(255, 255, 255, 0.08);
-  border-radius: 2px;
-  margin: 0 auto 20px;
-  overflow: hidden;
-  position: relative;
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.4);
-}
-
-.splash-bar-fill {
-  height: 100%;
-  width: 0%;
-  background: linear-gradient(90deg, #8b5cf6, #22d3ee, #a78bfa, #8b5cf6);
-  background-size: 300% 100%;
-  border-radius: 2px;
-  animation: splashBarFill 2.2s cubic-bezier(0.4, 0, 0.2, 1) forwards,
-             splashBarShift 1.2s linear infinite;
-  box-shadow: 0 0 14px rgba(139, 92, 246, 0.7);
-}
-
-@keyframes splashBarFill {
-  0% { width: 0%; }
-  35% { width: 45%; }
-  65% { width: 72%; }
-  85% { width: 88%; }
-  100% { width: 100%; }
-}
-
-@keyframes splashBarShift {
-  0% { background-position: 0% 50%; }
-  100% { background-position: 300% 50%; }
-}
-
-/* Статус-текст с переливом */
-.splash-status {
-  font-size: 11px;
-  color: #9ba0ad;
-  font-family: 'JetBrains Mono', monospace;
-  letter-spacing: 0.12em;
-  min-height: 18px;
-  animation: splashStatusPulse 1.4s ease-in-out infinite;
-  transition: opacity 0.3s ease;
-}
-
-@keyframes splashStatusPulse {
-  0%, 100% { opacity: 0.55; }
-  50% { opacity: 1; }
-}
-
-/* Плавная смена статуса */
-.splash-status.status-changing {
-  opacity: 0;
-}
-
-/* ═══════════ ЭКРАН АВТОРИЗАЦИИ ═══════════ */
-#authScreen {
-  position: fixed !important;
-  top: 0 !important;
-  left: 0 !important;
-  width: 100vw !important;
-  height: 100vh !important;
-  z-index: 99998 !important;
-  background: #0b0c10;
-  display: none;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-  box-sizing: border-box;
-}
-#authScreen .auth-card {
-  max-width: 420px;
-  width: 100%;
-  background: #15161b;
-  border: 1px solid #2a2b33;
-  border-radius: 16px;
-  padding: 32px 28px;
-  box-shadow: 0 20px 60px rgba(0,0,0,0.6);
-}
-#authScreen .auth-logo { text-align: center; margin-bottom: 24px; }
-#authScreen .auth-logo svg {
-  width: 48px !important;
-  height: 48px !important;
-  max-width: 48px !important;
-  max-height: 48px !important;
-  color: #8b5cf6;
-  margin-bottom: 12px;
-}
-#authScreen h1 { font-size: 20px; font-weight: 800; color: #fff; margin: 0 0 6px; text-align: center; }
-#authScreen .auth-sub { font-size: 12px; color: #888; text-align: center; margin-bottom: 22px; line-height: 1.5; }
-#authScreen input {
-  width: 100%; box-sizing: border-box; padding: 12px 14px; margin-bottom: 10px;
-  background: #1c1d24; border: 1px solid #2a2b33; border-radius: 10px;
-  color: #fff; font-size: 14px; font-family: inherit;
-}
-#authScreen input:focus { outline: none; border-color: #8b5cf6; }
-#authScreen .auth-btn {
-  width: 100%; padding: 12px; border-radius: 10px; border: none;
-  font-size: 14px; font-weight: 700; cursor: pointer; font-family: inherit;
-}
-#authScreen .auth-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-#authScreen .auth-btn-primary { background: #8b5cf6; color: #fff; margin-bottom: 10px; }
-#authScreen .auth-btn-outline { background: transparent; color: #8b5cf6; border: 1px solid #8b5cf6; }
-#authScreen .auth-error { color: #ef4444; font-size: 12px; min-height: 16px; margin-bottom: 8px; text-align: center; }
-#authScreen .auth-hint { font-size: 11px; color: #666; text-align: center; margin-top: 18px; }
-#authScreen .auth-forgot { text-align: center; margin-top: 14px; }
-#authScreen .auth-forgot a { font-size: 12px; color: #8b5cf6; text-decoration: none; }
-</style>
+<link rel="stylesheet" href="css/style.css?v=50.0">
+<link rel="stylesheet" href="css/lite.css?v=50.0">
 </head>
 <body>
-
-<div id="splashScreen">
-  <div class="splash-card">
-    <div class="splash-logo">
-      <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M12 2 L15 9 L22 12 L15 15 L12 22 L9 15 L2 12 L9 9 Z"/>
-      </svg>
-    </div>
-    <div class="splash-title">DOTA JETCH</div>
-    <div class="splash-sub">AI 2.0 · Loading</div>
-    <div class="splash-bar"><div class="splash-bar-fill"></div></div>
-    <div class="splash-status" id="splashStatus">Инициализация...</div>
-  </div>
-</div>
 
 <div id="authScreen"></div>
 <div class="bg-base"></div>
@@ -312,85 +58,72 @@
   </div>
 </div>
 
-<script>
-(function() {
-  var statuses = [
-    "Инициализация...",
-    "Загрузка модулей...",
-    "Подключение к Firebase...",
-    "Загрузка данных...",
-    "Почти готово..."
-  ];
-  var idx = 0;
-  var statusEl = document.getElementById("splashStatus");
-
-  var interval = setInterval(function() {
-    if (!statusEl) return;
-    statusEl.classList.add("status-changing");
-    setTimeout(function() {
-      idx = (idx + 1) % statuses.length;
-      statusEl.textContent = statuses[idx];
-      statusEl.classList.remove("status-changing");
-    }, 200);
-  }, 500);
-
-  function hideSplash() {
-    clearInterval(interval);
-    var splash = document.getElementById("splashScreen");
-    if (!splash) return;
-    splash.classList.add("splash-hide");
-    setTimeout(function() {
-      if (splash && splash.parentNode) splash.parentNode.removeChild(splash);
-    }, 750);
-  }
-
-  setTimeout(hideSplash, 2600);
-})();
-</script>
-
-<script src="js/firebase-config.js?v=27.0"></script>
-<script src="js/config.js?v=27.0"></script>
-<script src="js/uid-store.js?v=27.0"></script>
-<script type="module" src="js/auth.js?v=27.0"></script>
-<script src="js/fallback.js?v=27.0"></script>
-<script src="js/ui.js?v=27.0"></script>
-<script src="js/knowledge.js?v=27.0"></script>
-<script src="js/brain-core.js?v=27.0"></script>
-<script src="js/brain-learn.js?v=27.0"></script>
-<script src="js/brain-time.js?v=27.0"></script>
-<script src="js/brain-stats.js?v=27.0"></script>
-<script src="js/brain-context.js?v=27.0"></script>
-<script src="js/brain-opinions.js?v=27.0"></script>
-<script src="js/brain-tools.js?v=27.0"></script>
-<script src="js/brain-mood.js?v=27.0"></script>
-<script src="js/brain-facts.js?v=27.0"></script>
-<script src="js/brain-user.js?v=27.0"></script>
-<script src="js/brain-personality.js?v=27.0"></script>
-<script src="js/brain-variation.js?v=27.0"></script>
-<script src="js/brain-suggest.js?v=27.0"></script>
-<script src="js/brain-lang.js?v=27.0"></script>
-<script src="js/brain-reason.js?v=27.0"></script>
-<script src="js/brain-infer.js?v=27.0"></script>
-<script src="js/brain-graph.js?v=27.0"></script>
-<script src="js/brain-memory-long.js?v=27.0"></script>
-<script src="js/brain-think.js?v=27.0"></script>
-<script src="js/brain-chain.js?v=27.0"></script>
-<script src="js/brain-emotion.js?v=27.0"></script>
-<script src="js/brain-feedback.js?v=27.0"></script>
-<script src="js/brain-selfcheck.js?v=27.0"></script>
-<script src="js/brain.js?v=27.0"></script>
-<script src="js/achievements.js?v=27.0"></script>
-<script src="js/history.js?v=27.0"></script>
-<script src="js/diary.js?v=27.0"></script>
-<script src="js/assistant.js?v=27.0"></script>
-<script src="js/games.js?v=27.0"></script>
-<script src="js/charts.js?v=27.0"></script>
-<script src="js/daily.js?v=27.0"></script>
-<script src="js/export.js?v=27.0"></script>
-<script src="js/analyze.js?v=27.0"></script>
-<script src="js/ai-match.js?v=27.0"></script>
-<script src="js/settings.js?v=27.0"></script>
-<script src="js/app.js?v=27.0"></script>
-<script src="js/visual.js?v=27.0"></script>
+<script src="js/firebase-config.js?v=50.0"></script>
+<script src="js/config.js?v=50.0"></script>
+<script src="js/uid-store.js?v=50.0"></script>
+<script type="module" src="js/auth.js?v=50.0"></script>
+<script src="js/fallback.js?v=50.0"></script>
+<script src="js/ui.js?v=50.0"></script>
+<script src="js/knowledge.js?v=50.0"></script>
+<script src="js/brain-core.js?v=50.0"></script>
+<script src="js/brain-learn.js?v=50.0"></script>
+<script src="js/brain-time.js?v=50.0"></script>
+<script src="js/brain-stats.js?v=50.0"></script>
+<script src="js/brain-context.js?v=50.0"></script>
+<script src="js/brain-opinions.js?v=50.0"></script>
+<script src="js/brain-tools.js?v=50.0"></script>
+<script src="js/brain-mood.js?v=50.0"></script>
+<script src="js/brain-facts.js?v=50.0"></script>
+<script src="js/brain-user.js?v=50.0"></script>
+<script src="js/brain-variation.js?v=50.0"></script>
+<script src="js/brain-suggest.js?v=50.0"></script>
+<script src="js/brain-lang.js?v=50.0"></script>
+<script src="js/brain-reason.js?v=50.0"></script>
+<script src="js/brain-infer.js?v=50.0"></script>
+<script src="js/brain-graph.js?v=50.0"></script>
+<script src="js/brain-memory-long.js?v=50.0"></script>
+<script src="js/brain-think.js?v=50.0"></script>
+<script src="js/brain-chain.js?v=50.0"></script>
+<script src="js/brain-emotion.js?v=50.0"></script>
+<script src="js/brain-feedback.js?v=50.0"></script>
+<script src="js/brain-selfcheck.js?v=50.0"></script>
+<script src="js/brain-shared-memory.js?v=50.0"></script>
+<script src="js/brain-reason-v2.js?v=50.0"></script>
+<script src="js/brain-learning.js?v=50.0"></script>
+<script src="js/brain-predictor.js?v=50.0"></script>
+<script src="js/brain-insights.js?v=50.0"></script>
+<script src="js/brain-universal.js?v=50.0"></script>
+<script src="js/brain-personality.js?v=50.0"></script>
+<script src="js/brain-autolearner.js?v=50.0"></script>
+<script src="js/brain-chain-v2.js?v=50.0"></script>
+<script src="js/brain-match-review.js?v=50.0"></script>
+<script src="js/brain-meta.js?v=50.0"></script>
+<script src="js/brain-mmr.js?v=50.0"></script>
+<script src="js/brain-draft.js?v=50.0"></script>
+<script src="js/brain-heroes.js?v=50.0"></script>
+<script src="js/brain-builds.js?v=50.0"></script>
+<script src="js/brain-timings.js?v=50.0"></script>
+<script src="js/brain-counters.js?v=50.0"></script>
+<script src="js/brain-prokasts.js?v=50.0"></script>
+<script src="js/brain-lanes.js?v=50.0"></script>
+<script src="js/brain-items-full.js?v=50.0"></script>
+<script src="js/brain-situations.js?v=50.0"></script>
+<script src="js/brain-mindset.js?v=50.0"></script>
+<script src="js/brain-compare.js?v=50.0"></script>
+<script src="js/brain-rus.js?v=50.0"></script>
+<script src="js/brain.js?v=50.0"></script>
+<script src="js/achievements.js?v=50.0"></script>
+<script src="js/history.js?v=50.0"></script>
+<script src="js/diary.js?v=50.0"></script>
+<script src="js/assistant.js?v=50.0"></script>
+<script src="js/games.js?v=50.0"></script>
+<script src="js/charts.js?v=50.0"></script>
+<script src="js/daily.js?v=50.0"></script>
+<script src="js/export.js?v=50.0"></script>
+<script src="js/analyze.js?v=50.0"></script>
+<script src="js/ai-match.js?v=50.0"></script>
+<script src="js/settings.js?v=50.0"></script>
+<script src="js/app.js?v=50.0"></script>
+<script src="js/visual.js?v=50.0"></script>
 </body>
 </html>
