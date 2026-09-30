@@ -1,4 +1,4 @@
-/* DOTA JETCH — ИИ-АССИСТЕНТ v13.0 (антиспам + анимация печати) */
+/* DOTA JETCH — ИИ-АССИСТЕНТ v13.1 (антиспам + анимация печати + таймаут) */
 
 var chatHistory = [];
 var isResponding = false;
@@ -89,7 +89,6 @@ function addThinkingBlock(log) {
   };
 }
 
-/* Анимация печати текста */
 function typeWriter(el, text, speed, callback) {
   speed = speed || 20;
   var i = 0;
@@ -106,6 +105,33 @@ function typeWriter(el, text, speed, callback) {
     }
   }
   tick();
+}
+
+/* Обёртка с таймаутом для вызова ИИ */
+function brainAnswerWithTimeout(question, timeoutMs) {
+  return new Promise(function (resolve) {
+    var done = false;
+    var timer = setTimeout(function () {
+      if (!done) {
+        done = true;
+        resolve({ text: "⚠ ИИ не ответил вовремя. Попробуй ещё раз.", confidence: 0, trace: [] });
+      }
+    }, timeoutMs || 15000);
+    try {
+      var result = brainAnswer(question);
+      if (!done) {
+        done = true;
+        clearTimeout(timer);
+        resolve(result);
+      }
+    } catch (e) {
+      if (!done) {
+        done = true;
+        clearTimeout(timer);
+        resolve({ text: "⚠ Ошибка ИИ: " + (e.message || e), confidence: 0, trace: [] });
+      }
+    }
+  });
 }
 
 async function onChatSend() {
@@ -131,6 +157,7 @@ async function onChatSend() {
   if (typeof Daily !== "undefined") Daily.bump("chat");
   if (typeof Achievements !== "undefined") Achievements.check();
 
+  /* Фидбек — обрабатываем отдельно, без таймаута */
   if (typeof BrainFeedback !== "undefined" && BrainFeedback.detect(q)) {
     var fbAnswer = brainAnswer(q);
     var fbBubble = addChatMessage(log, "assistant", "", false);
@@ -148,37 +175,48 @@ async function onChatSend() {
 
   var think = addThinkingBlock(log);
 
-  think.setStep("Анализирую запрос...");
-  await new Promise(function (r) { setTimeout(r, 500 + Math.random() * 400); });
+  try {
+    think.setStep("Анализирую запрос...");
+    await new Promise(function (r) { setTimeout(r, 500 + Math.random() * 400); });
 
-  var answer;
-  try { answer = brainAnswer(q); } catch (e) { answer = { text: "Ошибка: " + (e.message || e), confidence: 0, trace: [] }; }
+    var answer = await brainAnswerWithTimeout(q, 15000);
 
-  if (answer.trace && answer.trace.length) {
-    for (var i = 0; i < answer.trace.length; i++) {
-      think.addStep(answer.trace[i]);
-      await new Promise(function (r) { setTimeout(r, 350 + Math.random() * 250); });
+    if (answer.trace && answer.trace.length) {
+      for (var i = 0; i < answer.trace.length; i++) {
+        think.addStep(answer.trace[i]);
+        await new Promise(function (r) { setTimeout(r, 350 + Math.random() * 250); });
+      }
     }
+
+    think.setStep("Формулирую ответ...");
+    await new Promise(function (r) { setTimeout(r, 500 + Math.random() * 400); });
+
+    think.finalize();
+
+    var finalText = answer.text || "Не удалось получить ответ.";
+    if (typeof answer.confidence === "number" && answer.confidence < 0.6 && answer.confidence > 0) {
+      finalText += "\n\n(уверенность: " + Math.round(answer.confidence * 100) + "%)";
+    }
+
+    var bubble = addChatMessage(log, "assistant", "", false);
+    typeWriter(bubble, finalText, 12, function () {
+      chatHistory.push({ role: "assistant", text: finalText });
+      Store.set("chathistory", chatHistory.slice(-100));
+      isResponding = false;
+      inp.disabled = false;
+      btn.disabled = false;
+      btn.textContent = "Отправить";
+      inp.focus();
+    });
+  } catch (err) {
+    think.finalize();
+    var errBubble = addChatMessage(log, "assistant", "", false);
+    typeWriter(errBubble, "⚠ Произошла ошибка: " + (err.message || err), 12, function () {
+      isResponding = false;
+      inp.disabled = false;
+      btn.disabled = false;
+      btn.textContent = "Отправить";
+      inp.focus();
+    });
   }
-
-  think.setStep("Формулирую ответ...");
-  await new Promise(function (r) { setTimeout(r, 500 + Math.random() * 400); });
-
-  think.finalize();
-
-  var finalText = answer.text;
-  if (typeof answer.confidence === "number" && answer.confidence < 0.6 && answer.confidence > 0) {
-    finalText += "\n\n(уверенность: " + Math.round(answer.confidence * 100) + "%)";
-  }
-
-  var bubble = addChatMessage(log, "assistant", "", false);
-  typeWriter(bubble, finalText, 12, function () {
-    chatHistory.push({ role: "assistant", text: finalText });
-    Store.set("chathistory", chatHistory.slice(-100));
-    isResponding = false;
-    inp.disabled = false;
-    btn.disabled = false;
-    btn.textContent = "Отправить";
-    inp.focus();
-  });
 }
