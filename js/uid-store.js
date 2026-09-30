@@ -1,25 +1,47 @@
-/* DOTA JETCH — UID-STORE v1.0
-   Обёртка над Store: все ключи автоматически получают префикс uid.
+/* DOTA JETCH — UID-STORE v2.0
+   Переопределяет localStorage: все ключи автоматически получают префикс uid.
    Данные разных аккаунтов никогда не смешиваются. */
 
 (function () {
-  if (!window.Store || window.Store.__namespaced) return;
+  "use strict";
 
-  function getActiveUid() {
-    return localStorage.getItem("__active_uid") || "anon";
+  /* Сохраняем оригинальные методы */
+  var _getItem = Storage.prototype.getItem;
+  var _setItem = Storage.prototype.setItem;
+  var _removeItem = Storage.prototype.removeItem;
+
+  var SYSTEM_KEYS = ["__active_uid", "__loaded_for_", "dotaJetchLoadedUid"];
+
+  function isSystemKey(key) {
+    for (var i = 0; i < SYSTEM_KEYS.length; i++) {
+      if (key.indexOf(SYSTEM_KEYS[i]) === 0) return true;
+    }
+    return false;
   }
 
-  var originalGet = window.Store.get.bind(window.Store);
-  var originalSet = window.Store.set.bind(window.Store);
+  function getPrefix() {
+    var uid = _getItem.call(localStorage, "__active_uid");
+    return uid ? uid + "::" : "";
+  }
 
-  window.Store.get = function (key, def) {
-    return originalGet(getActiveUid() + "::" + key, def);
+  Storage.prototype.getItem = function (key) {
+    if (isSystemKey(key)) return _getItem.call(this, key);
+    var prefixed = getPrefix() + key;
+    var val = _getItem.call(this, prefixed);
+    if (val !== null) return val;
+    /* Совместимость: если данных с префиксом нет — не возвращаем старые */
+    return null;
   };
 
-  window.Store.set = function (key, val) {
-    return originalSet(getActiveUid() + "::" + key, val);
+  Storage.prototype.setItem = function (key, value) {
+    if (isSystemKey(key)) return _setItem.call(this, key, value);
+    return _setItem.call(this, getPrefix() + key, value);
   };
 
-  window.Store.__namespaced = true;
-  window.Store.getActiveUid = getActiveUid;
+  Storage.prototype.removeItem = function (key) {
+    if (isSystemKey(key)) return _removeItem.call(this, key);
+    return _removeItem.call(this, getPrefix() + key);
+  };
+
+  console.log("uid-store v2.0 ready");
 })();
