@@ -1,5 +1,5 @@
-/* DOTA JETCH — FIREBASE AUTH v3.0
-   У каждого аккаунта свои данные. Ничего не удаляется и не смешивается. */
+/* DOTA JETCH — FIREBASE AUTH v4.0
+   Сессия не слетает. Данные каждого аккаунта полностью изолированы. */
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.8.0/firebase-app.js";
 import {
@@ -187,7 +187,7 @@ function bindLogoutHandler() {
   });
 }
 
-/* ─── Работа с данными пользователя ─── */
+/* ─── Данные пользователя (пишем/читаем с префиксом uid::) ─── */
 async function loadUserData(uid) {
   try {
     const snap = await get(ref(db, "users/" + uid));
@@ -216,19 +216,6 @@ async function saveUserData(uid) {
     if (Object.keys(data).length === 0) return;
     await update(ref(db, "users/" + uid), data);
   } catch (e) { console.warn("saveUserData error:", e); }
-}
-
-function setupStoreSync(uid) {
-  if (window.Store && typeof window.Store.set === "function" && !window.Store.__fbSync) {
-    const originalSet = window.Store.set.bind(window.Store);
-    window.Store.set = function (key, value) {
-      originalSet(key, value);
-      const patch = {};
-      patch[key] = value;
-      update(ref(db, "users/" + uid), patch).catch(function () {});
-    };
-    window.Store.__fbSync = true;
-  }
 }
 
 function startAutoSave(uid) {
@@ -275,7 +262,7 @@ onAuthStateChanged(auth, async function (user) {
       return;
     }
 
-    /* Первая загрузка этого аккаунта в браузере — тянем данные из Firebase */
+    /* Первый заход этого аккаунта — тянем данные из Firebase */
     const loadedFlag = "__loaded_for_" + user.uid;
     if (!sessionStorage.getItem(loadedFlag)) {
       sessionStorage.setItem(loadedFlag, "1");
@@ -286,7 +273,6 @@ onAuthStateChanged(auth, async function (user) {
 
     /* Обычный путь */
     hideAuthScreen();
-    setupStoreSync(user.uid);
     startAutoSave(user.uid);
     bindLogoutHandler();
 
@@ -300,7 +286,6 @@ onAuthStateChanged(auth, async function (user) {
     showAuthScreen();
     const lb = document.getElementById("logoutBtn");
     if (lb) lb.style.display = "none";
-    /* __active_uid НЕ трогаем — пусть при следующем входе проверится совпадение */
   }
 });
 
