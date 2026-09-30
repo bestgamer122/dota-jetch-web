@@ -1,10 +1,17 @@
-/* DOTA JETCH — BRAIN UNIVERSAL v1.0 */
+/* DOTA JETCH — BRAIN UNIVERSAL v1.1 (делегирование в BrainMMR) */
 
 var BrainUniversal = {
   respond: function (q) {
     var s = String(q || "").trim();
     if (!s) return null;
     var low = s.toLowerCase();
+
+    /* MMR — делегируем в BrainMMR, если он не сработал в основном цикле */
+    if (typeof BrainMMR !== "undefined" && (low.indexOf("ммр") >= 0 || low.indexOf("рейтинг") >= 0 || low.indexOf("ранг") >= 0)) {
+      var r = BrainMMR.predictFromLastMatch();
+      if (r) return { kind: "universal_mmr", text: r.text, confidence: 0.9, trace: ["Universal.MMR"] };
+      return { kind: "universal_mmr", text: "🤔 Нет данных последнего матча. Разбери матч — потом покажу прогноз MMR.", confidence: 0.8 };
+    }
 
     /* Выученные факты */
     if (typeof BrainLearning !== "undefined") {
@@ -50,21 +57,20 @@ var BrainUniversal = {
 
     /* Злость/поддержка */
     if (low.indexOf("туп") >= 0 || low.indexOf("хуйн") >= 0 || low.indexOf("плох") >= 0 || low.indexOf("бесит") >= 0 || low.indexOf("надоел") >= 0) {
-      return { kind: "universal_support", text: "Понимаю, что тебя что-то не устраивает. Давай разберёмся вместе.\n\n• Что именно не работает?\n• В какой момент?\n• Что ожидал увидеть?\n\nИли спроси про Dota — разберу матч, дам совет по герою.", confidence: 0.9 };
+      return { kind: "universal_support", text: "Понимаю. Давай разберёмся вместе.\n\n• Что именно не работает?\n• В какой момент?\n• Что ожидал увидеть?\n\nИли спроси про Dota.", confidence: 0.9 };
     }
 
     return this._univ(s);
   },
 
   _isDota: function (low) {
-    var kw = ["дота","dota","герой","предмет","билд","фарм","ммр","крип","руна","рошан","аегис","пудж","инвокер","сф","антимаг","фантомка","сларк","шторм","мирана","дров","лейнинг","мид","оффлейн","керри","саппорт","ганг","вижен","вард","сентри","бкб","линка","манта","дифуза","бабочка","хекс","атос","ульта","ульт","скилл","каст","прокаст","стак","денай","агро","лейт","драфт","пик","контрпик","синергия","тайминг","гпм","хпм","кда","нетфорс","ластхит","камп","лагерь"];
+    var kw = ["дота","dota","герой","предмет","билд","фарм","крип","руна","рошан","аегис","пудж","инвокер","сф","антимаг","фантомка","сларк","шторм","мирана","дров","лейнинг","мид","оффлейн","керри","саппорт","ганг","вижен","вард","сентри","бкб","линка","манта","дифуза","бабочка","хекс","атос","ульта","ульт","скилл","каст","прокаст","стак","денай","агро","лейт","драфт","пик","контрпик","синергия","тайминг","гпм","хпм","кда","нетфорс","ластхит","камп","лагерь"];
     for (var i = 0; i < kw.length; i++) if (low.indexOf(kw[i]) >= 0) return true;
     return false;
   },
 
   _dotaAnswer: function (q) {
     var low = q.toLowerCase();
-    /* Герой из HEROES_DB */
     if (typeof HEROES_DB !== "undefined") {
       for (var hero in HEROES_DB) {
         if (HEROES_DB.hasOwnProperty(hero) && low.indexOf(hero.toLowerCase()) >= 0) {
@@ -79,7 +85,6 @@ var BrainUniversal = {
         }
       }
     }
-    /* Предмет */
     if (typeof ITEM_NOTES !== "undefined") {
       for (var item in ITEM_NOTES) {
         if (ITEM_NOTES.hasOwnProperty(item) && low.indexOf(item.toLowerCase()) >= 0) {
@@ -88,7 +93,6 @@ var BrainUniversal = {
         }
       }
     }
-    /* Механика */
     if (typeof MECHANICS_KB !== "undefined") {
       for (var topic in MECHANICS_KB) {
         if (!MECHANICS_KB.hasOwnProperty(topic)) continue;
@@ -119,7 +123,7 @@ var BrainUniversal = {
       }
     }
     var res = [
-      "Интересно. Расскажи чуть подробнее — что тебя интересует? Могу разобрать матч, дать совет по герою или прогноз.",
+      "Интересно. Расскажи подробнее — что тебя интересует? Могу разобрать матч, дать совет по герою или прогноз.",
       "Я слышу тебя. Могу:\n• разобрать матч\n• дать совет по герою\n• показать прогноз\n• рассказать про механики Dota",
       "Не уверен, что понял. Попробуй переформулировать или спроси «билд на пуджа», «когда стакать лагеря».",
       "Давай разберёмся. Расскажи подробнее, что тебя интересует."

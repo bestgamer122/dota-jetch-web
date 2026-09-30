@@ -1,12 +1,12 @@
-/* DOTA JETCH — BRAIN MMR v2.0 */
+/* DOTA JETCH — BRAIN MMR v2.1 (расширенный detect) */
 
 var BrainMMR = {
   positionTargets: {
-    1: { name: "Керри (Pos 1)",   gpm: 620, xpm: 700, lhPerMin: 9.0, kda: 4.0, heroDmgPerMin: 700, towerDmg: 3000, assistsPerMin: 0.15 },
-    2: { name: "Мид (Pos 2)",     gpm: 580, xpm: 720, lhPerMin: 7.5, kda: 4.0, heroDmgPerMin: 850, towerDmg: 2000, assistsPerMin: 0.25 },
-    3: { name: "Оффлейн (Pos 3)", gpm: 480, xpm: 560, lhPerMin: 6.0, kda: 3.2, heroDmgPerMin: 750, towerDmg: 1500, assistsPerMin: 0.30 },
-    4: { name: "Роум (Pos 4)",    gpm: 380, xpm: 480, lhPerMin: 3.5, kda: 3.0, heroDmgPerMin: 550, towerDmg: 500,  assistsPerMin: 0.55 },
-    5: { name: "Саппорт (Pos 5)", gpm: 320, xpm: 420, lhPerMin: 2.0, kda: 2.8, heroDmgPerMin: 400, towerDmg: 200,  assistsPerMin: 0.70 }
+    1: { name: "Керри (Pos 1)",   gpm: 620, xpm: 700, lhPerMin: 9.0, kda: 4.0, heroDmgPerMin: 700, assistsPerMin: 0.15 },
+    2: { name: "Мид (Pos 2)",     gpm: 580, xpm: 720, lhPerMin: 7.5, kda: 4.0, heroDmgPerMin: 850, assistsPerMin: 0.25 },
+    3: { name: "Оффлейн (Pos 3)", gpm: 480, xpm: 560, lhPerMin: 6.0, kda: 3.2, heroDmgPerMin: 750, assistsPerMin: 0.30 },
+    4: { name: "Роум (Pos 4)",    gpm: 380, xpm: 480, lhPerMin: 3.5, kda: 3.0, heroDmgPerMin: 550, assistsPerMin: 0.55 },
+    5: { name: "Саппорт (Pos 5)", gpm: 320, xpm: 420, lhPerMin: 2.0, kda: 2.8, heroDmgPerMin: 400, assistsPerMin: 0.70 }
   },
 
   predictFromLastMatch: function () {
@@ -118,19 +118,33 @@ var BrainMMR = {
   },
 
   detect: function (q) {
-    var s = String(q || "").toLowerCase();
-    if (s.indexOf("угадай ммр") >= 0 || s.indexOf("угадай рейтинг") >= 0) return "predict";
-    if (s.indexOf("какой у меня ммр") >= 0 || s.indexOf("мой ммр") >= 0 || s.indexOf("мой рейтинг") >= 0) return "predict";
-    if (s.indexOf("определи ммр") >= 0 || s.indexOf("определи рейтинг") >= 0) return "predict";
-    if (s.indexOf("предскажи рейтинг") >= 0 || s.indexOf("предскажи ммр") >= 0) return "predict";
-    if (s.indexOf("мой ранг") >= 0 || s.indexOf("какой мой ранг") >= 0) return "predict";
+    var s = String(q || "").toLowerCase().trim();
+    /* Прямые запросы про MMR */
+    if (s.indexOf("ммр") >= 0 || s.indexOf("рейтинг") >= 0 || s.indexOf("птс") >= 0) {
+      /* Ключевые фразы */
+      if (s.indexOf("угадай") >= 0) return "predict";
+      if (s.indexOf("предскажи") >= 0) return "predict";
+      if (s.indexOf("определи") >= 0) return "predict";
+      if (s.indexOf("какой") >= 0) return "predict";
+      if (s.indexOf("мой") >= 0) return "predict";
+      if (s.indexOf("по игре") >= 0) return "predict";
+      if (s.indexOf("по матчу") >= 0) return "predict";
+      if (s.indexOf("по последнему") >= 0) return "predict";
+      if (s.indexOf("у меня") >= 0) return "predict";
+      if (s.indexOf("сколько") >= 0) return "predict";
+      /* Если есть только слово ммр — тоже показываем прогноз */
+      if (s.length < 40) return "predict";
+    }
+    if (s.indexOf("ранг") >= 0 || s.indexOf("медаль") >= 0) {
+      if (s.indexOf("мой") >= 0 || s.indexOf("какой") >= 0 || s.indexOf("угадай") >= 0 || s.indexOf("определи") >= 0) return "predict";
+    }
     return null;
   },
 
   answer: function (kind) {
     if (kind === "predict") {
       var r = this.predictFromLastMatch();
-      if (!r) return "🤔 Нет данных последнего матча. Разбери матч — потом спрашивай.";
+      if (!r) return "🤔 Нет данных последнего матча. Разбери матч на вкладке **«Анализ матча»** — потом спрашивай.";
       return r.text;
     }
     return null;
