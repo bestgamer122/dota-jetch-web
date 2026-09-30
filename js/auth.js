@@ -1,4 +1,4 @@
-/* DOTA JETCH — FIREBASE AUTH v3.0 (анимации встроены)
+/* DOTA JETCH — FIREBASE AUTH v3.1 (исправлены анимации кнопок)
    Регистрация + вход + сессия не слетает + верификация + сброс пароля + анимации. */
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.8.0/firebase-app.js";
@@ -37,9 +37,9 @@ function injectAuthAnimations() {
       60% { transform: translateY(-4px) scale(1.01); }
       100% { opacity: 1; transform: translateY(0) scale(1); }
     }
-    @keyframes authFieldIn {
-      from { opacity: 0; transform: translateX(-20px); }
-      to { opacity: 1; transform: translateX(0); }
+    @keyframes authFadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
     }
     @keyframes authIconFloat {
       0%, 100% { transform: translateY(0) rotate(0); }
@@ -52,10 +52,6 @@ function injectAuthAnimations() {
       60% { transform: translateX(-6px); }
       80% { transform: translateX(6px); }
     }
-    @keyframes authBtnPulse {
-      0%, 100% { box-shadow: 0 0 0 0 var(--accent-bg); }
-      50% { box-shadow: 0 0 0 10px transparent; }
-    }
     @keyframes authGlow {
       0%, 100% { filter: drop-shadow(0 0 8px var(--accent-light)); }
       50% { filter: drop-shadow(0 0 20px var(--accent-light)); }
@@ -65,17 +61,12 @@ function injectAuthAnimations() {
       50% { background-position: 100% 50%; }
       100% { background-position: 0% 50%; }
     }
-    @keyframes authFadeIn {
-      from { opacity: 0; }
-      to { opacity: 1; }
-    }
     @keyframes authSlideDown {
       from { opacity: 0; transform: translateY(-20px); }
       to { opacity: 1; transform: translateY(0); }
     }
 
     #authScreen .auth-card {
-      animation: authCardIn 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) both;
       background: linear-gradient(135deg, var(--bg-card) 0%, var(--bg-card) 60%, var(--accent-bg) 140%);
       background-size: 200% 200%;
       animation: authCardIn 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) both, authBgShift 8s ease-in-out infinite 0.6s;
@@ -90,20 +81,19 @@ function injectAuthAnimations() {
       animation: authSlideDown 0.5s ease-out 0.25s both;
     }
     #authScreen input {
-      animation: authFieldIn 0.45s ease-out both;
+      animation: authFadeIn 0.45s ease-out both;
     }
-    #authScreen input:nth-of-type(1) { animation-delay: 0.3s; }
-    #authScreen input:nth-of-type(2) { animation-delay: 0.4s; }
+    #authScreen input:nth-of-type(1) { animation-delay: 0.25s; }
+    #authScreen input:nth-of-type(2) { animation-delay: 0.35s; }
     #authScreen .auth-btn {
-      animation: authFieldIn 0.45s ease-out both;
+      animation: authFadeIn 0.45s ease-out both;
+      will-change: opacity;
+      backface-visibility: hidden;
     }
-    #authScreen .auth-btn-primary { animation-delay: 0.5s; }
-    #authScreen .auth-btn-outline { animation-delay: 0.6s; }
-    #authScreen .auth-forgot { animation: authFadeIn 0.5s ease-out 0.7s both; }
-    #authScreen .auth-hint { animation: authFadeIn 0.5s ease-out 0.8s both; }
-    #authScreen .auth-btn-primary:hover:not(:disabled) {
-      animation: authBtnPulse 1.6s ease-in-out infinite;
-    }
+    #authScreen .auth-btn-primary { animation-delay: 0.3s; }
+    #authScreen .auth-btn-outline { animation-delay: 0.4s; }
+    #authScreen .auth-forgot { animation: authFadeIn 0.5s ease-out 0.5s both; }
+    #authScreen .auth-hint { animation: authFadeIn 0.5s ease-out 0.6s both; }
     #authScreen .auth-error-shake {
       animation: authShake 0.4s ease-in-out;
     }
