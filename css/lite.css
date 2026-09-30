@@ -1,29 +1,116 @@
-/* DOTA JETCH — LITE MODE v2.0 */
+/* DOTA JETCH — LITE MODE v3.0 (визуально проще) */
 
+/* 1. Убираем все фоновые эффекты */
 body.lite-mode .bg-aurora,
 body.lite-mode .bg-orbs,
 body.lite-mode .bg-grid,
 body.lite-mode .bg-noise,
 body.lite-mode .bg-vignette { display: none !important; }
 body.lite-mode .bg-base { background: var(--bg) !important; }
+
+/* 2. Убираем backdrop-filter (главный пожиратель FPS) */
 body.lite-mode .titlebar,
 body.lite-mode .sidebar,
 body.lite-mode .page-header,
 body.lite-mode .card,
 body.lite-mode .stat-card,
-body.lite-mode .dialog-overlay {
+body.lite-mode .hero-banner,
+body.lite-mode .dialog-overlay,
+body.lite-mode .dropdown-btn,
+body.lite-mode .dropdown-list,
+body.lite-mode #achToast > div {
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
 }
+
+/* 3. Убираем градиенты — только сплошные фоны */
+body.lite-mode .card,
+body.lite-mode .stat-card,
+body.lite-mode .hero-banner,
+body.lite-mode .dialog {
+  background: var(--bg-card) !important;
+  background-image: none !important;
+}
+
 body.lite-mode .titlebar,
 body.lite-mode .sidebar,
-body.lite-mode .page-header { background: var(--bg-card) !important; }
+body.lite-mode .page-header {
+  background: var(--bg-card) !important;
+  background-image: none !important;
+}
+
+/* 4. Убираем тени и свечения */
 body.lite-mode .card,
-body.lite-mode .stat-card { background: var(--bg-card) !important; }
+body.lite-mode .stat-card,
+body.lite-mode .hero-banner,
+body.lite-mode .dropdown-list,
+body.lite-mode .dialog {
+  box-shadow: none !important;
+}
+body.lite-mode .card:hover,
+body.lite-mode .stat-card:hover {
+  transform: none !important;
+  border-color: var(--border) !important;
+}
+
+/* 5. Убираем анимации */
+body.lite-mode .titlebar-icon,
+body.lite-mode .status-dot,
 body.lite-mode .card.reveal,
 body.lite-mode .stat-card.reveal,
-body.lite-mode .hero-banner.reveal { opacity: 1 !important; transform: none !important; }
-body.lite-mode .titlebar-icon,
-body.lite-mode .status-dot { animation: none !important; }
-body.lite-mode .dropdown-btn { backdrop-filter: none !important; }
-body.lite-mode .dropdown-list { box-shadow: 0 10px 30px rgba(0,0,0,0.6) !important; }
+body.lite-mode .hero-banner.reveal {
+  animation: none !important;
+  transition: none !important;
+  opacity: 1 !important;
+  transform: none !important;
+}
+
+/* 6. Упрощаем кнопки — без градиентов и подъёма */
+body.lite-mode .btn {
+  background: var(--accent) !important;
+  background-image: none !important;
+  transform: none !important;
+  filter: none !important;
+}
+body.lite-mode .btn:hover {
+  transform: none !important;
+  filter: brightness(1.1) !important;
+}
+body.lite-mode .btn-ghost {
+  background: var(--bg-elev) !important;
+  border-color: var(--border) !important;
+}
+body.lite-mode .btn-ghost:hover {
+  background: var(--accent-bg) !important;
+  border-color: var(--accent) !important;
+}
+
+/* 7. Упрощаем скроллбар */
+body.lite-mode ::-webkit-scrollbar-thumb {
+  background: var(--border-hl) !important;
+  border-radius: 8px !important;
+  border: none !important;
+}
+
+/* 8. Убираем hover-эффекты на карточках */
+body.lite-mode .card:hover {
+  border-color: var(--border) !important;
+  transform: none !important;
+}
+
+/* 9. Упрощаем бейджи и иконки */
+body.lite-mode .badge {
+  border-radius: 6px !important;
+}
+body.lite-mode .stat-icon {
+  box-shadow: none !important;
+}
+
+/* 10. Убираем hover-свечение у dropdown */
+body.lite-mode .dropdown.open .dropdown-btn {
+  box-shadow: none !important;
+}
+body.lite-mode .dropdown-btn:hover {
+  background: var(--bg-elev) !important;
+  border-color: var(--border-hl) !important;
+}
