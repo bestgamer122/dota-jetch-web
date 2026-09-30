@@ -1,6 +1,6 @@
-/* DOTA JETCH — APP v4.0 */
+/* DOTA JETCH — APP v4.1 */
 
-var APP_VERSION = "4.0";
+var APP_VERSION = "4.1";
 
 /* ─── Навигация ─── */
 var PAGES = {
@@ -8,11 +8,11 @@ var PAGES = {
   analyze:      { title: "Анализ матча",    render: renderAnalyze },
   chat:         { title: "ИИ-ассистент",    render: renderChat },
   history:      { title: "История",         render: renderHistory },
-  charts:       { title: "Прогресс",        render: renderCharts },
+  charts:       { title: "Прогресс",        render: renderChartsPage },
   diary:        { title: "Дневник",         render: renderDiary },
   games:        { title: "Мини-игры",       render: renderGames },
   achievements: { title: "Достижения",      render: renderAchievements },
-  export:       { title: "Экспорт",         render: renderExport },
+  export:       { title: "Экспорт",         render: renderExportPage },
   settings:     { title: "Настройки",       render: renderSettings },
   about:        { title: "О программе",     render: renderAbout }
 };
