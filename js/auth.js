@@ -1,32 +1,211 @@
-/* DOTA JETCH — FIREBASE AUTH v1.1 (Realtime Database)
-   Регистрация + вход + синхронизация данных. Без входа — сервис заблокирован. */
+/* DOTA JETCH — FIREBASE AUTH v2.1
+   Регистрация + вход + сессия не слетает + обязательная верификация email + сброс пароля. */
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.8.0/firebase-app.js";
-import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/11.8.0/firebase-auth.js";
-import { getDatabase, ref, set, get, update } from "https://www.gstatic.com/firebasejs/11.8.0/firebase-database.js";
+import {
+  getAuth,
+  onAuthStateChanged,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  signOut,
+  sendEmailVerification,
+  sendPasswordResetEmail,
+  setPersistence,
+  browserLocalPersistence
+} from "https://www.gstatic.com/firebasejs/11.8.0/firebase-auth.js";
+import { getDatabase, ref, get, update } from "https://www.gstatic.com/firebasejs/11.8.0/firebase-database.js";
 
 const app = initializeApp(window.FIREBASE_CONFIG);
 const auth = getAuth(app);
 const db = getDatabase(app);
+
+setPersistence(auth, browserLocalPersistence).catch(function (e) {
+  console.warn("setPersistence error:", e);
+});
 
 let currentUser = null;
 let autoSaveInterval = null;
 
 function showAuthScreen() {
   const el = document.getElementById("authScreen");
-  if (el) el.style.display = "flex";
+  if (!el) return;
+  el.style.display = "flex";
+  el.innerHTML = buildLoginScreen();
+  bindLoginHandlers();
+  document.body.style.overflow = "hidden";
+}
+
+function showVerificationScreen(email) {
+  const el = document.getElementById("authScreen");
+  if (!el) return;
+  el.style.display = "flex";
+  el.innerHTML = buildVerificationScreen(email);
+  bindVerificationHandlers();
   document.body.style.overflow = "hidden";
 }
 
 function hideAuthScreen() {
   const el = document.getElementById("authScreen");
-  if (el) el.style.display = "none";
+  if (el) {
+    el.style.display = "none";
+    el.innerHTML = "";
+  }
   document.body.style.overflow = "";
 }
 
 function setAuthError(msg) {
   const el = document.getElementById("authError");
   if (el) el.textContent = msg || "";
+}
+
+function buildLoginScreen() {
+  return `
+  <div class="auth-card">
+    <div class="auth-logo">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 2 L15 9 L22 12 L15 15 L12 22 L9 15 L2 12 L9 9 Z"/>
+      </svg>
+      <h1>DOTA JETCH AI 2.0</h1>
+      <div class="auth-sub">Войди или зарегистрируйся, чтобы продолжить</div>
+    </div>
+    <div id="authError" class="auth-error"></div>
+    <input type="email" id="authEmail" placeholder="Email" autocomplete="email">
+    <input type="password" id="authPassword" placeholder="Пароль (минимум 6 символов)" autocomplete="current-password">
+    <button id="authLoginBtn" class="auth-btn auth-btn-primary">Войти</button>
+    <button id="authRegisterBtn" class="auth-btn auth-btn-outline">Зарегистрироваться</button>
+    <div class="auth-forgot"><a href="#" id="authForgotLink">Забыли пароль?</a></div>
+    <div class="auth-hint">Данные сохраняются в твоём аккаунте Firebase</div>
+  </div>`;
+}
+
+function buildVerificationScreen(email) {
+  return `
+  <div class="auth-card">
+    <div class="auth-logo">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 4h16v16H4z"/>
+        <path d="M4 6l8 6 8-6"/>
+      </svg>
+      <h1>Подтвердите email</h1>
+      <div class="auth-sub">Мы отправили письмо на <strong id="verifyEmail">${email || ""}</strong>.</div>
+      <div class="auth-sub">Перейди по ссылке из письма, чтобы активировать аккаунт.</div>
+    </div>
+    <div id="authError" class="auth-error"></div>
+    <button id="checkVerifyBtn" class="auth-btn auth-btn-primary">Я подтвердил почту</button>
+    <button id="resendVerifyBtn" class="auth-btn auth-btn-outline">Отправить письмо заново</button>
+    <button id="backToLoginBtn" class="auth-btn auth-btn-outline" style="margin-top:10px;">Назад ко входу</button>
+    <div class="auth-hint">Проверь папку «Спам», если письма нет во «Входящих»</div>
+  </div>`;
+}
+
+function bindLoginHandlers() {
+  const loginBtn = document.getElementById("authLoginBtn");
+  const registerBtn = document.getElementById("authRegisterBtn");
+  const emailInput = document.getElementById("authEmail");
+  const passInput = document.getElementById("authPassword");
+  const forgotLink = document.getElementById("authForgotLink");
+
+  if (loginBtn) {
+    loginBtn.addEventListener("click", async function () {
+      setAuthError("");
+      const email = (emailInput && emailInput.value || "").trim();
+      const password = passInput && passInput.value || "";
+      if (!email || !password) { setAuthError("Введи email и пароль."); return; }
+      loginBtn.disabled = true;
+      try {
+        await signInWithEmailAndPassword(auth, email, password);
+      } catch (error) {
+        setAuthError(translateAuthError(error.code));
+        loginBtn.disabled = false;
+      }
+    });
+  }
+
+  if (registerBtn) {
+    registerBtn.addEventListener("click", async function () {
+      setAuthError("");
+      const email = (emailInput && emailInput.value || "").trim();
+      const password = passInput && passInput.value || "";
+      if (!email || !password) { setAuthError("Введи email и пароль."); return; }
+      if (password.length < 6) { setAuthError("Пароль минимум 6 символов."); return; }
+      registerBtn.disabled = true;
+      try {
+        const cred = await createUserWithEmailAndPassword(auth, email, password);
+        await sendEmailVerification(cred.user);
+      } catch (error) {
+        setAuthError(translateAuthError(error.code));
+        registerBtn.disabled = false;
+      }
+    });
+  }
+
+  if (forgotLink) {
+    forgotLink.addEventListener("click", async function (e) {
+      e.preventDefault();
+      setAuthError("");
+      const email = (emailInput && emailInput.value || "").trim();
+      if (!email) { setAuthError("Введи email, и мы пришлём ссылку для сброса."); return; }
+      try {
+        await sendPasswordResetEmail(auth, email);
+        alert("Письмо для сброса пароля отправлено на " + email + ". Проверь почту.");
+      } catch (error) {
+        setAuthError(translateAuthError(error.code));
+      }
+    });
+  }
+
+  if (emailInput) emailInput.addEventListener("keydown", function (e) { if (e.key === "Enter" && loginBtn) loginBtn.click(); });
+  if (passInput) passInput.addEventListener("keydown", function (e) { if (e.key === "Enter" && loginBtn) loginBtn.click(); });
+}
+
+function bindVerificationHandlers() {
+  const checkBtn = document.getElementById("checkVerifyBtn");
+  const resendBtn = document.getElementById("resendVerifyBtn");
+  const backBtn = document.getElementById("backToLoginBtn");
+
+  if (checkBtn) {
+    checkBtn.addEventListener("click", async function () {
+      setAuthError("");
+      checkBtn.disabled = true;
+      checkBtn.textContent = "Проверяю...";
+      try {
+        if (auth.currentUser) {
+          await auth.currentUser.reload();
+          if (auth.currentUser.emailVerified) {
+            location.reload();
+            return;
+          } else {
+            setAuthError("Почта пока не подтверждена. Проверь письмо и нажми снова.");
+          }
+        }
+      } catch (e) {
+        setAuthError("Ошибка проверки: " + (e.message || e));
+      }
+      checkBtn.disabled = false;
+      checkBtn.textContent = "Я подтвердил почту";
+    });
+  }
+
+  if (resendBtn) {
+    resendBtn.addEventListener("click", async function () {
+      setAuthError("");
+      try {
+        if (auth.currentUser) {
+          await sendEmailVerification(auth.currentUser);
+          setAuthError("Письмо отправлено повторно!");
+        }
+      } catch (e) {
+        setAuthError("Не удалось отправить: " + (e.message || e));
+      }
+    });
+  }
+
+  if (backBtn) {
+    backBtn.addEventListener("click", async function () {
+      try { await signOut(auth); } catch (e) {}
+      showAuthScreen();
+    });
+  }
 }
 
 const SYNC_KEYS = [
@@ -100,68 +279,17 @@ function stopAutoSave() {
   if (autoSaveInterval) { clearInterval(autoSaveInterval); autoSaveInterval = null; }
 }
 
-function initAuthUI() {
-  const loginBtn = document.getElementById("authLoginBtn");
-  const registerBtn = document.getElementById("authRegisterBtn");
-  const logoutBtn = document.getElementById("logoutBtn");
-  const emailInput = document.getElementById("authEmail");
-  const passInput = document.getElementById("authPassword");
-
-  if (loginBtn) {
-    loginBtn.addEventListener("click", async function () {
-      setAuthError("");
-      const email = (emailInput && emailInput.value || "").trim();
-      const password = passInput && passInput.value || "";
-      if (!email || !password) { setAuthError("Введи email и пароль."); return; }
-      loginBtn.disabled = true;
-      try {
-        await signInWithEmailAndPassword(auth, email, password);
-      } catch (error) {
-        setAuthError(translateAuthError(error.code));
-        loginBtn.disabled = false;
-      }
-    });
-  }
-
-  if (registerBtn) {
-    registerBtn.addEventListener("click", async function () {
-      setAuthError("");
-      const email = (emailInput && emailInput.value || "").trim();
-      const password = passInput && passInput.value || "";
-      if (!email || !password) { setAuthError("Введи email и пароль."); return; }
-      if (password.length < 6) { setAuthError("Пароль минимум 6 символов."); return; }
-      registerBtn.disabled = true;
-      try {
-        await createUserWithEmailAndPassword(auth, email, password);
-      } catch (error) {
-        setAuthError(translateAuthError(error.code));
-        registerBtn.disabled = false;
-      }
-    });
-  }
-
-  if (logoutBtn) {
-    logoutBtn.addEventListener("click", async function () {
-      if (currentUser) { await saveUserData(currentUser.uid); }
-      sessionStorage.removeItem("dotaJetchUid");
-      await signOut(auth);
-    });
-  }
-
-  if (emailInput) emailInput.addEventListener("keydown", function (e) { if (e.key === "Enter" && loginBtn) loginBtn.click(); });
-  if (passInput) passInput.addEventListener("keydown", function (e) { if (e.key === "Enter" && loginBtn) loginBtn.click(); });
-}
-
 function translateAuthError(code) {
   const map = {
     "auth/invalid-email": "Некорректный email.",
-    "auth/user-not-found": "Пользователь не найден.",
+    "auth/user-not-found": "Пользователь с таким email не найден.",
     "auth/wrong-password": "Неверный пароль.",
     "auth/invalid-credential": "Неверный email или пароль.",
     "auth/email-already-in-use": "Этот email уже зарегистрирован.",
     "auth/weak-password": "Слишком слабый пароль (минимум 6 символов).",
     "auth/too-many-requests": "Слишком много попыток. Подожди немного.",
-    "auth/network-request-failed": "Нет соединения. Проверь интернет."
+    "auth/network-request-failed": "Нет соединения. Проверь интернет.",
+    "auth/missing-email": "Введи email."
   };
   return map[code] || ("Ошибка: " + code);
 }
@@ -170,8 +298,14 @@ onAuthStateChanged(auth, async function (user) {
   if (user) {
     currentUser = user;
 
-    if (sessionStorage.getItem("dotaJetchUid") !== user.uid) {
-      sessionStorage.setItem("dotaJetchUid", user.uid);
+    if (!user.emailVerified) {
+      stopAutoSave();
+      showVerificationScreen(user.email);
+      return;
+    }
+
+    if (localStorage.getItem("dotaJetchLoadedUid") !== user.uid) {
+      localStorage.setItem("dotaJetchLoadedUid", user.uid);
       await loadUserData(user.uid);
       location.reload();
       return;
@@ -187,7 +321,7 @@ onAuthStateChanged(auth, async function (user) {
     if (ue) ue.textContent = user.email || "";
   } else {
     currentUser = null;
-    sessionStorage.removeItem("dotaJetchUid");
+    localStorage.removeItem("dotaJetchLoadedUid");
     stopAutoSave();
     showAuthScreen();
     const lb = document.getElementById("logoutBtn");
@@ -197,5 +331,4 @@ onAuthStateChanged(auth, async function (user) {
 
 document.addEventListener("DOMContentLoaded", function () {
   showAuthScreen();
-  initAuthUI();
 });
