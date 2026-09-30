@@ -1,3 +1,5 @@
+/* DOTA JETCH — MINI-GAMES v2.1 (правильное переключение табов) */
+
 var QUIZ = [
   { q: "Какая способность у Juggernaut даёт неуязвимость?", a: "Omnislash", opts: ["Omnislash", "Blade Fury", "Blade Dance", "Healing Ward"] },
   { q: "Сколько стоит Black King Bar?", a: "4050", opts: ["3900", "4050", "4200", "5000"] },
@@ -22,13 +24,41 @@ function shuffle(a) {
   return arr;
 }
 
+var CURRENT_GAME = "reaction";
+
 function renderGames() {
   var frag = document.createDocumentFragment();
-  frag.appendChild(UI.heroBanner("Мини-игры", "Реакция, викторина, угадай героя", [
-    UI.btn("Реакция", { onclick: function () { openGame("reaction"); } }),
-    UI.btn("Викторина", { onclick: function () { openGame("quiz"); }, variant: "ghost" }),
-    UI.btn("Угадай", { onclick: function () { openGame("guess"); }, variant: "ghost" })
-  ]));
+  frag.appendChild(UI.heroBanner("Мини-игры", "Реакция, викторина, угадай героя", []));
+
+  /* Табы */
+  var tabs = el("div", { class: "row", style: "margin-bottom:16px;gap:8px;" });
+  var tabDefs = [
+    { id: "reaction", label: "Реакция" },
+    { id: "quiz", label: "Викторина" },
+    { id: "guess", label: "Угадай" }
+  ];
+  for (var t = 0; t < tabDefs.length; t++) {
+    (function (tab) {
+      var isActive = tab.id === CURRENT_GAME;
+      var b = UI.btn(tab.label, { variant: isActive ? undefined : "ghost", id: "gameTab_" + tab.id });
+      b.addEventListener("click", function () {
+        CURRENT_GAME = tab.id;
+        qsa("#gameTab_reaction, #gameTab_quiz, #gameTab_guess").forEach(function (btn) {
+          btn.classList.remove("active");
+          btn.classList.add("btn-ghost");
+          if (btn.getAttribute("variant") === undefined) btn.removeAttribute("variant");
+        });
+        b.classList.add("active");
+        b.classList.remove("btn-ghost");
+        b.setAttribute("variant", "primary");
+        openGame(tab.id);
+      });
+      tabs.appendChild(b);
+    })(tabDefs[t]);
+  }
+  frag.appendChild(tabs);
+
+  /* Статистика */
   var stats = el("div", { class: "stat-grid" });
   var r = Store.get("reactionbest", 0) || 0;
   var q = Store.get("quizbest", 0) || 0;
@@ -37,8 +67,14 @@ function renderGames() {
   stats.appendChild(UI.statCard("Q", "var(--cyan)", "var(--cyan-bg)", "Викторина", q ? q + "/10" : "-", "лучший"));
   stats.appendChild(UI.statCard("G", "var(--green)", "var(--green-bg)", "Стрик", g ? String(g) : "-", "макс"));
   frag.appendChild(stats);
+
+  /* Игровое поле */
   var area = el("div", { id: "gameArea" });
   frag.appendChild(area);
+
+  /* Автозапуск текущей игры после рендера */
+  setTimeout(function () { openGame(CURRENT_GAME); }, 50);
+
   return frag;
 }
 
