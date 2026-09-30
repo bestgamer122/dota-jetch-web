@@ -1,33 +1,39 @@
+/* DOTA JETCH — APP v4.0 */
+
+var APP_VERSION = "4.0";
+
+/* ─── Навигация ─── */
 var PAGES = {
-  dashboard: { title: "Главная", render: renderDashboard },
-  analyze: { title: "Анализ матча", render: renderAnalyze },
-  chat: { title: "ИИ-ассистент", render: renderChat },
-  history: { title: "История", render: renderHistory },
-  charts: { title: "Прогресс", render: renderChartsPage },
-  diary: { title: "Дневник", render: renderDiary },
-  games: { title: "Мини-игры", render: renderGames },
-  achievements: { title: "Достижения", render: renderAchievements },
-  export: { title: "Экспорт", render: renderExportPage },
-  settings: { title: "Настройки", render: renderSettings },
-  about: { title: "О программе", render: renderAbout }
+  dashboard:    { title: "Главная",         render: renderDashboard },
+  analyze:      { title: "Анализ матча",    render: renderAnalyze },
+  chat:         { title: "ИИ-ассистент",    render: renderChat },
+  history:      { title: "История",         render: renderHistory },
+  charts:       { title: "Прогресс",        render: renderCharts },
+  diary:        { title: "Дневник",         render: renderDiary },
+  games:        { title: "Мини-игры",       render: renderGames },
+  achievements: { title: "Достижения",      render: renderAchievements },
+  export:       { title: "Экспорт",         render: renderExport },
+  settings:     { title: "Настройки",       render: renderSettings },
+  about:        { title: "О программе",     render: renderAbout }
 };
+
+var NAV = [
+  { page: "dashboard",    label: "Главная",       icon: "◈" },
+  { page: "analyze",      label: "Анализ матча",  icon: "▶" },
+  { page: "chat",         label: "ИИ-ассистент",  icon: "✦" },
+  { page: "history",      label: "История",       icon: "☰" },
+  { page: "charts",       label: "Прогресс",      icon: "◱" },
+  { page: "diary",        label: "Дневник",       icon: "✎" },
+  { page: "games",        label: "Мини-игры",     icon: "◉" },
+  { page: "achievements", label: "Достижения",    icon: "★" },
+  { page: "export",       label: "Экспорт",       icon: "⇩" },
+  { page: "settings",     label: "Настройки",     icon: "⚙" },
+  { page: "about",        label: "О программе",   icon: "ⓘ" }
+];
 
 var currentPage = "dashboard";
 
-var NAV = [
-  { page: "dashboard", label: "Главная", icon: "M3 11l9-8 9 8v9a2 2 0 0 1-2 2h-4v-7h-6v7H5a2 2 0 0 1-2-2z" },
-  { page: "analyze", label: "Анализ", icon: "M5 3l14 9-14 9z" },
-  { page: "chat", label: "ИИ", icon: "M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" },
-  { page: "history", label: "История", icon: "M3 6h18M3 12h18M3 18h18" },
-  { page: "charts", label: "Прогресс", icon: "M3 3v18h18M7 14l3-3 4 4 5-6" },
-  { page: "diary", label: "Дневник", icon: "M4 4h12l4 4v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z" },
-  { page: "games", label: "Игры", icon: "M3 7h18v12H3z" },
-  { page: "achievements", label: "Ачивки", icon: "M12 9m-6 0a6 6 0 1 0 12 0a6 6 0 1 0 -12 0" },
-  { page: "export", label: "Экспорт", icon: "M12 3v12M8 7l4-4 4 4" },
-  { page: "settings", label: "Настройки", icon: "M12 12m-3 0a3 3 0 1 0 6 0a3 3 0 1 0 -6 0" },
-  { page: "about", label: "О программе", icon: "M12 12m-10 0a10 10 0 1 0 20 0a10 10 0 1 0 -20 0" }
-];
-
+/* ─── Строим навигацию ─── */
 function buildNav() {
   var nav = qs("#sidebarNav");
   if (!nav) return;
@@ -35,9 +41,7 @@ function buildNav() {
   for (var i = 0; i < NAV.length; i++) {
     (function (item) {
       var btn = el("button", { class: "nav-btn" + (item.page === currentPage ? " active" : ""), "data-page": item.page });
-      var ico = el("span", { class: "nav-ico" });
-      ico.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="' + item.icon + '"/></svg>';
-      btn.appendChild(ico);
+      btn.appendChild(el("span", { class: "nav-ico" }, item.icon));
       btn.appendChild(document.createTextNode(item.label));
       btn.addEventListener("click", function () { switchPage(item.page); });
       nav.appendChild(btn);
@@ -45,26 +49,30 @@ function buildNav() {
   }
 }
 
+/* ─── Безопасный рендер ─── */
 function safeRender(name) {
   try {
-    if (!PAGES[name]) throw new Error("Страница: " + name);
-    var n = PAGES[name].render();
-    if (!n) throw new Error("Пустой результат");
-    return n;
+    if (!PAGES[name]) throw new Error("Страница не найдена: " + name);
+    var node = PAGES[name].render();
+    if (!node) throw new Error("Пустой результат рендера");
+    return node;
   } catch (e) {
     console.error("Render error:", name, e);
     var frag = document.createDocumentFragment();
-    var card = UI.card("Ошибка: " + PAGES[name].title);
+    var card = UI.card("Ошибка: " + (PAGES[name] ? PAGES[name].title : name));
     card.appendChild(el("div", { style: "color:var(--red);font-size:12px;padding:10px;font-family:monospace;" }, e.message || String(e)));
     frag.appendChild(card);
     return frag;
   }
 }
 
+/* ─── Переключение страниц ─── */
 function switchPage(name) {
   if (!PAGES[name]) name = "dashboard";
   currentPage = name;
-  qsa(".nav-btn").forEach(function (b) { b.classList.toggle("active", b.getAttribute("data-page") === name); });
+  qsa(".nav-btn").forEach(function (b) {
+    b.classList.toggle("active", b.getAttribute("data-page") === name);
+  });
   var t = qs("#pageTitle");
   if (t) t.textContent = PAGES[name].title;
   var c = qs("#pageContent");
@@ -77,15 +85,16 @@ function switchPage(name) {
   location.hash = name;
 }
 
-function renderChartsPage() {
-  try { if (typeof Daily !== "undefined") Daily.bump("chart"); } catch (e) {}
-  if (typeof Charts === "undefined") return UI.card("Прогресс");
-  return Charts.render();
+/* ─── Обновление плана в сайдбаре ─── */
+function updateSidebarPlan() {
+  if (typeof updateSidebarPlanImpl === "function") updateSidebarPlanImpl();
 }
 
+/* ─── Дашборд ─── */
 function renderDashboard() {
   var frag = document.createDocumentFragment();
-  var plus = Store.get("license.active", false) === true;
+  var plus = (typeof checkLicense === "function") ? checkLicense() : (Store.get("license.active", false) === true);
+
   frag.appendChild(UI.heroBanner(
     "DOTA JETCH",
     plus ? "AI 2.0 активен" : "Веб-версия",
@@ -95,20 +104,21 @@ function renderDashboard() {
       UI.btn("Прогресс", { onclick: function () { switchPage("charts"); }, variant: "ghost" })
     ]
   ));
-  if (typeof renderDailyWidget === "function") {
-    try { frag.appendChild(renderDailyWidget()); } catch (e) {}
-  }
+
   var stats = el("div", { class: "stat-grid" });
   var left = typeof analyzeQuotaRemaining === "function" ? (plus ? "∞" : String(analyzeQuotaRemaining())) : "-";
   stats.appendChild(UI.statCard("S", "var(--cyan)", "var(--cyan-bg)", "Сессий", String(Store.get("sessions", 0)), "Всего"));
-  stats.appendChild(UI.statCard("A", "var(--accent-light)", "var(--accent-bg)", "Анализов сегодня", left, plus ? "JETCH+" : "из 5"));
+  stats.appendChild(UI.statCard("A", "var(--accent-light)", "var(--accent-bg)", "Анализов", left, plus ? "JETCH+" : "из 5"));
   stats.appendChild(UI.statCard("T", "var(--yellow)", "var(--yellow-bg)", "Ачивки", (Store.get("achievementsunlocked", []) || []).length + " / 24", "Открыто"));
   frag.appendChild(stats);
+
   var s2 = el("div", { class: "stat-grid" });
   s2.appendChild(UI.statCard("D", "var(--cyan)", "var(--cyan-bg)", "Дневник", String((Store.get("diarynotes", []) || []).length), "Записей"));
   s2.appendChild(UI.statCard("F", "var(--orange)", "var(--orange-bg)", "Стрик", String(Store.get("dailystreak", 0) || 0), "дней"));
   s2.appendChild(UI.statCard("H", "var(--green)", "var(--green-bg)", "История", String((Store.get("recentmatches", []) || []).length), "Матчей"));
   frag.appendChild(s2);
+
+  /* Последний матч */
   if (typeof lastAnalysis !== "undefined" && lastAnalysis && lastAnalysis.hero) {
     var last = UI.card("Последний матч");
     var row = el("div", { style: "display:flex;align-items:center;gap:14px;" });
@@ -116,29 +126,42 @@ function renderDashboard() {
     var info = el("div", { style: "flex:1;" });
     info.appendChild(el("div", { style: "font-size:15px;font-weight:bold;" }, lastAnalysis.hero.name));
     info.appendChild(el("div", { class: "muted", style: "font-size:11px;margin-top:4px;" },
-      lastAnalysis.player.kills + "/" + lastAnalysis.player.deaths + "/" + lastAnalysis.player.assists + " - " + (lastAnalysis.won ? "победа" : "поражение")));
+      lastAnalysis.player.kills + "/" + lastAnalysis.player.deaths + "/" + lastAnalysis.player.assists + " — " + (lastAnalysis.won ? "победа" : "поражение")));
     row.appendChild(info);
     last.appendChild(row);
     frag.appendChild(last);
   }
+
   return frag;
 }
 
+/* ─── Инициализация ─── */
 function init() {
-  try { applyTheme(loadTheme()); } catch (e) {}
-  try { applyLiteMode(isLiteMode()); } catch (e) {}
+  try { if (typeof applyTheme === "function") applyTheme(loadTheme()); } catch (e) {}
+  try { if (typeof applyLiteMode === "function") applyLiteMode(isLiteMode()); } catch (e) {}
+
   buildNav();
-  document.addEventListener("click", function () { closeAllDropdowns(); });
+
+  document.addEventListener("click", function () {
+    if (typeof closeAllDropdowns === "function") closeAllDropdowns();
+  });
+
   try { Store.set("sessions", (Store.get("sessions", 0) || 0) + 1); } catch (e) {}
+
   var h = (location.hash || "#dashboard").slice(1);
   switchPage(PAGES[h] ? h : "dashboard");
-  updateSidebarPlan();
+
+  if (typeof updateSidebarPlan === "function") updateSidebarPlan();
   try { if (typeof Achievements !== "undefined") Achievements.check(); } catch (e) {}
+
   console.log("DOTA JETCH v" + APP_VERSION + " init");
 }
 
-if (document.readyState === "loading") window.addEventListener("DOMContentLoaded", init);
-else setTimeout(init, 0);
+if (document.readyState === "loading") {
+  window.addEventListener("DOMContentLoaded", init);
+} else {
+  setTimeout(init, 0);
+}
 
 window.addEventListener("hashchange", function () {
   var h = (location.hash || "#dashboard").slice(1);
