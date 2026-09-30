@@ -129,7 +129,7 @@ function renderSettings() {
       location.reload();
     }}));
   } else {
-    plan.appendChild(el("div", { style: "color:var(--gold);font-size:14px;font-weight:700;margin-bottom:10px;" }, "ВОЗМОЖНОСТИ"));
+    plan.appendChild(el("div", { style: "color:var(--gold);font-size:14px;font-weight:700;margin-bottom:10px;" }, "ВОЗМОЖНОСТИ:"));
     plan.appendChild(el("div", { class: "dim", style: "font-size:12px;margin-bottom:12px;line-height:1.6;" }, "+ Бесконечные анализы", el("br"), "+ Статус в меню", el("br"),"+ ИИ чат"));
     plan.appendChild(el("div", { style: "font-size:11px;color:var(--text-muted);margin-bottom:8px;" }, "КЛЮЧ АКТИВАЦИИ:"));
     var keyInp = UI.input("");
