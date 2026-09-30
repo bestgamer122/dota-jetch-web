@@ -1,6 +1,6 @@
-/* DOTA JETCH — APP v7.0 */
+/* DOTA JETCH — APP v8.0 */
 
-var APP_VERSION = "7.0";
+var APP_VERSION = "8.0";
 
 /* ─── Навигация ─── */
 var PAGES = {
@@ -87,11 +87,24 @@ function switchPage(name) {
 function updateSidebarPlan() {
   var plus = (typeof checkLicense === "function") ? checkLicense() : (Store.get("license.active", false) === true);
   var t = qs("#planTitle"), i = qs("#planInfo"), v = qs("#planValue");
+  var bar = qs(".plan-bar-fill");
+
   if (t) t.textContent = plus ? "JETCH+" : "FREE";
   if (i) i.textContent = plus ? "Бессрочно" : "5 анализов/день";
-  if (v) {
-    var rem = (typeof analyzeQuotaRemaining === "function") ? analyzeQuotaRemaining() : 5;
-    v.textContent = plus ? "∞" : String(rem) + " / 5";
+
+  var total = 5;
+  var rem = plus ? total : ((typeof analyzeQuotaRemaining === "function") ? analyzeQuotaRemaining() : total);
+
+  if (v) v.textContent = plus ? "∞" : String(rem) + " / " + total;
+
+  if (bar) {
+    var pct = plus ? 100 : Math.max(0, Math.min(100, (rem / total) * 100));
+    bar.style.width = pct + "%";
+    bar.style.background = plus
+      ? "linear-gradient(90deg, var(--gold), var(--yellow))"
+      : (pct > 60 ? "linear-gradient(90deg, var(--accent), var(--cyan))"
+        : pct > 30 ? "linear-gradient(90deg, var(--yellow), var(--orange))"
+        : "linear-gradient(90deg, var(--orange), var(--red))");
   }
 }
 
