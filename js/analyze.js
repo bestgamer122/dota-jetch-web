@@ -1,4 +1,4 @@
-/* DOTA JETCH — ANALYZE v3.1 (возвращён вызов ИИ-разбора) */
+/* DOTA JETCH — ANALYZE v3.2 (добавлена кнопка «Новый анализ») */
 
 var MODE_NAMES = { 1:"All Pick", 2:"Captains Mode", 3:"Random Draft", 4:"Single Draft", 5:"All Random", 22:"Ranked", 23:"Turbo" };
 var POS_NAMES = { 1:"Pos 1 Керри", 2:"Pos 2 Мид", 3:"Pos 3 Оффлейн", 4:"Pos 4 Роум", 5:"Pos 5 Саппорт" };
@@ -154,6 +154,15 @@ function renderAnalyze() {
   var plus = (typeof checkLicense === "function") ? checkLicense() : (Store.get("license.active", false) === true);
 
   if (lastAnalysis && lastAnalysis.match) {
+    /* Кнопка «Новый анализ» */
+    var resetBtn = UI.btn("🔄 Новый анализ", { variant: "ghost" });
+    resetBtn.style.marginBottom = "14px";
+    resetBtn.addEventListener("click", function () {
+      lastAnalysis = null;
+      switchPage("analyze");
+    });
+    frag.appendChild(resetBtn);
+
     var report = el("div", { id: "analyzeReport" });
     report.appendChild(buildReport(lastAnalysis));
     frag.appendChild(report);
@@ -352,9 +361,4 @@ function buildMetrics(r) {
   }
   card.appendChild(grid);
   return card;
-}
-
-function resetLastAnalysis() {
-  lastAnalysis = null;
-  if (typeof switchPage === "function") switchPage("analyze");
 }
