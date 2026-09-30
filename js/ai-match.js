@@ -1,23 +1,55 @@
-/* DOTA JETCH — AI MATCH v1.2
-   Не требует правок в analyze.js. Использует MutationObserver. */
+/* DOTA JETCH — AI MATCH v1.3
+   Блок ИИ-разбора появляется ТОЛЬКО на странице анализа.
+   Передаёт контекст матча в brainAnswer. */
 
 (function () {
   "use strict";
 
   var AI_BLOCK_ID = "aiMatchBlock";
-  var observer = null;
 
-  function addAiBlock() {
+  function collectMatchContext() {
+    var report = qs("#analyzeReport");
+    if (!report) return null;
+    var text = report.innerText || "";
+    var ctx = {};
+    var heroMatch = text.match(/([A-Z][a-z]+(?: [A-Z][a-z]+)?)\n/);
+    if (heroMatch) ctx.hero = heroMatch[1];
+    var kdaMatch = text.match(/(\d+)\s*\/\s*(\d+)\s*\/\s*(\d+)/);
+    if (kdaMatch) {
+      ctx.kills = kdaMatch[1];
+      ctx.deaths = kdaMatch[2];
+      ctx.assists = kdaMatch[3];
+    }
+    var gpmMatch = text.match(/GPM\s*(\d+)/i);
+    if (gpmMatch) ctx.gpm = gpmMatch[1];
+    var xpmMatch = text.match(/XPM\s*(\d+)/i);
+    if (xpmMatch) ctx.xpm = xpmMatch[1];
+    var deathsMatch = text.match(/Смертей:\s*(\d+)/i);
+    if (deathsMatch) ctx.deathsCount = deathsMatch[1];
+    if (text.indexOf("ПОБЕДА") >= 0) ctx.result = "победа";
+    else if (text.indexOf("ПОРАЖЕНИЕ") >= 0) ctx.result = "поражение";
+    return ctx;
+  }
+
+  function buildContextString(ctx) {
+    if (!ctx) return "";
+    var parts = [];
+    if (ctx.hero) parts.push("Герой: " + ctx.hero);
+    if (ctx.kills) parts.push("KDA: " + ctx.kills + "/" + ctx.deaths + "/" + ctx.assists);
+    if (ctx.gpm) parts.push("GPM: " + ctx.gpm);
+    if (ctx.xpm) parts.push("XPM: " + ctx.xpm);
+    if (ctx.deathsCount) parts.push("Смертей: " + ctx.deathsCount);
+    if (ctx.result) parts.push("Результат: " + ctx.result);
+    return parts.join(". ");
+  }
+
+  function addAiBlockToReport() {
     if (document.getElementById(AI_BLOCK_ID)) return;
     if (Store.get("ai.enabled", true) === false) return;
     if (!Store.get("license.active", false)) return;
 
-    /* Ищем контейнер с отчётом. Пробуем разные варианты ID. */
-    var report = qs("#analyzeReport") || qs("#pageContent");
-    if (!report) return;
-
-    /* Проверяем, что отчёт уже построен (есть карточки) */
-    if (!report.children || report.children.length === 0) return;
+    var report = qs("#analyzeReport");
+    if (!report || !report.children || report.children.length === 0) return;
 
     var card = UI.card("🤖 ИИ-разбор матча");
     card.id = AI_BLOCK_ID;
@@ -50,8 +82,12 @@
         style: "padding:8px 12px;background:var(--accent-bg);border-radius:10px;font-size:13px;align-self:flex-end;max-width:80%;"
       }, q));
 
+      var ctx = collectMatchContext();
+      var ctxStr = buildContextString(ctx);
+      var fullQ = "Контекст матча: " + ctxStr + ". Вопрос: " + q;
+
       var ans = typeof brainAnswer === "function"
-        ? brainAnswer("Разбери матч. Вопрос: " + q)
+        ? brainAnswer(fullQ)
         : { text: "ИИ недоступен." };
 
       log.appendChild(el("div", {
@@ -67,41 +103,17 @@
     });
 
     report.appendChild(card);
-    console.log("ai-match: блок добавлен");
   }
 
-  /* Наблюдаем за изменениями в #pageContent */
-  function startObserver() {
-    var target = qs("#pageContent");
-    if (!target) {
-      setTimeout(startObserver, 500);
-      return;
-    }
+  window.addAiBlockToReport = addAiBlockToReport;
 
-    if (observer) observer.disconnect();
-
-    observer = new MutationObserver(function () {
-      /* Небольшая задержка, чтобы отчёт успел построиться */
-      setTimeout(addAiBlock, 200);
-    });
-
-    observer.observe(target, { childList: true, subtree: true });
-    console.log("ai-match: observer запущен");
-  }
-
-  /* Запускаем при загрузке */
   document.addEventListener("DOMContentLoaded", function () {
-    setTimeout(startObserver, 1000);
+    setTimeout(function () {
+      if (qs("#analyzeReport") && qs("#analyzeReport").children.length > 0) {
+        addAiBlockToReport();
+      }
+    }, 1500);
   });
 
-  /* Также пробуем добавить блок при переключении страниц */
-  var origSwitch = window.switchPage;
-  if (typeof origSwitch === "function") {
-    window.switchPage = function (name) {
-      origSwitch.apply(this, arguments);
-      setTimeout(addAiBlock, 1500);
-    };
-  }
-
-  console.log("ai-match v1.2 ready");
+  console.log("ai-match v1.3 ready");
 })();
