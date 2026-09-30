@@ -1,4 +1,4 @@
-/* DOTA JETCH — STYLE v6.0 (визуальные эффекты + переменные для тем) */
+/* DOTA JETCH — STYLE v7.0 (градиенты в цветах темы) */
 
 *, *::before, *::after { box-sizing: border-box; }
 
@@ -19,7 +19,7 @@ html, body {
   --bg-hover: #252a3d;
   --text: #e8eaf0;
   --text-muted: #9ba0ad;
-  --text-dim: #6b7280;
+  --text-dim: #8b91a0;
   --border: #2a2d36;
   --border-hl: #3a3e4a;
   --accent: #8b5cf6;
@@ -43,7 +43,7 @@ html, body {
 
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 8px; }
 
-/* ФОНЫ С ГРАДИЕНТАМИ */
+/* ФОНЫ */
 .bg-base {
   position: fixed; inset: 0; z-index: -5;
   background: radial-gradient(120% 80% at 50% 0%, var(--bg) 0%, var(--bg) 45%, var(--bg) 100%);
@@ -97,11 +97,11 @@ body.cursor-ready .cursor-dot, body.cursor-ready .cursor-ring { opacity: 1; }
   body.cursor-ready input, body.cursor-ready textarea, body.cursor-ready select { cursor: text; }
 }
 
-/* ОСНОВНОЙ КАРКАС */
+/* КАРКАС */
 .app { display: flex; flex-direction: column; height: 100vh; width: 100%; }
 .titlebar {
   height: 42px; display: flex; align-items: center; gap: 10px; padding: 0 16px;
-  background: rgba(10, 12, 20, 0.55);
+  background: color-mix(in srgb, var(--bg-card) 75%, transparent);
   backdrop-filter: blur(20px) saturate(1.4);
   border-bottom: 1px solid var(--border);
   flex-shrink: 0; user-select: none; position: relative; z-index: 10;
@@ -120,9 +120,9 @@ body.cursor-ready .cursor-dot, body.cursor-ready .cursor-ring { opacity: 1; }
 
 .body { display: flex; flex: 1; min-height: 0; overflow: hidden; }
 
-/* САЙДБАР */
 .sidebar {
-  width: 244px; background: rgba(11, 13, 22, 0.6);
+  width: 244px;
+  background: color-mix(in srgb, var(--bg-card) 75%, transparent);
   backdrop-filter: blur(28px) saturate(1.5);
   border-right: 1px solid var(--border);
   display: flex; flex-direction: column; flex-shrink: 0;
@@ -167,7 +167,7 @@ body.cursor-ready .cursor-dot, body.cursor-ready .cursor-ring { opacity: 1; }
 .main { flex: 1; display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
 .page-header {
   height: 56px; display: flex; align-items: center; padding: 0 28px;
-  background: rgba(11, 13, 22, 0.35);
+  background: color-mix(in srgb, var(--bg-card) 55%, transparent);
   backdrop-filter: blur(16px) saturate(1.4);
   border-bottom: 1px solid var(--border); flex-shrink: 0;
 }
@@ -180,10 +180,12 @@ body.cursor-ready .cursor-dot, body.cursor-ready .cursor-ring { opacity: 1; }
 .page-scroll { flex: 1; overflow-y: auto; }
 .page-content { padding: 24px 28px 60px; max-width: 1180px; margin: 0 auto; }
 
-/* КАРТОЧКИ */
+/* КАРТОЧКИ — используют цвета текущей темы */
 .card {
   position: relative;
-  background: linear-gradient(160deg, rgba(28, 30, 44, 0.6), rgba(16, 18, 28, 0.5));
+  background: linear-gradient(160deg,
+    color-mix(in srgb, var(--bg-card) 90%, var(--accent) 10%),
+    var(--bg-card));
   backdrop-filter: blur(24px) saturate(1.5);
   border: 1px solid var(--border);
   border-radius: 18px; padding: 20px 22px; margin-bottom: 16px;
@@ -234,30 +236,31 @@ body.cursor-ready .cursor-dot, body.cursor-ready .cursor-ring { opacity: 1; }
 .btn:hover { transform: translateY(-1.5px); filter: brightness(1.06); }
 .btn:active { transform: translateY(0.5px); }
 .btn:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
-.btn-ghost { background: rgba(255, 255, 255, 0.04); color: var(--text); border-color: var(--border); }
+.btn-ghost { background: var(--bg-elev); color: var(--text); border-color: var(--border); }
 .btn-ghost:hover { background: var(--accent-bg); border-color: var(--accent); color: var(--text); }
 .btn-danger { background: linear-gradient(135deg, var(--red) 0%, #dc2626 100%); border-color: var(--red); }
 
-/* БЕЙДЖИ */
 .badge {
   display: inline-flex; align-items: center; padding: 4px 10px; border-radius: 999px;
   font-size: 10px; font-weight: 700; letter-spacing: 0.06em;
   border: 1px solid transparent; white-space: nowrap; text-transform: uppercase;
 }
 
-/* БАННЕР */
+/* БАННЕР — использует цвета темы */
 .hero-banner {
   position: relative; padding: 32px 34px; border-radius: 22px; overflow: hidden;
   background:
     radial-gradient(120% 100% at 0% 0%, var(--accent-bg), transparent 60%),
     radial-gradient(80% 90% at 100% 100%, var(--cyan-bg), transparent 55%),
-    linear-gradient(135deg, rgba(28, 20, 55, 0.9), rgba(10, 12, 22, 0.9));
+    linear-gradient(135deg,
+      color-mix(in srgb, var(--bg-card) 85%, var(--accent) 15%),
+      var(--bg-card));
   border: 1px solid var(--accent);
   margin-bottom: 20px;
 }
 .hero-title {
   font-size: 34px; font-weight: 900; letter-spacing: -0.02em; line-height: 1.05;
-  background: linear-gradient(120deg, #ffffff 0%, var(--accent-light) 45%, var(--cyan) 100%);
+  background: linear-gradient(120deg, var(--text) 0%, var(--accent-light) 45%, var(--cyan) 100%);
   background-size: 200% 100%;
   -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
   margin-bottom: 8px;
@@ -265,10 +268,12 @@ body.cursor-ready .cursor-dot, body.cursor-ready .cursor-ring { opacity: 1; }
 .hero-sub { font-size: 13px; color: var(--text-muted); margin-bottom: 20px; }
 .hero-buttons { display: flex; gap: 10px; flex-wrap: wrap; }
 
-/* СТАТИСТИКА */
+/* СТАТ-КАРТОЧКИ — используют цвета темы */
 .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px; margin-bottom: 18px; }
 .stat-card {
-  background: linear-gradient(160deg, rgba(28, 30, 44, 0.6), rgba(16, 18, 28, 0.5));
+  background: linear-gradient(160deg,
+    color-mix(in srgb, var(--bg-card) 88%, var(--accent) 12%),
+    var(--bg-card));
   backdrop-filter: blur(20px) saturate(1.4);
   border: 1px solid var(--border);
   border-radius: 18px; padding: 18px 20px;
@@ -295,12 +300,11 @@ body.cursor-ready .cursor-dot, body.cursor-ready .cursor-ring { opacity: 1; }
 }
 .dialog {
   min-width: 320px; max-width: 480px; padding: 24px;
-  background: linear-gradient(160deg, rgba(28, 30, 44, 0.95), rgba(14, 16, 26, 0.95));
+  background: var(--bg-card);
   border: 1px solid var(--accent);
   border-radius: 18px; text-align: center;
 }
 
-/* СКРОЛЛ */
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-thumb { background: linear-gradient(180deg, var(--accent), var(--cyan)); border-radius: 8px; border: 2px solid transparent; background-clip: padding-box; }
 
@@ -379,7 +383,6 @@ input[type="checkbox"]:checked::after {
   font-weight: 900;
 }
 
-/* МОБИЛЬНАЯ АДАПТАЦИЯ */
 @media (max-width: 820px) {
   .sidebar { width: 68px; }
   .sidebar-logo > div:last-child, .sidebar-plan, .nav-btn > :not(.nav-ico) { display: none; }
