@@ -1,5 +1,5 @@
-/* DOTA JETCH — FIREBASE AUTH v2.1
-   Регистрация + вход + сессия не слетает + обязательная верификация email + сброс пароля. */
+/* DOTA JETCH — FIREBASE AUTH v2.2
+   Сессия не слетает, данные не текут между аккаунтами. */
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.8.0/firebase-app.js";
 import {
@@ -19,6 +19,7 @@ const app = initializeApp(window.FIREBASE_CONFIG);
 const auth = getAuth(app);
 const db = getDatabase(app);
 
+/* Сессия живёт в localStorage, не слетает при закрытии браузера */
 setPersistence(auth, browserLocalPersistence).catch(function (e) {
   console.warn("setPersistence error:", e);
 });
@@ -26,6 +27,21 @@ setPersistence(auth, browserLocalPersistence).catch(function (e) {
 let currentUser = null;
 let autoSaveInterval = null;
 
+/* ─── Ключи, которые синхронизируются с Firebase ─── */
+const SYNC_KEYS = [
+  "chathistory", "brainprofile", "brainvariation", "braincontext",
+  "brainfeedback", "brainlongmemory", "license.active", "aiquestions",
+  "streak", "daily", "history", "achievements", "diary", "settings"
+];
+
+/* Удаляет данные пользователя из localStorage (используется при смене аккаунта) */
+function clearLocalData() {
+  for (const key of SYNC_KEYS) {
+    localStorage.removeItem(key);
+  }
+}
+
+/* ─── Экраны ─── */
 function showAuthScreen() {
   const el = document.getElementById("authScreen");
   if (!el) return;
@@ -58,6 +74,7 @@ function setAuthError(msg) {
   if (el) el.textContent = msg || "";
 }
 
+/* ─── HTML экранов ─── */
 function buildLoginScreen() {
   return `
   <div class="auth-card">
@@ -98,6 +115,7 @@ function buildVerificationScreen(email) {
   </div>`;
 }
 
+/* ─── Привязки обработчиков ─── */
 function bindLoginHandlers() {
   const loginBtn = document.getElementById("authLoginBtn");
   const registerBtn = document.getElementById("authRegisterBtn");
@@ -208,12 +226,7 @@ function bindVerificationHandlers() {
   }
 }
 
-const SYNC_KEYS = [
-  "chathistory", "brainprofile", "brainvariation", "braincontext",
-  "brainfeedback", "brainlongmemory", "license.active", "aiquestions",
-  "streak", "daily", "history", "achievements", "diary", "settings"
-];
-
+/* ─── Работа с данными пользователя ─── */
 function collectLocalData() {
   const data = {};
   for (const key of SYNC_KEYS) {
@@ -226,6 +239,8 @@ function collectLocalData() {
 }
 
 async function loadUserData(uid) {
+  /* СНАЧАЛА очищаем данные предыдущего аккаунта */
+  clearLocalData();
   try {
     const snap = await get(ref(db, "users/" + uid));
     const data = snap.val();
@@ -294,16 +309,19 @@ function translateAuthError(code) {
   return map[code] || ("Ошибка: " + code);
 }
 
+/* ─── Главная логика авторизации ─── */
 onAuthStateChanged(auth, async function (user) {
   if (user) {
     currentUser = user;
 
+    /* Почта не подтверждена — экран верификации */
     if (!user.emailVerified) {
       stopAutoSave();
       showVerificationScreen(user.email);
       return;
     }
 
+    /* Если это другой аккаунт — очищаем старые данные и грузим новые */
     if (localStorage.getItem("dotaJetchLoadedUid") !== user.uid) {
       localStorage.setItem("dotaJetchLoadedUid", user.uid);
       await loadUserData(user.uid);
@@ -311,6 +329,7 @@ onAuthStateChanged(auth, async function (user) {
       return;
     }
 
+    /* Обычный путь — данные уже загружены для этого аккаунта */
     hideAuthScreen();
     setupStoreSync(user.uid);
     startAutoSave(user.uid);
@@ -322,6 +341,7 @@ onAuthStateChanged(auth, async function (user) {
   } else {
     currentUser = null;
     localStorage.removeItem("dotaJetchLoadedUid");
+    clearLocalData();
     stopAutoSave();
     showAuthScreen();
     const lb = document.getElementById("logoutBtn");
