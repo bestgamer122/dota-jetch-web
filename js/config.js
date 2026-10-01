@@ -1,27 +1,35 @@
-var APP_VERSION = "6.0.0";
+/* DOTA JETCH — CONFIG v7.0
+   Store теперь работает через sessionStorage. Данные НЕ остаются на устройстве
+   после закрытия вкладки. Всё, что важно — синхронизируется в Firebase. */
+
+var APP_VERSION = "7.0.0";
 
 var Store = {
   prefix: "dota.",
+
   get: function (key, def) {
     if (def === undefined) def = null;
     try {
-      var v = localStorage.getItem(this.prefix + key);
+      var v = sessionStorage.getItem(this.prefix + key);
       if (v === null) return def;
       return JSON.parse(v);
     } catch (e) { return def; }
   },
+
   set: function (key, val) {
-    try { localStorage.setItem(this.prefix + key, JSON.stringify(val)); } catch (e) {}
+    try { sessionStorage.setItem(this.prefix + key, JSON.stringify(val)); } catch (e) {}
   },
+
   remove: function (key) {
-    try { localStorage.removeItem(this.prefix + key); } catch (e) {}
+    try { sessionStorage.removeItem(this.prefix + key); } catch (e) {}
   },
+
   clear: function () {
     try {
       var p = this.prefix;
-      var keys = Object.keys(localStorage);
+      var keys = Object.keys(sessionStorage);
       for (var i = 0; i < keys.length; i++) {
-        if (keys[i].indexOf(p) === 0) localStorage.removeItem(keys[i]);
+        if (keys[i].indexOf(p) === 0) sessionStorage.removeItem(keys[i]);
       }
     } catch (e) {}
   }

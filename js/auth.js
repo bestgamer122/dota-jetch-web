@@ -1,8 +1,8 @@
-/* DOTA JETCH — FIREBASE AUTH v7.0
-   - Полная изоляция аккаунтов: при смене пользователя удаляются все локальные данные
-   - Первый вход на устройстве: данные сохраняются, UID запоминается
-   - Расширенный список SYNC_KEYS (лицензия, тема, ачивки, дневник, всё)
-   - Подробные логи для диагностики */
+/* DOTA JETCH — FIREBASE AUTH v8.0
+   - Данные живут только в sessionStorage + Firebase
+   - sessionStorage очищается автоматически при закрытии вкладки
+   - Изоляция аккаунтов: Firebase — единственный источник истины
+   - localStorage используется только для токена Firebase Auth (это стандарт) */
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.8.0/firebase-app.js";
 import {
@@ -10,20 +10,19 @@ import {
   signInWithEmailAndPassword, signOut, sendEmailVerification,
   sendPasswordResetEmail, setPersistence, browserLocalPersistence
 } from "https://www.gstatic.com/firebasejs/11.8.0/firebase-auth.js";
-import { getDatabase, ref, get, update } from "https://www.gstatic.com/firebasejs/11.8.0/firebase-database.js";
+import { getDatabase, ref, get, update, remove } from "https://www.gstatic.com/firebasejs/11.8.0/firebase-database.js";
 
 const app = initializeApp(window.FIREBASE_CONFIG);
 const auth = getAuth(app);
 const db = getDatabase(app);
 
-/* ВАЖНО: setPersistence вызывается один раз. Повторный вызов затирает localStorage. */
+/* Firebase сам хранит токен — это не наши данные, это сессия входа */
 setPersistence(auth, browserLocalPersistence).catch(e => console.warn("persistence:", e));
 
 let currentUser = null;
 let autoSaveInterval = null;
 
 const STORE_PREFIX = "dota.";
-const LAST_UID_KEY = "__last_active_uid";
 
 function encodeKey(k) {
   return String(k).replace(/\./g, "__DOT__").replace(/\//g, "__SLASH__")
@@ -36,7 +35,7 @@ function decodeKey(k) {
                   .replace(/__LB__/g, "[").replace(/__RB__/g, "]");
 }
 
-/* ─── Анимации ─── */
+/* ─── Анимации экрана входа ─── */
 function injectAuthAnimations() {
   if (document.getElementById("authAnimationsStyle")) return;
   var s = document.createElement("style");
@@ -66,6 +65,7 @@ function injectAuthAnimations() {
   document.head.appendChild(s);
 }
 
+/* ─── Показ экранов ─── */
 function showAuthScreen() {
   injectAuthAnimations();
   const el = document.getElementById("authScreen");
@@ -106,6 +106,7 @@ function setAuthError(msg) {
   }
 }
 
+/* ─── HTML экранов ─── */
 function buildLoginScreen() {
   return `
   <div class="auth-card">
@@ -129,7 +130,7 @@ function buildRegisterScreen() {
     <div class="auth-logo">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 L15 9 L22 12 L15 15 L12 22 L9 15 L2 12 L9 9 Z"/></svg>
       <h1 class="auth-title">Создать аккаунт</h1>
-      <div class="auth-sub">Зарегистрируйся, чтобы синхронизировать данные между устройствами</div>
+      <div class="auth-sub">Все данные будут привязаны только к твоему аккаунту</div>
     </div>
     <div id="authError" class="auth-error"></div>
     <input type="email" id="regEmail" placeholder="Email" autocomplete="email">
@@ -157,6 +158,7 @@ function buildVerificationScreen(email) {
   </div>`;
 }
 
+/* ─── Обработчики ─── */
 function bindLoginHandlers() {
   const lBtn = document.getElementById("authLoginBtn");
   const eInp = document.getElementById("authEmail");
@@ -205,6 +207,10 @@ function bindRegisterHandlers() {
     if (password !== password2) { setAuthError("Пароли не совпадают."); return; }
     rBtn.disabled = true;
     try {
+      /* Очищаем sessionStorage ДО создания аккаунта — на всякий случай,
+         если до этого в этой же вкладке был другой пользователь */
+      Store.clear();
+      sessionStorage.removeItem("dotaJetchLoadedUid_session");
       const cred = await createUserWithEmailAndPassword(auth, email, password);
       await sendEmailVerification(cred.user);
     } catch (e) { setAuthError(translateAuthError(e.code)); rBtn.disabled = false; }
@@ -246,7 +252,7 @@ function bindVerificationHandlers() {
   });
 }
 
-/* ─── Синхронизация ─── */
+/* ─── Список ключей, которые синхронизируем ─── */
 const SYNC_KEYS = [
   "chathistory","brainprofile","brainvariation","braincontext","brainfeedback",
   "brainlongmemory","license.active","license.forever","license.expires",
@@ -261,13 +267,10 @@ const SYNC_KEYS = [
   "dailylastclaimdate","diarynotes"
 ];
 
-/* Ключи, которые НЕ удаляются при смене пользователя (лицензия остаётся) */
-const KEEP_ON_CLEAR = ["license.active","license.forever","license.expires","jetch_keys"];
-
 function collectLocalData() {
   const data = {};
   for (const key of SYNC_KEYS) {
-    const val = localStorage.getItem(STORE_PREFIX + key);
+    const val = sessionStorage.getItem(STORE_PREFIX + key);
     if (val !== null) {
       try { data[encodeKey(key)] = JSON.parse(val); } catch (e) { data[encodeKey(key)] = val; }
     }
@@ -275,8 +278,9 @@ function collectLocalData() {
   return data;
 }
 
+/* Загрузка данных из Firebase в sessionStorage */
 async function loadUserData(uid) {
-  console.log("📥 loadUserData: " + uid);
+  console.log("📥 Загружаю данные из Firebase для " + uid);
   try {
     const snap = await get(ref(db, "users/" + uid));
     const data = snap.val();
@@ -287,18 +291,19 @@ async function loadUserData(uid) {
         const realKey = decodeKey(key);
         const val = data[key];
         try {
-          localStorage.setItem(STORE_PREFIX + realKey,
+          sessionStorage.setItem(STORE_PREFIX + realKey,
             typeof val === "string" ? val : JSON.stringify(val));
           loaded++;
         } catch (e) {}
       }
       console.log("✅ Загружено из Firebase: " + loaded + " ключей");
     } else {
-      console.log("⚠ В Firebase нет данных для " + uid);
+      console.log("⚠ Новый аккаунт — данных в Firebase ещё нет");
     }
   } catch (e) { console.error("❌ loadUserData:", e); }
 }
 
+/* Сохранение данных из sessionStorage в Firebase */
 async function saveUserData(uid) {
   try {
     const data = collectLocalData();
@@ -308,6 +313,7 @@ async function saveUserData(uid) {
   } catch (e) { console.warn("saveUserData:", e); }
 }
 
+/* Мгновенная синхронизация: каждый Store.set летит в Firebase */
 function setupStoreSync(uid) {
   if (window.Store && typeof window.Store.set === "function" && !window.Store.__fbSync) {
     const origSet = window.Store.set.bind(window.Store);
@@ -315,7 +321,9 @@ function setupStoreSync(uid) {
       origSet(key, value);
       const patch = {};
       patch[encodeKey(key)] = value;
-      update(ref(db, "users/" + uid), patch).catch(() => {});
+      update(ref(db, "users/" + uid), patch).catch((e) => {
+        console.warn("Sync error для " + key + ":", e);
+      });
     };
     window.Store.__fbSync = true;
   }
@@ -339,48 +347,32 @@ function bindLogoutHandler() {
   });
 }
 
+/* Сохранение при уходе со страницы (страховка) */
 window.addEventListener("beforeunload", function () {
   if (currentUser) { try { saveUserData(currentUser.uid); } catch (e) {} }
 });
 
-/* ─── Полная очистка локальных данных пользователя ─── */
-function clearAllUserData(uid) {
+/* Дополнительно — при скрытии вкладки, потому что beforeunload иногда не срабатывает */
+document.addEventListener("visibilitychange", function () {
+  if (document.visibilityState === "hidden" && currentUser) {
+    try { saveUserData(currentUser.uid); } catch (e) {}
+  }
+});
+
+/* ─── Полная очистка sessionStorage (данные пользователя) ─── */
+function wipeLocalUserData() {
   try {
-    const lastUid = localStorage.getItem(LAST_UID_KEY);
-
-    if (!lastUid) {
-      console.log("🔓 Первый вход на этом устройстве — данные сохраняются");
-      localStorage.setItem(LAST_UID_KEY, uid);
-      return;
-    }
-    if (lastUid === uid) {
-      console.log("🔄 Тот же пользователь — данные сохраняются");
-      return;
-    }
-
-    console.log("👥 Смена пользователя (" + lastUid + " → " + uid + ") — полная очистка");
-    localStorage.setItem(LAST_UID_KEY, uid);
-
-    const keys = Object.keys(localStorage);
     let removed = 0;
+    const keys = Object.keys(sessionStorage);
     for (let i = 0; i < keys.length; i++) {
       const k = keys[i];
-      /* Пропускаем системные ключи */
-      if (k === LAST_UID_KEY) continue;
-      if (k.indexOf("firebase:") === 0) continue;
-      if (k.indexOf("__") === 0) continue;
-
-      /* Удаляем только ключи с префиксом dota. */
-      if (k.indexOf(STORE_PREFIX) !== 0) continue;
-
-      const shortKey = k.slice(STORE_PREFIX.length);
-      if (KEEP_ON_CLEAR.indexOf(shortKey) >= 0) continue;
-
-      localStorage.removeItem(k);
-      removed++;
+      if (k.indexOf(STORE_PREFIX) === 0) {
+        sessionStorage.removeItem(k);
+        removed++;
+      }
     }
-    console.log("🧹 Очищено " + removed + " ключей предыдущего пользователя");
-  } catch (e) { console.warn("clearAllUserData:", e); }
+    console.log("🧹 Очищено " + removed + " ключей из sessionStorage");
+  } catch (e) { console.warn("wipeLocalUserData:", e); }
 }
 
 function translateAuthError(code) {
@@ -397,30 +389,40 @@ function translateAuthError(code) {
   return map[code] || ("Ошибка: " + code);
 }
 
+/* ─── Главная логика ─── */
 onAuthStateChanged(auth, async function (user) {
-  console.log("🔐 user=" + (user ? user.uid : "null"));
+  console.log("🔐 onAuthStateChanged: " + (user ? user.uid : "null"));
+
   if (user) {
     currentUser = user;
 
+    /* Не подтвердил email */
     if (!user.emailVerified) {
       stopAutoSave();
       showVerificationScreen(user.email);
       return;
     }
 
+    /* Проверяем: загружали ли мы уже данные этого uid в этой сессии (в этой вкладке) */
     const loadedFlag = "dotaJetchLoadedUid_session";
     const currentInSession = sessionStorage.getItem(loadedFlag);
 
     if (currentInSession !== user.uid) {
-      console.log("🆕 Новая сессия — проверка пользователя + загрузка из Firebase");
+      console.log("🆕 Загрузка данных для " + user.uid);
+      /* Стираем всё, что было в этой вкладке от предыдущего пользователя */
+      wipeLocalUserData();
+      /* Ставим флаг ПОСЛЕ очистки */
       sessionStorage.setItem(loadedFlag, user.uid);
-      clearAllUserData(user.uid);
+      /* Грузим данные из Firebase */
       await loadUserData(user.uid);
+      /* Перезагружаем — чтобы UI построился на свежих данных */
+      console.log("🔄 Перезагрузка страницы с данными из Firebase");
       location.reload();
       return;
     }
 
-    console.log("✅ Сессия активна — показываем приложение");
+    /* Данные уже в sessionStorage — показываем приложение */
+    console.log("✅ Данные загружены — показываю приложение");
     hideAuthScreen();
     setupStoreSync(user.uid);
     startAutoSave(user.uid);
@@ -431,11 +433,14 @@ onAuthStateChanged(auth, async function (user) {
     const ue = document.getElementById("userEmail");
     if (ue) ue.textContent = user.email || "";
 
+    /* Досылаем в Firebase то, что могло появиться локально до синка */
     saveUserData(user.uid);
   } else {
     currentUser = null;
-    sessionStorage.removeItem("dotaJetchLoadedUid_session");
+    console.log("🚪 Логаут — очистка sessionStorage");
     stopAutoSave();
+    wipeLocalUserData();
+    sessionStorage.removeItem("dotaJetchLoadedUid_session");
     showAuthScreen();
     const lb = document.getElementById("logoutBtn");
     if (lb) lb.style.display = "none";
