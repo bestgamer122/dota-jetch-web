@@ -312,4 +312,6 @@ function renderSettings() {
   renderProfileCard(frag);
   renderPlanCard(frag);
   renderThemeCard(frag);
-  renderPerfCard(f
+  renderPerfCard(frag);
+  return frag;
+}
