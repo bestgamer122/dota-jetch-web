@@ -1,7 +1,7 @@
-/* DOTA JETCH — FIREBASE AUTH v9.1
-   - ФИКС: пробелы в auth-switch (Забыли пароль? / Нет аккаунта?)
-   - ФИКС: смена ника — кулдаун 30 дней (nicknameChangedAt)
-   - Регистрация с ником, проверка уникальности, отображение в сайдбаре */
+/* DOTA JETCH — FIREBASE AUTH v9.2
+   - Inline-стили для подсказки ника (bulletproof)
+   - Кулдаун смены ника 30 дней
+   - Пробелы в auth-switch */
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.8.0/firebase-app.js";
 import {
@@ -22,7 +22,11 @@ let autoSaveInterval = null;
 
 const STORE_PREFIX = "dota.";
 const NICK_REGEX = /^[A-Za-z0-9_]{3,20}$/;
-const NICK_COOLDOWN_MS = 30 * 24 * 60 * 60 * 1000; /* 30 дней */
+const NICK_COOLDOWN_MS = 30 * 24 * 60 * 60 * 1000;
+
+const HINT_BASE = "font-size:10px;font-weight:400;color:#666;margin:-4px 0 12px 4px;line-height:1.4;text-align:left;letter-spacing:0.02em;font-family:'Inter',sans-serif;";
+const HINT_OK = HINT_BASE + "color:#22c55e;";
+const HINT_BAD = HINT_BASE + "color:#ef4444;";
 
 function encodeKey(k) {
   return String(k).replace(/\./g, "__DOT__").replace(/\//g, "__SLASH__")
@@ -35,7 +39,6 @@ function decodeKey(k) {
                   .replace(/__LB__/g, "[").replace(/__RB__/g, "]");
 }
 
-/* ─── Ник: утилиты ─── */
 async function isNicknameTaken(nick) {
   const lower = String(nick).toLowerCase();
   try {
@@ -70,7 +73,6 @@ function getCurrentNickname() {
   return typeof n === "string" ? n : "";
 }
 
-/* Считает сколько дней осталось до смены ника. 0 = можно менять */
 function nicknameCooldownDaysLeft() {
   const last = Number(Store.get("nicknameChangedAt", 0)) || 0;
   if (!last) return 0;
@@ -79,13 +81,11 @@ function nicknameCooldownDaysLeft() {
   return Math.ceil((NICK_COOLDOWN_MS - elapsed) / (24 * 60 * 60 * 1000));
 }
 
-/* Смена ника (вызывается из настроек) */
 window.changeNickname = async function(newNick) {
   if (!currentUser) return { ok: false, msg: "Не авторизован." };
   newNick = String(newNick || "").trim();
   if (!NICK_REGEX.test(newNick)) return { ok: false, msg: "Ник: 3-20 символов, латиница, цифры, _" };
 
-  /* Кулдаун 30 дней */
   const daysLeft = nicknameCooldownDaysLeft();
   if (daysLeft > 0) {
     return { ok: false, msg: "Ник можно менять раз в 30 дней. Осталось: " + daysLeft + " дн." };
@@ -109,7 +109,6 @@ window.changeNickname = async function(newNick) {
   }
 };
 
-/* ─── Анимации ─── */
 function injectAuthAnimations() {
   if (document.getElementById("authAnimationsStyle")) return;
   var s = document.createElement("style");
@@ -124,7 +123,7 @@ function injectAuthAnimations() {
     #authScreen .auth-logo svg { animation: authIconFloat 3s ease-in-out infinite, authGlow 2.5s ease-in-out infinite; }
     #authScreen input, #authScreen .auth-btn, #authScreen .auth-switch { animation: authSlideUp 0.45s ease-out both; }
     #authScreen .auth-error-shake { animation: authShake 0.4s ease-in-out; }
-    #authScreen .auth-switch { text-align: center; margin-top: 16px; font-size: 12px; color: var(--text-muted, #888); }
+    #authScreen .auth-switch { text-align: center; margin-top: 16px; font-size: 12px; color: var(--text-muted, #888); font-weight: 500; }
     #authScreen .auth-switch a { color: #8b5cf6; text-decoration: none; font-weight: 600; cursor: pointer; margin-left: 6px; }
     #authScreen .auth-switch a:hover { text-decoration: underline; }
     #authScreen .auth-title { font-size: 22px; font-weight: 800; color: #fff; text-align: center; margin: 0 0 4px; }
@@ -172,7 +171,6 @@ function setAuthError(msg) {
   }
 }
 
-/* ─── HTML экранов ─── */
 function buildLoginScreen() {
   return `
   <div class="auth-card">
@@ -200,7 +198,7 @@ function buildRegisterScreen() {
     </div>
     <div id="authError" class="auth-error"></div>
     <input type="text" id="regNick" placeholder="Ник (3-20 символов, A-Z, 0-9, _)" autocomplete="username" maxlength="20">
-    <div id="regNickHint" class="nick-hint">Ник будет виден другим</div>
+    <div id="regNickHint" style="${HINT_BASE}">Ник будет виден другим</div>
     <input type="email" id="regEmail" placeholder="Email" autocomplete="email">
     <input type="password" id="regPassword" placeholder="Пароль (минимум 6 символов)" autocomplete="new-password">
     <input type="password" id="regPassword2" placeholder="Повтори пароль" autocomplete="new-password">
@@ -226,7 +224,6 @@ function buildVerificationScreen(email) {
   </div>`;
 }
 
-/* ─── Обработчики ─── */
 function bindLoginHandlers() {
   const lBtn = document.getElementById("authLoginBtn");
   const eInp = document.getElementById("authEmail");
@@ -270,34 +267,36 @@ function bindRegisterHandlers() {
   let nickCheckTimer = null;
   let nickLastChecked = "";
 
+  function setHint(text, state) {
+    if (!nHint) return;
+    nHint.textContent = text;
+    nHint.setAttribute("style", state === "ok" ? HINT_OK : state === "bad" ? HINT_BAD : HINT_BASE);
+  }
+
   async function checkNickLive() {
     if (!nInp || !nHint) return;
     const nick = (nInp.value || "").trim();
-    nInp.classList.remove("nick-status-ok", "nick-status-bad");
-    nHint.classList.remove("nick-hint-ok", "nick-hint-bad");
+    nInp.style.borderColor = "";
     if (!nick) {
-      nHint.textContent = "Ник будет виден другим";
+      setHint("Ник будет виден другим", "base");
       return;
     }
     if (!NICK_REGEX.test(nick)) {
-      nInp.classList.add("nick-status-bad");
-      nHint.classList.add("nick-hint-bad");
-      nHint.textContent = "3-20 символов: A-Z, 0-9, _";
+      nInp.style.borderColor = "#ef4444";
+      setHint("3-20 символов: A-Z, 0-9, _", "bad");
       return;
     }
-    nHint.textContent = "Проверяю...";
+    setHint("Проверяю...", "base");
     if (nickLastChecked === nick.toLowerCase()) return;
     nickLastChecked = nick.toLowerCase();
     const taken = await isNicknameTaken(nick);
     if (nickLastChecked !== nick.toLowerCase()) return;
     if (taken) {
-      nInp.classList.add("nick-status-bad");
-      nHint.classList.add("nick-hint-bad");
-      nHint.textContent = "✕ Ник занят";
+      nInp.style.borderColor = "#ef4444";
+      setHint("✕ Ник занят", "bad");
     } else {
-      nInp.classList.add("nick-status-ok");
-      nHint.classList.add("nick-hint-ok");
-      nHint.textContent = "✓ Свободен";
+      nInp.style.borderColor = "#22c55e";
+      setHint("✓ Свободен", "ok");
     }
   }
 
@@ -385,7 +384,6 @@ function bindVerificationHandlers() {
   });
 }
 
-/* ─── Синхронизация ─── */
 const SYNC_KEYS = [
   "nickname","nicknameChangedAt","chathistory","brainprofile","brainvariation",
   "braincontext","brainfeedback","brainlongmemory",
