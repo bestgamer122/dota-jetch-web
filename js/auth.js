@@ -1,4 +1,4 @@
-/* DOTA JETCH — FIREBASE AUTH v5.0 (диагностика + надёжная загрузка) */
+/* DOTA JETCH — FIREBASE AUTH v6.0 (раздельные экраны входа и регистрации) */
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.8.0/firebase-app.js";
 import {
@@ -38,17 +38,29 @@ function injectAuthAnimations() {
   s.textContent = `
     @keyframes authCardIn { 0%{opacity:0;transform:translateY(40px) scale(0.96)} 60%{transform:translateY(-4px) scale(1.01)} 100%{opacity:1;transform:translateY(0) scale(1)} }
     @keyframes authFadeIn { from{opacity:0} to{opacity:1} }
+    @keyframes authSlideUp { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
     @keyframes authIconFloat { 0%,100%{transform:translateY(0) rotate(0)} 50%{transform:translateY(-8px) rotate(6deg)} }
     @keyframes authShake { 0%,20%,40%,60%,80%,100%{transform:translateX(0)} 10%,30%{transform:translateX(-10px)} 50%,70%{transform:translateX(10px)} }
     @keyframes authGlow { 0%,100%{filter:drop-shadow(0 0 8px var(--accent-light))} 50%{filter:drop-shadow(0 0 20px var(--accent-light))} }
     #authScreen .auth-card { animation: authCardIn 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
     #authScreen .auth-logo svg { animation: authIconFloat 3s ease-in-out infinite, authGlow 2.5s ease-in-out infinite; }
-    #authScreen input, #authScreen .auth-btn { animation: authFadeIn 0.45s ease-out both; }
+    #authScreen input, #authScreen .auth-btn, #authScreen .auth-switch { animation: authSlideUp 0.45s ease-out both; }
+    #authScreen input:nth-of-type(1) { animation-delay: 0.05s; }
+    #authScreen input:nth-of-type(2) { animation-delay: 0.12s; }
+    #authScreen input:nth-of-type(3) { animation-delay: 0.19s; }
+    #authScreen .auth-btn-primary { animation-delay: 0.25s; }
+    #authScreen .auth-forgot { animation-delay: 0.32s; }
+    #authScreen .auth-switch { animation-delay: 0.38s; }
+    #authScreen .auth-error-shake { animation: authShake 0.4s ease-in-out; }
+    #authScreen .auth-switch { text-align: center; margin-top: 16px; font-size: 12px; color: var(--text-muted, #888); }
+    #authScreen .auth-switch a { color: #8b5cf6; text-decoration: none; font-weight: 600; cursor: pointer; margin-left: 4px; }
+    #authScreen .auth-switch a:hover { text-decoration: underline; }
+    #authScreen .auth-title { font-size: 22px; font-weight: 800; color: #fff; text-align: center; margin: 0 0 4px; }
   `;
   document.head.appendChild(s);
 }
 
-/* ─── Экраны ─── */
+/* ─── Показ экранов ─── */
 function showAuthScreen() {
   injectAuthAnimations();
   const el = document.getElementById("authScreen");
@@ -56,6 +68,15 @@ function showAuthScreen() {
   el.style.display = "flex";
   el.innerHTML = buildLoginScreen();
   bindLoginHandlers();
+  document.body.style.overflow = "hidden";
+}
+function showRegisterScreen() {
+  injectAuthAnimations();
+  const el = document.getElementById("authScreen");
+  if (!el) return;
+  el.style.display = "flex";
+  el.innerHTML = buildRegisterScreen();
+  bindRegisterHandlers();
   document.body.style.overflow = "hidden";
 }
 function showVerificationScreen(email) {
@@ -74,24 +95,45 @@ function hideAuthScreen() {
 }
 function setAuthError(msg) {
   const el = document.getElementById("authError");
-  if (el) el.textContent = msg || "";
+  if (el) {
+    el.textContent = msg || "";
+    if (msg) { el.classList.remove("auth-error-shake"); void el.offsetWidth; el.classList.add("auth-error-shake"); }
+  }
 }
 
+/* ─── ЭКРАН ВХОДА ─── */
 function buildLoginScreen() {
   return `
   <div class="auth-card">
     <div class="auth-logo">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 L15 9 L22 12 L15 15 L12 22 L9 15 L2 12 L9 9 Z"/></svg>
       <h1>DOTA JETCH AI 2.0</h1>
-      <div class="auth-sub">Войди или зарегистрируйся, чтобы продолжить</div>
+      <div class="auth-sub">Войди в аккаунт, чтобы продолжить</div>
     </div>
     <div id="authError" class="auth-error"></div>
     <input type="email" id="authEmail" placeholder="Email" autocomplete="email">
-    <input type="password" id="authPassword" placeholder="Пароль (минимум 6 символов)" autocomplete="current-password">
+    <input type="password" id="authPassword" placeholder="Пароль" autocomplete="current-password">
     <button id="authLoginBtn" class="auth-btn auth-btn-primary">Войти</button>
-    <button id="authRegisterBtn" class="auth-btn auth-btn-outline">Зарегистрироваться</button>
     <div class="auth-forgot"><a href="#" id="authForgotLink">Забыли пароль?</a></div>
-    <div class="auth-hint">Данные синхронизируются между устройствами</div>
+    <div class="auth-switch">Нет аккаунта?<a id="toRegisterLink">Зарегистрироваться</a></div>
+  </div>`;
+}
+
+/* ─── ЭКРАН РЕГИСТРАЦИИ ─── */
+function buildRegisterScreen() {
+  return `
+  <div class="auth-card">
+    <div class="auth-logo">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 L15 9 L22 12 L15 15 L12 22 L9 15 L2 12 L9 9 Z"/></svg>
+      <h1 class="auth-title">Создать аккаунт</h1>
+      <div class="auth-sub">Зарегистрируйся, чтобы синхронизировать данные между устройствами</div>
+    </div>
+    <div id="authError" class="auth-error"></div>
+    <input type="email" id="regEmail" placeholder="Email" autocomplete="email">
+    <input type="password" id="regPassword" placeholder="Пароль (минимум 6 символов)" autocomplete="new-password">
+    <input type="password" id="regPassword2" placeholder="Повтори пароль" autocomplete="new-password">
+    <button id="authRegisterBtn" class="auth-btn auth-btn-primary">Зарегистрироваться</button>
+    <div class="auth-switch">Уже есть аккаунт?<a id="toLoginLink">Войти</a></div>
   </div>`;
 }
 
@@ -112,12 +154,13 @@ function buildVerificationScreen(email) {
   </div>`;
 }
 
+/* ─── ОБРАБОТЧИКИ ВХОДА ─── */
 function bindLoginHandlers() {
   const lBtn = document.getElementById("authLoginBtn");
-  const rBtn = document.getElementById("authRegisterBtn");
   const eInp = document.getElementById("authEmail");
   const pInp = document.getElementById("authPassword");
   const fLink = document.getElementById("authForgotLink");
+  const toReg = document.getElementById("toRegisterLink");
 
   if (lBtn) lBtn.addEventListener("click", async function () {
     setAuthError("");
@@ -129,19 +172,6 @@ function bindLoginHandlers() {
     catch (e) { setAuthError(translateAuthError(e.code)); lBtn.disabled = false; }
   });
 
-  if (rBtn) rBtn.addEventListener("click", async function () {
-    setAuthError("");
-    const email = (eInp && eInp.value || "").trim();
-    const password = pInp && pInp.value || "";
-    if (!email || !password) { setAuthError("Введи email и пароль."); return; }
-    if (password.length < 6) { setAuthError("Пароль минимум 6 символов."); return; }
-    rBtn.disabled = true;
-    try {
-      const cred = await createUserWithEmailAndPassword(auth, email, password);
-      await sendEmailVerification(cred.user);
-    } catch (e) { setAuthError(translateAuthError(e.code)); rBtn.disabled = false; }
-  });
-
   if (fLink) fLink.addEventListener("click", async function (e) {
     e.preventDefault();
     setAuthError("");
@@ -151,10 +181,49 @@ function bindLoginHandlers() {
     catch (e) { setAuthError(translateAuthError(e.code)); }
   });
 
+  if (toReg) toReg.addEventListener("click", function (e) {
+    e.preventDefault();
+    showRegisterScreen();
+  });
+
   if (eInp) eInp.addEventListener("keydown", e => { if (e.key === "Enter" && lBtn) lBtn.click(); });
   if (pInp) pInp.addEventListener("keydown", e => { if (e.key === "Enter" && lBtn) lBtn.click(); });
 }
 
+/* ─── ОБРАБОТЧИКИ РЕГИСТРАЦИИ ─── */
+function bindRegisterHandlers() {
+  const rBtn = document.getElementById("authRegisterBtn");
+  const eInp = document.getElementById("regEmail");
+  const pInp = document.getElementById("regPassword");
+  const p2Inp = document.getElementById("regPassword2");
+  const toLog = document.getElementById("toLoginLink");
+
+  if (rBtn) rBtn.addEventListener("click", async function () {
+    setAuthError("");
+    const email = (eInp && eInp.value || "").trim();
+    const password = pInp && pInp.value || "";
+    const password2 = p2Inp && p2Inp.value || "";
+    if (!email || !password || !password2) { setAuthError("Заполни все поля."); return; }
+    if (password.length < 6) { setAuthError("Пароль минимум 6 символов."); return; }
+    if (password !== password2) { setAuthError("Пароли не совпадают."); return; }
+    rBtn.disabled = true;
+    try {
+      const cred = await createUserWithEmailAndPassword(auth, email, password);
+      await sendEmailVerification(cred.user);
+    } catch (e) { setAuthError(translateAuthError(e.code)); rBtn.disabled = false; }
+  });
+
+  if (toLog) toLog.addEventListener("click", function (e) {
+    e.preventDefault();
+    showAuthScreen();
+  });
+
+  if (eInp) eInp.addEventListener("keydown", e => { if (e.key === "Enter" && pInp) pInp.focus(); });
+  if (pInp) pInp.addEventListener("keydown", e => { if (e.key === "Enter" && p2Inp) p2Inp.focus(); });
+  if (p2Inp) p2Inp.addEventListener("keydown", e => { if (e.key === "Enter" && rBtn) rBtn.click(); });
+}
+
+/* ─── ОБРАБОТЧИКИ ВЕРИФИКАЦИИ ─── */
 function bindVerificationHandlers() {
   const cBtn = document.getElementById("checkVerifyBtn");
   const rBtn = document.getElementById("resendVerifyBtn");
@@ -209,7 +278,7 @@ function collectLocalData() {
 }
 
 async function loadUserData(uid) {
-  console.log("📥 loadUserData: начало для uid=" + uid);
+  console.log("📥 loadUserData: " + uid);
   try {
     const snap = await get(ref(db, "users/" + uid));
     const data = snap.val();
@@ -223,27 +292,22 @@ async function loadUserData(uid) {
           localStorage.setItem(STORE_PREFIX + realKey,
             typeof val === "string" ? val : JSON.stringify(val));
           loaded++;
-        } catch (e) { console.warn("Не смог сохранить ключ " + key, e); }
+        } catch (e) {}
       }
-      console.log("✅ Загружено из Firebase: " + loaded + " ключей");
+      console.log("✅ Загружено: " + loaded);
     } else {
-      console.log("⚠ В Firebase нет данных для uid=" + uid);
+      console.log("⚠ Нет данных");
     }
-  } catch (e) {
-    console.error("❌ loadUserData error:", e);
-  }
+  } catch (e) { console.error("❌ loadUserData:", e); }
 }
 
 async function saveUserData(uid) {
   try {
     const data = collectLocalData();
-    if (Object.keys(data).length === 0) {
-      console.log("ℹ Нечего сохранять");
-      return;
-    }
+    if (Object.keys(data).length === 0) return;
     await update(ref(db, "users/" + uid), data);
-    console.log("💾 Сохранено в Firebase: " + Object.keys(data).length + " ключей");
-  } catch (e) { console.warn("saveUserData error:", e); }
+    console.log("💾 Сохранено: " + Object.keys(data).length);
+  } catch (e) { console.warn("saveUserData:", e); }
 }
 
 function setupStoreSync(uid) {
@@ -253,7 +317,7 @@ function setupStoreSync(uid) {
       origSet(key, value);
       const patch = {};
       patch[encodeKey(key)] = value;
-      update(ref(db, "users/" + uid), patch).catch(e => console.warn("Sync err:", e));
+      update(ref(db, "users/" + uid), patch).catch(() => {});
     };
     window.Store.__fbSync = true;
   }
@@ -272,9 +336,7 @@ function bindLogoutHandler() {
   if (!btn || btn.__bound) return;
   btn.__bound = true;
   btn.addEventListener("click", async function () {
-    if (currentUser) {
-      try { await saveUserData(currentUser.uid); } catch (e) {}
-    }
+    if (currentUser) { try { await saveUserData(currentUser.uid); } catch (e) {} }
     try { await signOut(auth); } catch (e) {}
   });
 }
@@ -299,7 +361,7 @@ function translateAuthError(code) {
 
 /* ─── Главная логика ─── */
 onAuthStateChanged(auth, async function (user) {
-  console.log("🔐 onAuthStateChanged, user=" + (user ? user.uid : "null"));
+  console.log("🔐 user=" + (user ? user.uid : "null"));
   if (user) {
     currentUser = user;
 
@@ -309,22 +371,18 @@ onAuthStateChanged(auth, async function (user) {
       return;
     }
 
-    /* Метка: загружали ли данные для этого uid в этой вкладке */
     const loadedFlag = "dotaJetchLoadedUid_session";
     const currentInSession = sessionStorage.getItem(loadedFlag);
 
-    console.log("🔍 sessionStorage flag: " + currentInSession + ", current uid: " + user.uid);
-
     if (currentInSession !== user.uid) {
-      console.log("🆕 Новая сессия — загружаем данные из Firebase");
+      console.log("🆕 Новая сессия — загрузка");
       sessionStorage.setItem(loadedFlag, user.uid);
       await loadUserData(user.uid);
-      console.log("🔄 Перезагрузка страницы");
       location.reload();
       return;
     }
 
-    console.log("✅ Сессия активна — показываем приложение");
+    console.log("✅ Сессия активна");
     hideAuthScreen();
     setupStoreSync(user.uid);
     startAutoSave(user.uid);
