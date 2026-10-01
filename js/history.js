@@ -1,3 +1,7 @@
+/* DOTA JETCH — HISTORY v2.0
+   - Убрана кнопка «Очистить» (пользователь не управляет данными)
+   - Удаление отдельного матча через крестик оставлено */
+
 var History = {
   add: function (r) {
     if (!r || !r.match || !r.hero || !r.player) return;
@@ -24,21 +28,15 @@ var History = {
 
 function renderHistory() {
   var frag = document.createDocumentFragment();
-  var head = UI.card("История матчей");
   var list = History.all();
+
+  var head = UI.card("История матчей");
   head.appendChild(el("div", { class: "dim", style: "font-size:12px;" },
-    list.length ? "Сохранено: " + list.length : "Пока пусто."));
-  if (list.length) {
-    var row = el("div", { class: "row", style: "margin-top:10px;" });
-    var clr = UI.btn("Очистить", { variant: "danger" });
-    clr.addEventListener("click", function () {
-      if (confirm("Удалить историю?")) { History.clear(); switchPage("history"); }
-    });
-    row.appendChild(clr);
-    head.appendChild(row);
-  }
+    list.length ? "Сохранено: " + list.length + " матчей" : "Пока пусто. Разбери первый матч на вкладке «Анализ матча»."));
   frag.appendChild(head);
+
   if (!list.length) return frag;
+
   var card = UI.card("Список");
   for (var i = 0; i < list.length; i++) {
     (function (m) {
@@ -48,11 +46,18 @@ function renderHistory() {
       var info = el("div", { style: "flex:1;" });
       info.appendChild(el("div", { style: "font-size:14px;font-weight:bold;" }, m.heroName));
       info.appendChild(el("div", { class: "muted", style: "font-size:11px;margin-top:3px;" },
-        m.kills + "/" + m.deaths + "/" + m.assists + " - " + (m.won ? "победа" : "поражение") + " - " + (m.durMin || 0).toFixed(0) + " мин"));
+        m.kills + "/" + m.deaths + "/" + m.assists + " — " + (m.won ? "победа" : "поражение") + " — " + (m.durMin || 0).toFixed(0) + " мин"));
       item.appendChild(info);
-      var del = UI.btn("X", { variant: "ghost" });
-      del.addEventListener("click", function () { History.remove(m.matchId); switchPage("history"); });
+
+      /* Удаление отдельного матча (крестик) — оставлено */
+      var del = UI.btn("✕", { variant: "ghost" });
+      del.title = "Удалить матч";
+      del.addEventListener("click", function () {
+        History.remove(m.matchId);
+        switchPage("history");
+      });
       item.appendChild(del);
+
       card.appendChild(item);
     })(list[i]);
   }

@@ -1,8 +1,8 @@
-/* DOTA JETCH — APP v8.1
-   - Добавлен Daily.bump("chart") при открытии "Прогресс"
-   - Убран дублирующий renderAbout (остался только здесь, из settings.js удалён) */
+/* DOTA JETCH — APP v8.2
+   - Убрана вкладка «Экспорт» из PAGES и NAV
+   - Добавлен трекинг «О программе» для ачивки «Любопытный» */
 
-var APP_VERSION = "8.1";
+var APP_VERSION = "8.2";
 
 var PAGES = {
   dashboard:    { title: "Главная",         render: renderDashboard },
@@ -13,7 +13,6 @@ var PAGES = {
   diary:        { title: "Дневник",         render: renderDiary },
   games:        { title: "Мини-игры",       render: renderGames },
   achievements: { title: "Достижения",      render: renderAchievements },
-  export:       { title: "Экспорт",         render: renderExportPage },
   settings:     { title: "Настройки",       render: renderSettings },
   about:        { title: "О программе",     render: renderAbout }
 };
@@ -27,7 +26,6 @@ var NAV = [
   { page: "diary",        label: "Дневник",       icon: "✎" },
   { page: "games",        label: "Мини-игры",     icon: "◉" },
   { page: "achievements", label: "Достижения",    icon: "★" },
-  { page: "export",       label: "Экспорт",       icon: "⇩" },
   { page: "settings",     label: "Настройки",     icon: "⚙" },
   { page: "about",        label: "О программе",   icon: "ⓘ" }
 ];
@@ -82,15 +80,22 @@ function switchPage(name) {
   if (s) s.scrollTop = 0;
   location.hash = name;
 
-  /* ФИКС: засчитываем задание дня «Открой графики» */
+  /* Задание дня «Открой графики» */
   if (name === "charts" && typeof Daily !== "undefined") {
     try { Daily.bump("chart"); } catch (e) {}
+  }
+
+  /* Ачивка «Любопытный» — открыл «О программе» */
+  if (name === "about") {
+    try {
+      Store.set("visitedabout", true);
+      if (typeof Achievements !== "undefined") Achievements.check();
+    } catch (e) {}
   }
 
   if (typeof updateSidebarPlan === "function") updateSidebarPlan();
 }
 
-/* ─── Обновление плана в сайдбаре ─── */
 function updateSidebarPlan() {
   var plus = (typeof checkLicense === "function") ? checkLicense() : (Store.get("license.active", false) === true);
   var t = qs("#planTitle"), i = qs("#planInfo"), v = qs("#planValue");
@@ -115,7 +120,6 @@ function updateSidebarPlan() {
   }
 }
 
-/* ─── Дашборд ─── */
 function renderDashboard() {
   var frag = document.createDocumentFragment();
   var plus = (typeof checkLicense === "function") ? checkLicense() : (Store.get("license.active", false) === true);
@@ -193,7 +197,6 @@ function renderAbout() {
   return frag;
 }
 
-/* ─── Инициализация ─── */
 function init() {
   try { if (typeof applyTheme === "function") applyTheme(loadTheme()); } catch (e) {}
   try { if (typeof applyLiteMode === "function") applyLiteMode(isLiteMode()); } catch (e) {}

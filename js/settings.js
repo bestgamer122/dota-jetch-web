@@ -1,6 +1,6 @@
-/* DOTA JETCH — SETTINGS v4.1
-   - ФИКС: засчитываем задание дня «Смени тему» + ачивку «Стилист»
-   - Убран дублирующий renderAbout (остался в app.js) */
+/* DOTA JETCH — SETTINGS v4.2
+   - Убрана карточка «Данные» (Экспорт / Импорт) — пользователи не управляют данными
+   - Оставлены: подписка, тема, производительность */
 
 var FOREVER_KEY = "DANYA8228PRO";
 
@@ -114,6 +114,7 @@ function renderSettings() {
   var frag = document.createDocumentFragment();
   var plus = checkLicense();
 
+  /* ПОДПИСКА */
   var plan = UI.card("Подписка JETCH+");
   if (plus) {
     var forever = Store.get("license.forever", false);
@@ -151,6 +152,7 @@ function renderSettings() {
   }
   frag.appendChild(plan);
 
+  /* ТЕМА */
   var theme = UI.card("Тема оформления");
   var themeOpts = [];
   for (var key in THEMES) {
@@ -158,13 +160,13 @@ function renderSettings() {
   }
   theme.appendChild(makeDropdown(themeOpts, loadTheme(), function (v) {
     applyTheme(v);
-    /* ФИКС: засчитываем задание дня «Смени тему» + открываем ачивку «Стилист» */
     try { if (typeof Daily !== "undefined") Daily.bump("theme"); } catch (e) {}
     try { if (typeof Achievements !== "undefined") Achievements.onThemeChange(); } catch (e) {}
     showDialog("Тема", THEMES[v].label, "success");
   }));
   frag.appendChild(theme);
 
+  /* ПРОИЗВОДИТЕЛЬНОСТЬ */
   var perf = UI.card("Производительность");
   var lbl = el("label", { style: "display:flex;align-items:center;gap:10px;font-size:13px;cursor:pointer;" });
   var tgl = el("input", { type: "checkbox" });
@@ -175,12 +177,6 @@ function renderSettings() {
   lbl.appendChild(document.createTextNode("Lite-режим"));
   perf.appendChild(lbl);
   frag.appendChild(perf);
-
-  var data = UI.card("Данные");
-  var eb = UI.btn("Экспорт / Импорт");
-  eb.addEventListener("click", function () { switchPage("export"); });
-  data.appendChild(eb);
-  frag.appendChild(data);
 
   return frag;
 }

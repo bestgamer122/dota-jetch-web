@@ -1,3 +1,7 @@
+/* DOTA JETCH — ACHIEVEMENTS v1.1
+   - Ачивка «Чистюля» (dataReset) заменена на «Любопытный» (visitedabout) —
+     reset-кнопки больше нет, старая ачивка была недостижима */
+
 var ACHIEVEMENTS = [
   { id: "a1", cat: "Анализ", icon: "1", title: "Первый анализ", desc: "1 матч", check: function (s) { return s.analyzed >= 1; } },
   { id: "a2", cat: "Анализ", icon: "5", title: "Аналитик", desc: "5 матчей", check: function (s) { return s.analyzed >= 5; } },
@@ -21,7 +25,7 @@ var ACHIEVEMENTS = [
   { id: "a20", cat: "Активность", icon: "25", title: "Постоянный", desc: "25 сессий", check: function (s) { return s.sessions >= 25; } },
   { id: "a21", cat: "Активность", icon: "100", title: "Верный", desc: "100 сессий", check: function (s) { return s.sessions >= 100; } },
   { id: "a22", cat: "Особые", icon: "C", title: "Стилист", desc: "Сменить тему", check: function (s) { return s.themeChanged === true; } },
-  { id: "a23", cat: "Особые", icon: "X", title: "Чистюля", desc: "Сброс данных", check: function (s) { return s.dataReset === true; } },
+  { id: "a23", cat: "Особые", icon: "?", title: "Любопытный", desc: "Открой «О программе»", check: function (s) { return s.visitedAbout === true; } },
   { id: "a24", cat: "Особые", icon: "20", title: "Мастер", desc: "Открыть 20 ачивок", check: function (s) { return s.unlockedCount >= 20; }, late: true }
 ];
 
@@ -39,7 +43,7 @@ var Achievements = {
       guessBest: Store.get("guessbeststreak", 0) || 0,
       sessions: Store.get("sessions", 0) || 0,
       themeChanged: Store.get("themechanged", false),
-      dataReset: Store.get("datareset", false),
+      visitedAbout: Store.get("visitedabout", false),
       unlockedCount: (Store.get("achievementsunlocked", []) || []).length
     };
   },
