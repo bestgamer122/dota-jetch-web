@@ -1,8 +1,9 @@
-/* DOTA JETCH — APP v8.6
-   - Кнопка сброса аватара — иконка ✕ в углу аватара (появляется при hover)
-   - Использует window.__fbAuth для email */
+/* DOTA JETCH — APP v8.7
+   - ФИКС: кнопка «Сменить ник» теперь сразу проверяет кулдаун
+     и показывает таймер вместо раскрытия формы
+   - Использует window.nicknameCooldownDaysLeft() из auth.js */
 
-var APP_VERSION = "8.6";
+var APP_VERSION = "8.7";
 
 var PAGES = {
   dashboard:    { title: "Главная",         render: renderDashboard },
@@ -198,7 +199,7 @@ function renderAbout() {
   return frag;
 }
 
-/* ─── Профиль — модальное окно ─── */
+/* ─── Профиль ─── */
 
 function resizeImage(file, maxSize, cb) {
   var reader = new FileReader();
@@ -241,6 +242,107 @@ function renderAvatarInto(el, nick) {
   }
 }
 
+/* Возвращает сколько дней осталось до смены ника (0 = можно) */
+function getNickCooldownLeft() {
+  if (typeof window.nicknameCooldownDaysLeft === "function") {
+    return window.nicknameCooldownDaysLeft();
+  }
+  return 0;
+}
+
+function renderNickSection() {
+  var container = document.getElementById("profileNickSection");
+  if (!container) return;
+  container.innerHTML = "";
+
+  var daysLeft = getNickCooldownLeft();
+
+  if (daysLeft > 0) {
+    /* Кулдаун активен — показываем плашку, кнопки нет */
+    var word = daysLeft === 1 ? "день" : (daysLeft < 5 ? "дня" : "дней");
+    var lock = document.createElement("div");
+    lock.style.cssText = "padding:12px 14px;background:var(--bg-elev);border:1px solid var(--border);border-radius:12px;font-size:12px;color:var(--text-muted);line-height:1.5;";
+    var head = document.createElement("div");
+    head.style.cssText = "color:var(--yellow);font-weight:700;margin-bottom:4px;";
+    head.textContent = "⏳ Смена ника заблокирована";
+    var info = document.createElement("div");
+    info.textContent = "Ник можно менять раз в 30 дней. Следующая смена — через " + daysLeft + " " + word + ".";
+    lock.appendChild(head);
+    lock.appendChild(info);
+    container.appendChild(lock);
+    return;
+  }
+
+  /* Кулдаун истёк — кнопка + форма */
+  var changeBtn = document.createElement("button");
+  changeBtn.type = "button";
+  changeBtn.className = "btn btn-ghost";
+  changeBtn.style.width = "100%";
+  changeBtn.style.marginBottom = "12px";
+  changeBtn.textContent = "Сменить ник";
+
+  var form = document.createElement("div");
+  form.style.cssText = "display:none;margin-bottom:12px;padding:12px;background:var(--bg-elev);border:1px solid var(--border);border-radius:12px;";
+  form.innerHTML = ''
+    + '<input type="text" id="profileNickInput" class="input" maxlength="20" placeholder="Новый ник (3-20, A-Z 0-9 _)" style="margin-bottom:8px;">'
+    + '<div id="profileNickMsg" style="font-size:11px;min-height:14px;margin-bottom:8px;"></div>'
+    + '<div style="display:flex;gap:8px;">'
+    + '  <button id="profileNickSaveBtn" class="btn" type="button">Сохранить</button>'
+    + '  <button id="profileNickCancelBtn" class="btn btn-ghost" type="button">Отмена</button>'
+    + '</div>'
+    + '<div class="dim" style="font-size:10px;margin-top:10px;line-height:1.5;">После смены ник нельзя будет изменить в течение 30 дней.</div>';
+
+  changeBtn.addEventListener("click", function () {
+    form.style.display = form.style.display === "none" ? "block" : "none";
+    var inp = document.getElementById("profileNickInput");
+    var msg = document.getElementById("profileNickMsg");
+    if (msg) msg.textContent = "";
+    if (inp) { inp.value = ""; inp.focus(); }
+  });
+
+  container.appendChild(changeBtn);
+  container.appendChild(form);
+
+  /* Биндим кнопки формы после вставки в DOM */
+  setTimeout(function () {
+    var saveBtn = document.getElementById("profileNickSaveBtn");
+    var cancelBtn = document.getElementById("profileNickCancelBtn");
+    var inp = document.getElementById("profileNickInput");
+    var msg = document.getElementById("profileNickMsg");
+
+    if (cancelBtn) cancelBtn.addEventListener("click", function () {
+      form.style.display = "none";
+      if (msg) msg.textContent = "";
+      if (inp) inp.value = "";
+    });
+
+    if (saveBtn) saveBtn.addEventListener("click", async function () {
+      if (!msg) return;
+      msg.style.color = "var(--text-muted)";
+      msg.textContent = "Проверяю...";
+      if (typeof window.changeNickname !== "function") {
+        msg.style.color = "var(--red)";
+        msg.textContent = "Функция недоступна. Перезагрузи страницу.";
+        return;
+      }
+      var val = inp ? inp.value : "";
+      var res = await window.changeNickname(val);
+      if (res.ok) {
+        msg.style.color = "var(--green)";
+        msg.textContent = "✓ " + res.msg;
+        var nickEl = document.getElementById("profileModalNick");
+        if (nickEl) nickEl.textContent = Store.get("nickname", "—");
+        if (typeof window.refreshUserUI === "function") window.refreshUserUI();
+        /* Перерисовываем секцию ника — теперь покажет блокировку */
+        setTimeout(function () { renderNickSection(); }, 1500);
+      } else {
+        msg.style.color = "var(--red)";
+        msg.textContent = "✕ " + res.msg;
+      }
+    });
+  }, 0);
+}
+
 function updateProfileModal() {
   var nick = Store.get("nickname", "") || "—";
   var email = (window.__fbAuth && window.__fbAuth.currentUser && window.__fbAuth.currentUser.email) || "—";
@@ -255,7 +357,6 @@ function updateProfileModal() {
   if (emailEl) emailEl.textContent = email;
   if (avEl) renderAvatarInto(avEl, nick);
 
-  /* Кнопка «Убрать аватар» — маленькая иконка в углу, видна только при наличии аватара */
   if (resetBtn) {
     resetBtn.classList.toggle("visible", hasAvatar());
   }
@@ -284,17 +385,14 @@ function updateProfileModal() {
       statsEl.appendChild(c);
     }
   }
+
+  /* Секция ника — перерисовываем каждый раз */
+  renderNickSection();
 }
 
 window.openProfileModal = function () {
   var ov = document.getElementById("profileModalOverlay");
   if (!ov) return;
-  var nickForm = document.getElementById("profileNickForm");
-  var nickMsg = document.getElementById("profileNickMsg");
-  var nickInp = document.getElementById("profileNickInput");
-  if (nickForm) nickForm.style.display = "none";
-  if (nickMsg) nickMsg.textContent = "";
-  if (nickInp) nickInp.value = "";
   updateProfileModal();
   ov.style.display = "flex";
   document.body.style.overflow = "hidden";
@@ -358,7 +456,7 @@ function bindProfileModal() {
     });
   }
 
-  /* Удаление аватара — маленькая иконка в углу */
+  /* Удаление аватара */
   var resetBtn = document.getElementById("profileResetAvatarBtn");
   if (resetBtn && !resetBtn.__bound) {
     resetBtn.__bound = true;
@@ -369,63 +467,6 @@ function bindProfileModal() {
       Store.set("avatar", null);
       updateProfileModal();
       if (typeof window.refreshUserUI === "function") window.refreshUserUI();
-    });
-  }
-
-  /* Смена ника */
-  var changeNickBtn = document.getElementById("profileChangeNickBtn");
-  var nickForm = document.getElementById("profileNickForm");
-  if (changeNickBtn && nickForm && !changeNickBtn.__bound) {
-    changeNickBtn.__bound = true;
-    changeNickBtn.addEventListener("click", function () {
-      nickForm.style.display = nickForm.style.display === "none" ? "block" : "none";
-      var nickInp = document.getElementById("profileNickInput");
-      var msg = document.getElementById("profileNickMsg");
-      if (msg) msg.textContent = "";
-      if (nickInp) { nickInp.value = ""; nickInp.focus(); }
-    });
-  }
-
-  var nickSave = document.getElementById("profileNickSaveBtn");
-  var nickCancel = document.getElementById("profileNickCancelBtn");
-  var nickInpEl = document.getElementById("profileNickInput");
-  var nickMsgEl = document.getElementById("profileNickMsg");
-
-  if (nickCancel && !nickCancel.__bound) {
-    nickCancel.__bound = true;
-    nickCancel.addEventListener("click", function () {
-      if (nickForm) nickForm.style.display = "none";
-      if (nickMsgEl) nickMsgEl.textContent = "";
-      if (nickInpEl) nickInpEl.value = "";
-    });
-  }
-
-  if (nickSave && !nickSave.__bound) {
-    nickSave.__bound = true;
-    nickSave.addEventListener("click", async function () {
-      if (!nickMsgEl) return;
-      nickMsgEl.style.color = "var(--text-muted)";
-      nickMsgEl.textContent = "Проверяю...";
-      if (typeof window.changeNickname !== "function") {
-        nickMsgEl.style.color = "var(--red)";
-        nickMsgEl.textContent = "Функция недоступна. Перезагрузи страницу.";
-        return;
-      }
-      var val = nickInpEl ? nickInpEl.value : "";
-      var res = await window.changeNickname(val);
-      if (res.ok) {
-        nickMsgEl.style.color = "var(--green)";
-        nickMsgEl.textContent = "✓ " + res.msg;
-        updateProfileModal();
-        if (typeof window.refreshUserUI === "function") window.refreshUserUI();
-        setTimeout(function () {
-          if (nickForm) nickForm.style.display = "none";
-          if (nickMsgEl) nickMsgEl.textContent = "";
-        }, 1500);
-      } else {
-        nickMsgEl.style.color = "var(--red)";
-        nickMsgEl.textContent = "✕ " + res.msg;
-      }
     });
   }
 

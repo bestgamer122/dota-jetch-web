@@ -1,9 +1,7 @@
-/* DOTA JETCH — FIREBASE AUTH v10.1
-   - ФИКС: nickname не слетает — при регистрации сразу пишется в Store
-   - ФИКС: saveUserData не отправляет null/undefined в Firebase
-   - ФИКС: window.__fbAuth и __fbSignOut для модалки профиля
-   - Кулдаун смены ника 30 дней
-   - Данные в sessionStorage + Firebase */
+/* DOTA JETCH — FIREBASE AUTH v10.2
+   - ФИКС: при регистрации nicknameChangedAt НЕ ставится (первый ник бесплатный)
+   - ФИКС: nicknameChangedAt ставится только при реальной смене ника
+   - window.__fbAuth и __fbSignOut для модалки профиля */
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.8.0/firebase-app.js";
 import {
@@ -17,7 +15,6 @@ const app = initializeApp(window.FIREBASE_CONFIG);
 const auth = getAuth(app);
 const db = getDatabase(app);
 
-/* Пробрасываем наружу — нужно для модалки профиля */
 window.__fbAuth = auth;
 window.__fbSignOut = async function () {
   if (currentUser) {
@@ -50,7 +47,6 @@ function decodeKey(k) {
                   .replace(/__LB__/g, "[").replace(/__RB__/g, "]");
 }
 
-/* ─── Ник: утилиты ─── */
 async function isNicknameTaken(nick) {
   const lower = String(nick).toLowerCase();
   try {
@@ -93,6 +89,9 @@ function nicknameCooldownDaysLeft() {
   return Math.ceil((NICK_COOLDOWN_MS - elapsed) / (24 * 60 * 60 * 1000));
 }
 
+/* Экспортируем для app.js */
+window.nicknameCooldownDaysLeft = nicknameCooldownDaysLeft;
+
 window.changeNickname = async function(newNick) {
   if (!currentUser) return { ok: false, msg: "Не авторизован." };
   newNick = String(newNick || "").trim();
@@ -114,6 +113,7 @@ window.changeNickname = async function(newNick) {
     if (oldNick) await releaseNickname(oldNick);
     await claimNickname(newNick, currentUser.uid);
     Store.set("nickname", newNick);
+    /* ФИКС: кулдаун ставится ТОЛЬКО здесь — при реальной смене ника */
     Store.set("nicknameChangedAt", Date.now());
     if (typeof window.refreshUserUI === "function") window.refreshUserUI();
     return { ok: true, msg: "Ник изменён на " + newNick + ". Следующая смена — через 30 дней." };
@@ -135,7 +135,6 @@ window.changeAvatar = function(dataUrl) {
   return { ok: true, msg: "Аватар обновлён" };
 };
 
-/* ─── Анимации ─── */
 function injectAuthAnimations() {
   if (document.getElementById("authAnimationsStyle")) return;
   var s = document.createElement("style");
@@ -360,13 +359,12 @@ function bindRegisterHandlers() {
 
       await claimNickname(nick, uid);
 
-      /* ФИКС: сразу пишем ник в sessionStorage, чтобы после reload он точно был */
+      /* ФИКС: сохраняем nickname, но НЕ nicknameChangedAt
+         (первый ник — бесплатно, кулдаун начинается только при первой смене) */
       Store.set("nickname", nick);
-      Store.set("nicknameChangedAt", Date.now());
 
-      /* Дублируем в Firebase явно */
       try {
-        await update(ref(db, "users/" + uid), { nickname: nick, nicknameChangedAt: Date.now() });
+        await update(ref(db, "users/" + uid), { nickname: nick });
       } catch (e) { console.warn("save nickname error:", e); }
 
       await sendEmailVerification(cred.user);
@@ -433,14 +431,12 @@ function collectLocalData() {
   const data = {};
   for (const key of SYNC_KEYS) {
     const val = sessionStorage.getItem(STORE_PREFIX + key);
-    /* ФИКС: не отправляем null/undefined/пустые значения в Firebase */
     if (val === null || val === undefined || val === "null" || val === "undefined") continue;
     try {
       const parsed = JSON.parse(val);
       if (parsed === null || parsed === undefined) continue;
       data[encodeKey(key)] = parsed;
     } catch (e) {
-      /* не JSON — отправляем строкой, если не пусто */
       if (val !== "") data[encodeKey(key)] = val;
     }
   }
@@ -459,22 +455,15 @@ async function loadUserData(uid) {
         if (!Object.prototype.hasOwnProperty.call(data, key)) continue;
         const realKey = decodeKey(key);
         const val = data[key];
-        /* ФИКС: не пишем null/undefined в sessionStorage */
         if (val === null || val === undefined) { skipped++; continue; }
         let strVal;
-        try {
-          strVal = JSON.stringify(val);
-        } catch (e) {
-          skipped++;
-          continue;
-        }
+        try { strVal = JSON.stringify(val); } catch (e) { skipped++; continue; }
         try {
           sessionStorage.setItem(STORE_PREFIX + realKey, strVal);
           loaded++;
         } catch (e) {}
       }
       console.log("✅ Загружено из Firebase: " + loaded + " ключей" + (skipped ? ", пропущено: " + skipped : ""));
-      /* Диагностика ника */
       const nick = sessionStorage.getItem(STORE_PREFIX + "nickname");
       console.log("🔍 nickname в sessionStorage: " + (nick === null ? "ПУСТО" : nick));
     } else {
@@ -492,7 +481,7 @@ async function saveUserData(uid) {
       return;
     }
     await update(ref(db, "users/" + uid), data);
-    console.log("💾 Сохранено в Firebase: " + keys.length + " ключей (" + keys.slice(0, 5).join(", ") + (keys.length > 5 ? "..." : "") + ")");
+    console.log("💾 Сохранено в Firebase: " + keys.length + " ключей");
   } catch (e) { console.warn("saveUserData:", e); }
 }
 
@@ -501,7 +490,6 @@ function setupStoreSync(uid) {
     const origSet = window.Store.set.bind(window.Store);
     window.Store.set = function (key, value) {
       origSet(key, value);
-      /* ФИКС: не отправляем null/undefined */
       if (value === null || value === undefined) {
         remove(ref(db, "users/" + uid + "/" + encodeKey(key))).catch(() => {});
         return;
