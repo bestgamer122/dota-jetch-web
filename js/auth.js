@@ -1,8 +1,7 @@
-/* DOTA JETCH — FIREBASE AUTH v9.0
-   - Регистрация с ником (уникальным, проверка через Firebase nicknames)
-   - Отображение ника в сайдбаре, email мелко под ним
-   - Смена ника в настройках через window.changeNickname()
-   - Данные в sessionStorage + Firebase, изоляция по uid */
+/* DOTA JETCH — FIREBASE AUTH v9.1
+   - ФИКС: пробелы в auth-switch (Забыли пароль? / Нет аккаунта?)
+   - ФИКС: смена ника — кулдаун 30 дней (nicknameChangedAt)
+   - Регистрация с ником, проверка уникальности, отображение в сайдбаре */
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.8.0/firebase-app.js";
 import {
@@ -23,6 +22,7 @@ let autoSaveInterval = null;
 
 const STORE_PREFIX = "dota.";
 const NICK_REGEX = /^[A-Za-z0-9_]{3,20}$/;
+const NICK_COOLDOWN_MS = 30 * 24 * 60 * 60 * 1000; /* 30 дней */
 
 function encodeKey(k) {
   return String(k).replace(/\./g, "__DOT__").replace(/\//g, "__SLASH__")
@@ -35,7 +35,7 @@ function decodeKey(k) {
                   .replace(/__LB__/g, "[").replace(/__RB__/g, "]");
 }
 
-/* Проверка доступности ника (public read из Firebase) */
+/* ─── Ник: утилиты ─── */
 async function isNicknameTaken(nick) {
   const lower = String(nick).toLowerCase();
   try {
@@ -46,13 +46,9 @@ async function isNicknameTaken(nick) {
     return false;
   }
 }
-
-/* Занять ник: запись nicknames/{lower} = uid */
 async function claimNickname(nick, uid) {
   const lower = String(nick).toLowerCase();
   try {
-    await update(ref(db, "nicknames/" + lower), { __v: uid });
-    /* Firebase заменит { __v: uid } на uid, но чтобы быть уверенным: */
     await update(ref(db, "nicknames"), { [lower]: uid });
     console.log("✅ Ник занят: " + nick);
     return true;
@@ -61,8 +57,6 @@ async function claimNickname(nick, uid) {
     return false;
   }
 }
-
-/* Освободить ник */
 async function releaseNickname(nick) {
   const lower = String(nick).toLowerCase();
   try {
@@ -71,31 +65,49 @@ async function releaseNickname(nick) {
   } catch (e) { console.warn("releaseNickname error:", e); }
 }
 
-/* Сменить ник (вызывается из настроек) */
+function getCurrentNickname() {
+  const n = Store.get("nickname", "");
+  return typeof n === "string" ? n : "";
+}
+
+/* Считает сколько дней осталось до смены ника. 0 = можно менять */
+function nicknameCooldownDaysLeft() {
+  const last = Number(Store.get("nicknameChangedAt", 0)) || 0;
+  if (!last) return 0;
+  const elapsed = Date.now() - last;
+  if (elapsed >= NICK_COOLDOWN_MS) return 0;
+  return Math.ceil((NICK_COOLDOWN_MS - elapsed) / (24 * 60 * 60 * 1000));
+}
+
+/* Смена ника (вызывается из настроек) */
 window.changeNickname = async function(newNick) {
   if (!currentUser) return { ok: false, msg: "Не авторизован." };
   newNick = String(newNick || "").trim();
   if (!NICK_REGEX.test(newNick)) return { ok: false, msg: "Ник: 3-20 символов, латиница, цифры, _" };
+
+  /* Кулдаун 30 дней */
+  const daysLeft = nicknameCooldownDaysLeft();
+  if (daysLeft > 0) {
+    return { ok: false, msg: "Ник можно менять раз в 30 дней. Осталось: " + daysLeft + " дн." };
+  }
+
   const oldNick = getCurrentNickname() || "";
   if (oldNick && oldNick.toLowerCase() === newNick.toLowerCase()) {
     return { ok: false, msg: "Это твой текущий ник." };
   }
   const taken = await isNicknameTaken(newNick);
   if (taken) return { ok: false, msg: "Этот ник уже занят." };
+
   try {
     if (oldNick) await releaseNickname(oldNick);
     await claimNickname(newNick, currentUser.uid);
     Store.set("nickname", newNick);
-    return { ok: true, msg: "Ник изменён на " + newNick };
+    Store.set("nicknameChangedAt", Date.now());
+    return { ok: true, msg: "Ник изменён на " + newNick + ". Следующая смена — через 30 дней." };
   } catch (e) {
     return { ok: false, msg: "Ошибка: " + (e.message || e) };
   }
 };
-
-function getCurrentNickname() {
-  const n = Store.get("nickname", "");
-  return typeof n === "string" ? n : "";
-}
 
 /* ─── Анимации ─── */
 function injectAuthAnimations() {
@@ -112,6 +124,10 @@ function injectAuthAnimations() {
     #authScreen .auth-logo svg { animation: authIconFloat 3s ease-in-out infinite, authGlow 2.5s ease-in-out infinite; }
     #authScreen input, #authScreen .auth-btn, #authScreen .auth-switch { animation: authSlideUp 0.45s ease-out both; }
     #authScreen .auth-error-shake { animation: authShake 0.4s ease-in-out; }
+    #authScreen .auth-switch { text-align: center; margin-top: 16px; font-size: 12px; color: var(--text-muted, #888); }
+    #authScreen .auth-switch a { color: #8b5cf6; text-decoration: none; font-weight: 600; cursor: pointer; margin-left: 6px; }
+    #authScreen .auth-switch a:hover { text-decoration: underline; }
+    #authScreen .auth-title { font-size: 22px; font-weight: 800; color: #fff; text-align: center; margin: 0 0 4px; }
   `;
   document.head.appendChild(s);
 }
@@ -170,7 +186,7 @@ function buildLoginScreen() {
     <input type="password" id="authPassword" placeholder="Пароль" autocomplete="current-password">
     <button id="authLoginBtn" class="auth-btn auth-btn-primary">Войти</button>
     <div class="auth-forgot"><a href="#" id="authForgotLink">Забыли пароль?</a></div>
-    <div class="auth-switch">Нет аккаунта?<a id="toRegisterLink">Зарегистрироваться</a></div>
+    <div class="auth-switch">Нет аккаунта?&nbsp;<a id="toRegisterLink">Зарегистрироваться</a></div>
   </div>`;
 }
 
@@ -189,7 +205,7 @@ function buildRegisterScreen() {
     <input type="password" id="regPassword" placeholder="Пароль (минимум 6 символов)" autocomplete="new-password">
     <input type="password" id="regPassword2" placeholder="Повтори пароль" autocomplete="new-password">
     <button id="authRegisterBtn" class="auth-btn auth-btn-primary">Зарегистрироваться</button>
-    <div class="auth-switch">Уже есть аккаунт?<a id="toLoginLink">Войти</a></div>
+    <div class="auth-switch">Уже есть аккаунт?&nbsp;<a id="toLoginLink">Войти</a></div>
   </div>`;
 }
 
@@ -251,7 +267,6 @@ function bindRegisterHandlers() {
   const p2Inp = document.getElementById("regPassword2");
   const toLog = document.getElementById("toLoginLink");
 
-  /* Живая проверка ника */
   let nickCheckTimer = null;
   let nickLastChecked = "";
 
@@ -274,7 +289,7 @@ function bindRegisterHandlers() {
     if (nickLastChecked === nick.toLowerCase()) return;
     nickLastChecked = nick.toLowerCase();
     const taken = await isNicknameTaken(nick);
-    if (nickLastChecked !== nick.toLowerCase()) return; // пока ждали — ник поменяли
+    if (nickLastChecked !== nick.toLowerCase()) return;
     if (taken) {
       nInp.classList.add("nick-status-bad");
       nHint.classList.add("nick-hint-bad");
@@ -307,7 +322,6 @@ function bindRegisterHandlers() {
     rBtn.disabled = true;
     rBtn.textContent = "Проверяю ник...";
 
-    /* Проверяем уникальность ДО создания аккаунта */
     const taken = await isNicknameTaken(nick);
     if (taken) {
       setAuthError("Этот ник уже занят. Выбери другой.");
@@ -321,7 +335,6 @@ function bindRegisterHandlers() {
       const cred = await createUserWithEmailAndPassword(auth, email, password);
       const uid = cred.user.uid;
 
-      /* Занимаем ник + сохраняем в профиль */
       await claimNickname(nick, uid);
       try {
         await update(ref(db, "users/" + uid), { nickname: nick });
@@ -374,8 +387,9 @@ function bindVerificationHandlers() {
 
 /* ─── Синхронизация ─── */
 const SYNC_KEYS = [
-  "nickname","chathistory","brainprofile","brainvariation","braincontext","brainfeedback",
-  "brainlongmemory","license.active","license.forever","license.expires",
+  "nickname","nicknameChangedAt","chathistory","brainprofile","brainvariation",
+  "braincontext","brainfeedback","brainlongmemory",
+  "license.active","license.forever","license.expires",
   "aiquestions","streak","daily","history","achievements","diary","settings",
   "sessions","dailystreak","recentmatches","analyzequota","brain_learning",
   "brain_shared_memory","brain_insights","brain_autolearner","brain_personality_v2",
@@ -503,7 +517,6 @@ function translateAuthError(code) {
   return map[code] || ("Ошибка: " + code);
 }
 
-/* ─── Обновление UI сайдбара (ник + email) ─── */
 function updateSidebarUser(user) {
   const nickEl = document.getElementById("userNick");
   const emailEl = document.getElementById("userEmailSmall");
@@ -512,7 +525,6 @@ function updateSidebarUser(user) {
   if (emailEl) emailEl.textContent = (user && user.email) || "—";
 }
 
-/* ─── Главная логика ─── */
 onAuthStateChanged(auth, async function (user) {
   console.log("🔐 onAuthStateChanged: " + (user ? user.uid : "null"));
 
