@@ -1,11 +1,8 @@
-/* DOTA JETCH — SETTINGS v4.5
-   - Профиль: ник + смена с кулдауном 30 дней
-   - Подписка JETCH+
-   - Тема оформления
-   - Производительность (Lite-режим) */
+/* DOTA JETCH — SETTINGS v5.0
+   - Убрана карточка «Профиль» (переехала в модалку, см. app.js)
+   - Осталось: подписка, тема, производительность */
 
 var FOREVER_KEY = "DANYA8228PRO";
-var NICK_COOLDOWN_MS = 30 * 24 * 60 * 60 * 1000;
 
 function isLiteMode() {
   return Store.get("litemode", false) === true;
@@ -15,14 +12,6 @@ function applyLiteMode(on) {
   if (on) document.body.classList.add("lite-mode");
   else document.body.classList.remove("lite-mode");
   Store.set("litemode", !!on);
-}
-
-function nickCooldownDaysLeft() {
-  var last = Number(Store.get("nicknameChangedAt", 0)) || 0;
-  if (!last) return 0;
-  var elapsed = Date.now() - last;
-  if (elapsed >= NICK_COOLDOWN_MS) return 0;
-  return Math.ceil((NICK_COOLDOWN_MS - elapsed) / (24 * 60 * 60 * 1000));
 }
 
 function loadKeys() {
@@ -133,97 +122,6 @@ function makeDropdown(opts, currentValue, onChange) {
   return wrap;
 }
 
-function renderProfileCard(frag) {
-  var profile = UI.card("Профиль");
-  var currentNick = Store.get("nickname", "") || "—";
-  var cooldown = nickCooldownDaysLeft();
-
-  var nickRow = el("div", { style: "display:flex;align-items:center;gap:12px;margin-bottom:14px;" });
-  var firstLetter = String(currentNick).charAt(0).toUpperCase() || "?";
-  var iconStyle = "width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,var(--accent),var(--cyan));display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:900;color:#fff;font-family:'JetBrains Mono',monospace;flex-shrink:0;";
-  var nickIcon = el("div", { style: iconStyle }, firstLetter);
-  nickRow.appendChild(nickIcon);
-
-  var nickInfo = el("div", { style: "flex:1;min-width:0;" });
-  var nickName = el("div", { style: "font-size:16px;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" }, String(currentNick));
-  nickInfo.appendChild(nickName);
-  nickInfo.appendChild(el("div", { class: "dim", style: "font-size:11px;margin-top:2px;" }, "Ник в Dota Jetch"));
-  nickRow.appendChild(nickInfo);
-  profile.appendChild(nickRow);
-
-  if (cooldown > 0) {
-    var lockStyle = "padding:12px 14px;background:var(--bg-elev);border:1px solid var(--border);border-radius:12px;font-size:12px;color:var(--text-muted);line-height:1.5;";
-    var lockBox = el("div", { style: lockStyle });
-    lockBox.appendChild(el("div", { style: "color:var(--yellow);font-weight:700;margin-bottom:4px;" }, "⏳ Смена ника заблокирована"));
-    var word = cooldown === 1 ? "день" : (cooldown < 5 ? "дня" : "дней");
-    lockBox.appendChild(el("div", {}, "Ник можно менять раз в 30 дней. Следующая смена — через " + cooldown + " " + word + "."));
-    profile.appendChild(lockBox);
-  } else {
-    var toggleBtn = UI.btn("Сменить ник", { variant: "ghost" });
-    toggleBtn.style.width = "auto";
-    toggleBtn.style.minWidth = "160px";
-
-    var formBox = el("div", { style: "display:none;margin-top:12px;padding-top:14px;border-top:1px solid var(--border);" });
-    var nickInp = UI.input("Новый ник (3-20, A-Z 0-9 _)");
-    nickInp.maxLength = 20;
-    nickInp.style.marginBottom = "8px";
-    formBox.appendChild(nickInp);
-
-    var msg = el("div", { style: "font-size:11px;min-height:16px;margin-bottom:8px;" });
-    formBox.appendChild(msg);
-
-    var formRow = el("div", { class: "row" });
-    var saveBtn = UI.btn("Сохранить");
-    var cancelBtn = UI.btn("Отмена", { variant: "ghost" });
-    formRow.appendChild(saveBtn);
-    formRow.appendChild(cancelBtn);
-    formBox.appendChild(formRow);
-
-    formBox.appendChild(el("div", { class: "dim", style: "font-size:11px;margin-top:10px;line-height:1.5;" },
-      "После смены ник нельзя будет изменить в течение 30 дней."));
-
-    toggleBtn.addEventListener("click", function () {
-      formBox.style.display = formBox.style.display === "none" ? "block" : "none";
-      msg.textContent = "";
-      nickInp.value = "";
-      if (formBox.style.display === "block") nickInp.focus();
-    });
-
-    cancelBtn.addEventListener("click", function () {
-      formBox.style.display = "none";
-      nickInp.value = "";
-      msg.textContent = "";
-    });
-
-    saveBtn.addEventListener("click", async function () {
-      msg.style.color = "var(--text-muted)";
-      msg.textContent = "Проверяю...";
-
-      if (typeof window.changeNickname !== "function") {
-        msg.style.color = "var(--red)";
-        msg.textContent = "Функция недоступна. Перезагрузи страницу.";
-        return;
-      }
-
-      var res = await window.changeNickname(nickInp.value);
-      if (res.ok) {
-        msg.style.color = "var(--green)";
-        msg.textContent = "✓ " + res.msg;
-        var nickEl = document.getElementById("userNick");
-        if (nickEl) nickEl.textContent = Store.get("nickname", "—");
-        setTimeout(function () { switchPage("settings"); }, 1200);
-      } else {
-        msg.style.color = "var(--red)";
-        msg.textContent = "✕ " + res.msg;
-      }
-    });
-
-    profile.appendChild(toggleBtn);
-    profile.appendChild(formBox);
-  }
-  frag.appendChild(profile);
-}
-
 function renderPlanCard(frag) {
   var plus = checkLicense();
   var plan = UI.card("Подписка JETCH+");
@@ -309,7 +207,6 @@ function renderPerfCard(frag) {
 
 function renderSettings() {
   var frag = document.createDocumentFragment();
-  renderProfileCard(frag);
   renderPlanCard(frag);
   renderThemeCard(frag);
   renderPerfCard(frag);

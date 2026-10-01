@@ -1,7 +1,8 @@
-/* DOTA JETCH — FIREBASE AUTH v9.2
-   - Inline-стили для подсказки ника (bulletproof)
-   - Кулдаун смены ника 30 дней
-   - Пробелы в auth-switch */
+/* DOTA JETCH — FIREBASE AUTH v10.0
+   - ФИКС: loadUserData теперь всегда JSON.stringify (ник/тема больше не слетают)
+   - Добавлен ключ "avatar" в SYNC_KEYS
+   - window.refreshUserUI() — обновляет сайдбар (ник, email, аватар)
+   - Ник + кулдаун смены 30 дней */
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.8.0/firebase-app.js";
 import {
@@ -39,6 +40,7 @@ function decodeKey(k) {
                   .replace(/__LB__/g, "[").replace(/__RB__/g, "]");
 }
 
+/* ─── Ник: утилиты ─── */
 async function isNicknameTaken(nick) {
   const lower = String(nick).toLowerCase();
   try {
@@ -103,12 +105,27 @@ window.changeNickname = async function(newNick) {
     await claimNickname(newNick, currentUser.uid);
     Store.set("nickname", newNick);
     Store.set("nicknameChangedAt", Date.now());
+    if (typeof window.refreshUserUI === "function") window.refreshUserUI();
     return { ok: true, msg: "Ник изменён на " + newNick + ". Следующая смена — через 30 дней." };
   } catch (e) {
     return { ok: false, msg: "Ошибка: " + (e.message || e) };
   }
 };
 
+window.changeAvatar = function(dataUrl) {
+  if (!currentUser) return { ok: false, msg: "Не авторизован." };
+  if (typeof dataUrl !== "string" || dataUrl.indexOf("data:image") !== 0) {
+    return { ok: false, msg: "Неверный формат изображения." };
+  }
+  if (dataUrl.length > 200000) {
+    return { ok: false, msg: "Аватар слишком большой (макс ~150 КБ)." };
+  }
+  Store.set("avatar", dataUrl);
+  if (typeof window.refreshUserUI === "function") window.refreshUserUI();
+  return { ok: true, msg: "Аватар обновлён" };
+};
+
+/* ─── Анимации ─── */
 function injectAuthAnimations() {
   if (document.getElementById("authAnimationsStyle")) return;
   var s = document.createElement("style");
@@ -277,10 +294,7 @@ function bindRegisterHandlers() {
     if (!nInp || !nHint) return;
     const nick = (nInp.value || "").trim();
     nInp.style.borderColor = "";
-    if (!nick) {
-      setHint("Ник будет виден другим", "base");
-      return;
-    }
+    if (!nick) { setHint("Ник будет виден другим", "base"); return; }
     if (!NICK_REGEX.test(nick)) {
       nInp.style.borderColor = "#ef4444";
       setHint("3-20 символов: A-Z, 0-9, _", "bad");
@@ -385,9 +399,9 @@ function bindVerificationHandlers() {
 }
 
 const SYNC_KEYS = [
-  "nickname","nicknameChangedAt","chathistory","brainprofile","brainvariation",
-  "braincontext","brainfeedback","brainlongmemory",
-  "license.active","license.forever","license.expires",
+  "nickname","nicknameChangedAt","avatar",
+  "chathistory","brainprofile","brainvariation","braincontext","brainfeedback",
+  "brainlongmemory","license.active","license.forever","license.expires",
   "aiquestions","streak","daily","history","achievements","diary","settings",
   "sessions","dailystreak","recentmatches","analyzequota","brain_learning",
   "brain_shared_memory","brain_insights","brain_autolearner","brain_personality_v2",
@@ -421,9 +435,15 @@ async function loadUserData(uid) {
         if (!Object.prototype.hasOwnProperty.call(data, key)) continue;
         const realKey = decodeKey(key);
         const val = data[key];
+        /* ФИКС: всегда JSON.stringify — чтобы Store.get корректно распарсил */
+        let strVal;
         try {
-          sessionStorage.setItem(STORE_PREFIX + realKey,
-            typeof val === "string" ? val : JSON.stringify(val));
+          strVal = JSON.stringify(val === undefined ? null : val);
+        } catch (e) {
+          strVal = "\"\"";
+        }
+        try {
+          sessionStorage.setItem(STORE_PREFIX + realKey, strVal);
           loaded++;
         } catch (e) {}
       }
@@ -467,6 +487,9 @@ function stopAutoSave() {
 }
 
 function bindLogoutHandler() {
+  /* Выход теперь через модалку профиля — там кнопка с id=profileLogoutBtn,
+     которую вешает app.js. Эта функция больше не нужна, но оставлена
+     на случай старой вёрстки. */
   const btn = document.getElementById("logoutBtn");
   if (!btn || btn.__bound) return;
   btn.__bound = true;
@@ -515,13 +538,35 @@ function translateAuthError(code) {
   return map[code] || ("Ошибка: " + code);
 }
 
-function updateSidebarUser(user) {
-  const nickEl = document.getElementById("userNick");
-  const emailEl = document.getElementById("userEmailSmall");
-  const nick = getCurrentNickname();
-  if (nickEl) nickEl.textContent = nick || "—";
-  if (emailEl) emailEl.textContent = (user && user.email) || "—";
-}
+/* ─── Обновление UI сайдбара (ник, email, аватар) ─── */
+window.refreshUserUI = function () {
+  try {
+    const nick = getCurrentNickname() || "—";
+    const email = (auth.currentUser && auth.currentUser.email) || "—";
+    const avatar = Store.get("avatar", null);
+
+    const nickEl = document.getElementById("userNick");
+    const emailEl = document.getElementById("userEmailSmall");
+    const avEl = document.getElementById("sidebarAvatar");
+
+    if (nickEl) nickEl.textContent = nick;
+    if (emailEl) emailEl.textContent = email;
+
+    if (avEl) {
+      if (avatar && typeof avatar === "string" && avatar.indexOf("data:image") === 0) {
+        avEl.style.backgroundImage = "url(" + avatar + ")";
+        avEl.style.backgroundSize = "cover";
+        avEl.style.backgroundPosition = "center";
+        avEl.textContent = "";
+      } else {
+        avEl.style.backgroundImage = "";
+        avEl.style.backgroundSize = "";
+        avEl.style.backgroundPosition = "";
+        avEl.textContent = String(nick).charAt(0).toUpperCase() || "?";
+      }
+    }
+  } catch (e) { console.warn("refreshUserUI:", e); }
+};
 
 onAuthStateChanged(auth, async function (user) {
   console.log("🔐 onAuthStateChanged: " + (user ? user.uid : "null"));
@@ -553,10 +598,7 @@ onAuthStateChanged(auth, async function (user) {
     setupStoreSync(user.uid);
     startAutoSave(user.uid);
     bindLogoutHandler();
-    updateSidebarUser(user);
-
-    const lb = document.getElementById("logoutBtn");
-    if (lb) lb.style.display = "block";
+    window.refreshUserUI();
 
     saveUserData(user.uid);
   } else {
@@ -566,8 +608,6 @@ onAuthStateChanged(auth, async function (user) {
     wipeLocalUserData();
     sessionStorage.removeItem("dotaJetchLoadedUid_session");
     showAuthScreen();
-    const lb = document.getElementById("logoutBtn");
-    if (lb) lb.style.display = "none";
   }
 });
 

@@ -1,8 +1,9 @@
-/* DOTA JETCH — APP v8.3
-   - Hero banner показывает «Привет, {ник}!»
-   - Остальное без изменений */
+/* DOTA JETCH — APP v8.4
+   - Модалка профиля: ник, email, аватар, статистика, выход
+   - Загрузка аватара с ПК (resize + JPEG)
+   - Клик по юзеру в сайдбаре открывает профиль */
 
-var APP_VERSION = "8.3";
+var APP_VERSION = "8.4";
 
 var PAGES = {
   dashboard:    { title: "Главная",         render: renderDashboard },
@@ -189,7 +190,7 @@ function renderAbout() {
     "Достижения (24)",
     "Мини-игры",
     "Система ключей JETCH+",
-    "Ник + Firebase-синхронизация"
+    "Ник + аватар + Firebase-синхронизация"
   ];
   for (var i = 0; i < list.length; i++) {
     feat.appendChild(el("div", { style: "padding:4px 0;font-size:12px;color:var(--text-muted);" }, "• " + list[i]));
@@ -198,6 +199,234 @@ function renderAbout() {
   return frag;
 }
 
+/* ─────────────────────────────────────────
+   ПРОФИЛЬ — модальное окно
+   ───────────────────────────────────────── */
+
+function resizeImage(file, maxSize, cb) {
+  var reader = new FileReader();
+  reader.onload = function (ev) {
+    var img = new Image();
+    img.onload = function () {
+      try {
+        var canvas = document.createElement("canvas");
+        canvas.width = maxSize;
+        canvas.height = maxSize;
+        var ctx = canvas.getContext("2d");
+        var s = Math.min(img.width, img.height);
+        var sx = (img.width - s) / 2;
+        var sy = (img.height - s) / 2;
+        ctx.drawImage(img, sx, sy, s, s, 0, 0, maxSize, maxSize);
+        cb(canvas.toDataURL("image/jpeg", 0.85));
+      } catch (e) { console.warn("resize error:", e); cb(null); }
+    };
+    img.onerror = function () { cb(null); };
+    img.src = ev.target.result;
+  };
+  reader.onerror = function () { cb(null); };
+  reader.readAsDataURL(file);
+}
+
+function renderAvatarInto(el, nick) {
+  var avatar = Store.get("avatar", null);
+  if (avatar && typeof avatar === "string" && avatar.indexOf("data:image") === 0) {
+    el.style.backgroundImage = "url(" + avatar + ")";
+    el.style.backgroundSize = "cover";
+    el.style.backgroundPosition = "center";
+    el.textContent = "";
+  } else {
+    el.style.backgroundImage = "";
+    el.textContent = String(nick || "?").charAt(0).toUpperCase() || "?";
+  }
+}
+
+function updateProfileModal() {
+  var nick = Store.get("nickname", "") || "—";
+  var email = (window.__fbAuth && window.__fbAuth.currentUser && window.__fbAuth.currentUser.email) || "—";
+
+  var nickEl = document.getElementById("profileModalNick");
+  var emailEl = document.getElementById("profileModalEmail");
+  var avEl = document.getElementById("profileAvatarBig");
+  var statsEl = document.getElementById("profileModalStats");
+
+  if (nickEl) nickEl.textContent = nick;
+  if (emailEl) emailEl.textContent = email;
+  if (avEl) renderAvatarInto(avEl, nick);
+
+  if (statsEl) {
+    statsEl.innerHTML = "";
+    var achs = (Store.get("achievementsunlocked", []) || []).length;
+    var analyzed = Store.get("analyzedcount", 0) || 0;
+    var streak = Store.get("dailystreak", 0) || 0;
+    var cells = [
+      { v: String(analyzed), l: "Матчей" },
+      { v: achs + "/24", l: "Ачивок" },
+      { v: String(streak), l: "Стрик" }
+    ];
+    for (var i = 0; i < cells.length; i++) {
+      var c = document.createElement("div");
+      c.className = "profile-stat-cell";
+      var vEl = document.createElement("div");
+      vEl.className = "profile-stat-value";
+      vEl.textContent = cells[i].v;
+      var lEl = document.createElement("div");
+      lEl.className = "profile-stat-label";
+      lEl.textContent = cells[i].l;
+      c.appendChild(vEl);
+      c.appendChild(lEl);
+      statsEl.appendChild(c);
+    }
+  }
+}
+
+window.openProfileModal = function () {
+  var ov = document.getElementById("profileModalOverlay");
+  if (!ov) return;
+  var nickForm = document.getElementById("profileNickForm");
+  var nickMsg = document.getElementById("profileNickMsg");
+  var nickInp = document.getElementById("profileNickInput");
+  if (nickForm) nickForm.style.display = "none";
+  if (nickMsg) nickMsg.textContent = "";
+  if (nickInp) nickInp.value = "";
+  updateProfileModal();
+  ov.style.display = "flex";
+  document.body.style.overflow = "hidden";
+};
+
+window.closeProfileModal = function () {
+  var ov = document.getElementById("profileModalOverlay");
+  if (!ov) return;
+  ov.style.display = "none";
+  document.body.style.overflow = "";
+};
+
+window.triggerAvatarUpload = function () {
+  var inp = document.getElementById("avatarFileInput");
+  if (inp) inp.click();
+};
+
+function bindProfileModal() {
+  var ov = document.getElementById("profileModalOverlay");
+  if (!ov) return;
+
+  /* Клик по фону — закрыть */
+  ov.addEventListener("click", function (e) {
+    if (e.target === ov) window.closeProfileModal();
+  });
+
+  /* Закрыть */
+  var closeBtn = ov.querySelector(".profile-modal-close");
+  if (closeBtn) closeBtn.addEventListener("click", window.closeProfileModal);
+
+  /* Загрузка аватара */
+  var fileInp = document.getElementById("avatarFileInput");
+  if (fileInp && !fileInp.__bound) {
+    fileInp.__bound = true;
+    fileInp.addEventListener("change", function () {
+      var f = fileInp.files && fileInp.files[0];
+      if (!f) return;
+      if (!/^image\//.test(f.type)) {
+        alert("Выбери картинку (jpg/png/webp).");
+        fileInp.value = "";
+        return;
+      }
+      if (f.size > 5 * 1024 * 1024) {
+        alert("Файл слишком большой (макс 5 МБ).");
+        fileInp.value = "";
+        return;
+      }
+      resizeImage(f, 128, function (dataUrl) {
+        fileInp.value = "";
+        if (!dataUrl) { alert("Не удалось обработать картинку."); return; }
+        if (typeof window.changeAvatar !== "function") {
+          alert("Функция недоступна. Перезагрузи страницу.");
+          return;
+        }
+        var res = window.changeAvatar(dataUrl);
+        if (res.ok) {
+          updateProfileModal();
+          if (typeof window.refreshUserUI === "function") window.refreshUserUI();
+        } else {
+          alert("Ошибка: " + res.msg);
+        }
+      });
+    });
+  }
+
+  /* Смена ника */
+  var changeNickBtn = document.getElementById("profileChangeNickBtn");
+  var nickForm = document.getElementById("profileNickForm");
+  if (changeNickBtn && nickForm && !changeNickBtn.__bound) {
+    changeNickBtn.__bound = true;
+    changeNickBtn.addEventListener("click", function () {
+      nickForm.style.display = nickForm.style.display === "none" ? "block" : "none";
+      var nickInp = document.getElementById("profileNickInput");
+      var msg = document.getElementById("profileNickMsg");
+      if (msg) msg.textContent = "";
+      if (nickInp) { nickInp.value = ""; nickInp.focus(); }
+    });
+  }
+
+  var nickSave = document.getElementById("profileNickSaveBtn");
+  var nickCancel = document.getElementById("profileNickCancelBtn");
+  var nickInp = document.getElementById("profileNickInput");
+  var nickMsg = document.getElementById("profileNickMsg");
+
+  if (nickCancel && !nickCancel.__bound) {
+    nickCancel.__bound = true;
+    nickCancel.addEventListener("click", function () {
+      if (nickForm) nickForm.style.display = "none";
+      if (nickMsg) nickMsg.textContent = "";
+      if (nickInp) nickInp.value = "";
+    });
+  }
+
+  if (nickSave && !nickSave.__bound) {
+    nickSave.__bound = true;
+    nickSave.addEventListener("click", async function () {
+      if (!nickMsg) return;
+      nickMsg.style.color = "var(--text-muted)";
+      nickMsg.textContent = "Проверяю...";
+      if (typeof window.changeNickname !== "function") {
+        nickMsg.style.color = "var(--red)";
+        nickMsg.textContent = "Функция недоступна. Перезагрузи страницу.";
+        return;
+      }
+      var val = nickInp ? nickInp.value : "";
+      var res = await window.changeNickname(val);
+      if (res.ok) {
+        nickMsg.style.color = "var(--green)";
+        nickMsg.textContent = "✓ " + res.msg;
+        updateProfileModal();
+        if (typeof window.refreshUserUI === "function") window.refreshUserUI();
+        setTimeout(function () {
+          if (nickForm) nickForm.style.display = "none";
+          if (nickMsg) nickMsg.textContent = "";
+        }, 1500);
+      } else {
+        nickMsg.style.color = "var(--red)";
+        nickMsg.textContent = "✕ " + res.msg;
+      }
+    });
+  }
+
+  /* Выход */
+  var logoutBtn = document.getElementById("profileLogoutBtn");
+  if (logoutBtn && !logoutBtn.__bound) {
+    logoutBtn.__bound = true;
+    logoutBtn.addEventListener("click", async function () {
+      if (!confirm("Выйти из аккаунта?")) return;
+      window.closeProfileModal();
+      if (window.__fbSignOut) {
+        await window.__fbSignOut();
+      } else {
+        alert("Перезагрузи страницу и попробуй снова.");
+      }
+    });
+  }
+}
+
+/* ─── Инициализация ─── */
 function init() {
   try { if (typeof applyTheme === "function") applyTheme(loadTheme()); } catch (e) {}
   try { if (typeof applyLiteMode === "function") applyLiteMode(isLiteMode()); } catch (e) {}
@@ -207,6 +436,8 @@ function init() {
   document.addEventListener("click", function () {
     if (typeof closeAllDropdowns === "function") closeAllDropdowns();
   });
+
+  bindProfileModal();
 
   try { Store.set("sessions", (Store.get("sessions", 0) || 0) + 1); } catch (e) {}
 
