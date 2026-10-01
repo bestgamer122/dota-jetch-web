@@ -1,7 +1,8 @@
-/* DOTA JETCH — APP v8.8
-   - ФИКС: секция ника — компактный минималистичный блок вместо плашки */
+/* DOTA JETCH — APP v9.0
+   - Переписано приветствие в hero-баннере: приветствие с ником + статус FREE/JETCH+
+   - Таймер смены ника обновляется в реальном времени */
 
-var APP_VERSION = "8.8";
+var APP_VERSION = "9.0";
 
 var PAGES = {
   dashboard:    { title: "Главная",         render: renderDashboard },
@@ -116,17 +117,41 @@ function updateSidebarPlan() {
   }
 }
 
+/* ─── Приветствие ─── */
+function buildGreeting() {
+  var plus = (typeof checkLicense === "function") ? checkLicense() : (Store.get("license.active", false) === true);
+  var nick = Store.get("nickname", "") || "";
+  var remain = (typeof analyzeQuotaRemaining === "function") ? analyzeQuotaRemaining() : 5;
+
+  var hello;
+  if (nick) hello = "Привет, " + nick + "!";
+  else hello = "Добро пожаловать!";
+
+  var status;
+  if (plus) {
+    status = "JETCH+ активен · безлимит";
+  } else if (remain > 0) {
+    status = "Сегодня доступно " + remain + " " + pluralAnalyses(remain);
+  } else {
+    status = "Лимит анализов на сегодня исчерпан";
+  }
+
+  return hello + " " + status;
+}
+
+function pluralAnalyses(n) {
+  if (n === 1) return "анализ";
+  if (n >= 2 && n <= 4) return "анализа";
+  return "анализов";
+}
+
 function renderDashboard() {
   var frag = document.createDocumentFragment();
   var plus = (typeof checkLicense === "function") ? checkLicense() : (Store.get("license.active", false) === true);
-  var nick = Store.get("nickname", "") || "";
-  var subtitle = nick
-    ? "Привет, " + nick + "! " + (plus ? "JETCH+ активен" : "Веб-версия")
-    : (plus ? "AI 2.0 активен" : "Веб-версия");
 
   frag.appendChild(UI.heroBanner(
     "DOTA JETCH",
-    subtitle,
+    buildGreeting(),
     [
       UI.btn("Анализ матча", { onclick: function () { switchPage("analyze"); } }),
       UI.btn("Мини-игры", { onclick: function () { switchPage("games"); }, variant: "ghost" }),
@@ -247,14 +272,10 @@ function getNickCooldownLeft() {
   return 0;
 }
 
-/* ─── Компактная плашка кулдауна ─── */
-function buildNickLockBlock(daysLeft) {
-  var word = daysLeft === 1 ? "день" : (daysLeft < 5 ? "дня" : "дней");
-
+function buildNickLockBlock() {
   var wrap = document.createElement("div");
   wrap.style.cssText = "display:flex;align-items:center;gap:11px;padding:11px 14px;background:var(--bg-elev);border:1px solid var(--border);border-radius:12px;";
 
-  /* Иконка — круг с символом */
   var ico = document.createElement("div");
   ico.style.cssText = "width:30px;height:30px;border-radius:9px;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:rgba(251,191,36,0.10);border:1px solid rgba(251,191,36,0.28);color:var(--gold);font-size:14px;font-weight:700;line-height:1;";
   ico.textContent = "⏳";
@@ -268,17 +289,36 @@ function buildNickLockBlock(daysLeft) {
 
   var sub = document.createElement("div");
   sub.style.cssText = "font-size:10.5px;color:var(--text-dim);margin-top:3px;line-height:1.35;letter-spacing:0.01em;";
-  sub.textContent = "Раз в 30 дней · осталось " + daysLeft + " " + word;
+  sub.id = "nickCooldownTimer";
+
+  function updateTimerText() {
+    var days = getNickCooldownLeft();
+    if (days <= 0) {
+      sub.textContent = "Можно сменить ник";
+      return;
+    }
+    var word = days === 1 ? "день" : (days < 5 ? "дня" : "дней");
+    sub.textContent = "Раз в 30 дней · осталось " + days + " " + word;
+  }
+
+  updateTimerText();
+  if (window.__nickTimer) clearInterval(window.__nickTimer);
+  window.__nickTimer = setInterval(function () {
+    if (!document.getElementById("nickCooldownTimer")) {
+      clearInterval(window.__nickTimer);
+      window.__nickTimer = null;
+      return;
+    }
+    updateTimerText();
+  }, 60000);
 
   body.appendChild(title);
   body.appendChild(sub);
-
   wrap.appendChild(ico);
   wrap.appendChild(body);
   return wrap;
 }
 
-/* ─── Секция смены ника ─── */
 function renderNickSection() {
   var container = document.getElementById("profileNickSection");
   if (!container) return;
@@ -287,11 +327,10 @@ function renderNickSection() {
   var daysLeft = getNickCooldownLeft();
 
   if (daysLeft > 0) {
-    container.appendChild(buildNickLockBlock(daysLeft));
+    container.appendChild(buildNickLockBlock());
     return;
   }
 
-  /* Кулдаун истёк — кнопка + форма */
   var changeBtn = document.createElement("button");
   changeBtn.type = "button";
   changeBtn.className = "btn btn-ghost";
