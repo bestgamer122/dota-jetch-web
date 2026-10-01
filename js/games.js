@@ -1,4 +1,6 @@
-/* DOTA JETCH — MINI-GAMES v2.1 (правильное переключение табов) */
+/* DOTA JETCH — MINI-GAMES v2.2
+   - ФИКС: gamesplayed больше не растёт при переключении табов
+   - Инкремент один раз при открытии страницы игр */
 
 var QUIZ = [
   { q: "Какая способность у Juggernaut даёт неуязвимость?", a: "Omnislash", opts: ["Omnislash", "Blade Fury", "Blade Dance", "Healing Ward"] },
@@ -30,7 +32,6 @@ function renderGames() {
   var frag = document.createDocumentFragment();
   frag.appendChild(UI.heroBanner("Мини-игры", "Реакция, викторина, угадай героя", []));
 
-  /* Табы */
   var tabs = el("div", { class: "row", style: "margin-bottom:16px;gap:8px;" });
   var tabDefs = [
     { id: "reaction", label: "Реакция" },
@@ -46,11 +47,10 @@ function renderGames() {
         qsa("#gameTab_reaction, #gameTab_quiz, #gameTab_guess").forEach(function (btn) {
           btn.classList.remove("active");
           btn.classList.add("btn-ghost");
-          if (btn.getAttribute("variant") === undefined) btn.removeAttribute("variant");
         });
         b.classList.add("active");
         b.classList.remove("btn-ghost");
-        b.setAttribute("variant", "primary");
+        /* НЕ инкрементим gamesplayed тут — только при первом открытии страницы */
         openGame(tab.id);
       });
       tabs.appendChild(b);
@@ -58,7 +58,6 @@ function renderGames() {
   }
   frag.appendChild(tabs);
 
-  /* Статистика */
   var stats = el("div", { class: "stat-grid" });
   var r = Store.get("reactionbest", 0) || 0;
   var q = Store.get("quizbest", 0) || 0;
@@ -68,11 +67,14 @@ function renderGames() {
   stats.appendChild(UI.statCard("G", "var(--green)", "var(--green-bg)", "Стрик", g ? String(g) : "-", "макс"));
   frag.appendChild(stats);
 
-  /* Игровое поле */
   var area = el("div", { id: "gameArea" });
   frag.appendChild(area);
 
-  /* Автозапуск текущей игры после рендера */
+  /* ФИКС: инкремент gamesplayed + Daily.bump один раз при открытии страницы */
+  Store.set("gamesplayed", (Store.get("gamesplayed", 0) || 0) + 1);
+  if (typeof Daily !== "undefined") Daily.bump("game");
+  if (typeof Achievements !== "undefined") Achievements.check();
+
   setTimeout(function () { openGame(CURRENT_GAME); }, 50);
 
   return frag;
@@ -99,9 +101,7 @@ async function openGame(kind) {
     err.appendChild(el("div", { style: "color:var(--red);padding:20px;" }, e.message || String(e)));
     area.appendChild(err);
   }
-  Store.set("gamesplayed", (Store.get("gamesplayed", 0) || 0) + 1);
-  if (typeof Daily !== "undefined") Daily.bump("game");
-  if (typeof Achievements !== "undefined") Achievements.check();
+  /* ФИКС: инкремент gamesplayed убран отсюда */
 }
 
 function renderReaction() {

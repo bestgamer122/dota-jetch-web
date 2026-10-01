@@ -1,4 +1,7 @@
-/* DOTA JETCH — FIREBASE AUTH v6.0 (раздельные экраны входа и регистрации) */
+/* DOTA JETCH — FIREBASE AUTH v6.2
+   - Умная очистка localData при смене аккаунта (не трогает данные того же юзера)
+   - Расширенный список SYNC_KEYS (лицензия, тема, ачивки, дневник, всё)
+   - Подробные логи для диагностики */
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.8.0/firebase-app.js";
 import {
@@ -18,6 +21,7 @@ let currentUser = null;
 let autoSaveInterval = null;
 
 const STORE_PREFIX = "dota.";
+const LAST_UID_KEY = "__last_active_uid";
 
 function encodeKey(k) {
   return String(k).replace(/\./g, "__DOT__").replace(/\//g, "__SLASH__")
@@ -60,7 +64,6 @@ function injectAuthAnimations() {
   document.head.appendChild(s);
 }
 
-/* ─── Показ экранов ─── */
 function showAuthScreen() {
   injectAuthAnimations();
   const el = document.getElementById("authScreen");
@@ -101,7 +104,6 @@ function setAuthError(msg) {
   }
 }
 
-/* ─── ЭКРАН ВХОДА ─── */
 function buildLoginScreen() {
   return `
   <div class="auth-card">
@@ -119,7 +121,6 @@ function buildLoginScreen() {
   </div>`;
 }
 
-/* ─── ЭКРАН РЕГИСТРАЦИИ ─── */
 function buildRegisterScreen() {
   return `
   <div class="auth-card">
@@ -154,7 +155,6 @@ function buildVerificationScreen(email) {
   </div>`;
 }
 
-/* ─── ОБРАБОТЧИКИ ВХОДА ─── */
 function bindLoginHandlers() {
   const lBtn = document.getElementById("authLoginBtn");
   const eInp = document.getElementById("authEmail");
@@ -181,16 +181,11 @@ function bindLoginHandlers() {
     catch (e) { setAuthError(translateAuthError(e.code)); }
   });
 
-  if (toReg) toReg.addEventListener("click", function (e) {
-    e.preventDefault();
-    showRegisterScreen();
-  });
-
+  if (toReg) toReg.addEventListener("click", function (e) { e.preventDefault(); showRegisterScreen(); });
   if (eInp) eInp.addEventListener("keydown", e => { if (e.key === "Enter" && lBtn) lBtn.click(); });
   if (pInp) pInp.addEventListener("keydown", e => { if (e.key === "Enter" && lBtn) lBtn.click(); });
 }
 
-/* ─── ОБРАБОТЧИКИ РЕГИСТРАЦИИ ─── */
 function bindRegisterHandlers() {
   const rBtn = document.getElementById("authRegisterBtn");
   const eInp = document.getElementById("regEmail");
@@ -213,17 +208,12 @@ function bindRegisterHandlers() {
     } catch (e) { setAuthError(translateAuthError(e.code)); rBtn.disabled = false; }
   });
 
-  if (toLog) toLog.addEventListener("click", function (e) {
-    e.preventDefault();
-    showAuthScreen();
-  });
-
+  if (toLog) toLog.addEventListener("click", function (e) { e.preventDefault(); showAuthScreen(); });
   if (eInp) eInp.addEventListener("keydown", e => { if (e.key === "Enter" && pInp) pInp.focus(); });
   if (pInp) pInp.addEventListener("keydown", e => { if (e.key === "Enter" && p2Inp) p2Inp.focus(); });
   if (p2Inp) p2Inp.addEventListener("keydown", e => { if (e.key === "Enter" && rBtn) rBtn.click(); });
 }
 
-/* ─── ОБРАБОТЧИКИ ВЕРИФИКАЦИИ ─── */
 function bindVerificationHandlers() {
   const cBtn = document.getElementById("checkVerifyBtn");
   const rBtn = document.getElementById("resendVerifyBtn");
@@ -257,14 +247,20 @@ function bindVerificationHandlers() {
 /* ─── Синхронизация ─── */
 const SYNC_KEYS = [
   "chathistory","brainprofile","brainvariation","braincontext","brainfeedback",
-  "brainlongmemory","license.active","aiquestions","streak","daily","history",
-  "achievements","diary","settings","sessions","dailystreak","recentmatches",
-  "analyzequota","brain_learning","brain_shared_memory","brain_insights",
-  "brain_autolearner","brain_personality_v2","jetch_keys","litemode",
-  "achievementsunlocked","analyzedcount","dailydate","gamesplayed",
-  "guessbeststreak","quizbest","reactionbest","theme","uniqueheroes",
-  "dailystreakclaimed"
+  "brainlongmemory","license.active","license.forever","license.expires",
+  "aiquestions","streak","daily","history","achievements","diary","settings",
+  "sessions","dailystreak","recentmatches","analyzequota","brain_learning",
+  "brain_shared_memory","brain_insights","brain_autolearner","brain_personality_v2",
+  "jetch_keys","litemode","achievementsunlocked","analyzedcount","dailydate",
+  "gamesplayed","guessbeststreak","quizbest","reactionbest","theme","uniqueheroes",
+  "dailystreakclaimed","themechanged","datareset","brainmemory",
+  "dailyprogress.analyze","dailyprogress.chat","dailyprogress.diary",
+  "dailyprogress.game","dailyprogress.chart","dailyprogress.theme",
+  "dailylastclaimdate","diarynotes"
 ];
+
+/* Ключи, которые НЕ удаляются при смене пользователя */
+const KEEP_ON_CLEAR = ["license.active","license.forever","license.expires","jetch_keys"];
 
 function collectLocalData() {
   const data = {};
@@ -294,9 +290,9 @@ async function loadUserData(uid) {
           loaded++;
         } catch (e) {}
       }
-      console.log("✅ Загружено: " + loaded);
+      console.log("✅ Загружено из Firebase: " + loaded + " ключей");
     } else {
-      console.log("⚠ Нет данных");
+      console.log("⚠ В Firebase нет данных для " + uid);
     }
   } catch (e) { console.error("❌ loadUserData:", e); }
 }
@@ -306,7 +302,7 @@ async function saveUserData(uid) {
     const data = collectLocalData();
     if (Object.keys(data).length === 0) return;
     await update(ref(db, "users/" + uid), data);
-    console.log("💾 Сохранено: " + Object.keys(data).length);
+    console.log("💾 Сохранено в Firebase: " + Object.keys(data).length + " ключей");
   } catch (e) { console.warn("saveUserData:", e); }
 }
 
@@ -345,6 +341,40 @@ window.addEventListener("beforeunload", function () {
   if (currentUser) { try { saveUserData(currentUser.uid); } catch (e) {} }
 });
 
+/* ─── Умная очистка при смене аккаунта ─── */
+function clearAllUserData(uid) {
+  try {
+    var lastUid = localStorage.getItem(LAST_UID_KEY);
+
+    if (!lastUid) {
+      console.log("🔓 Первый вход на этом устройстве — данные сохраняются");
+      localStorage.setItem(LAST_UID_KEY, uid);
+      return;
+    }
+    if (lastUid === uid) {
+      console.log("🔄 Тот же пользователь — данные сохраняются");
+      return;
+    }
+
+    console.log("👥 Смена пользователя (" + lastUid + " → " + uid + ") — очистка");
+    localStorage.setItem(LAST_UID_KEY, uid);
+
+    var keys = Object.keys(localStorage);
+    var removed = 0;
+    for (var i = 0; i < keys.length; i++) {
+      var k = keys[i];
+      if (k.indexOf("__") === 0) continue;
+      var dotaIdx = k.indexOf("dota.");
+      if (dotaIdx < 0) continue;
+      var shortKey = k.slice(dotaIdx + 5);
+      if (KEEP_ON_CLEAR.indexOf(shortKey) >= 0) continue;
+      localStorage.removeItem(k);
+      removed++;
+    }
+    console.log("🧹 Очищено " + removed + " ключей предыдущего пользователя");
+  } catch (e) { console.warn("clearAllUserData:", e); }
+}
+
 function translateAuthError(code) {
   const map = {
     "auth/invalid-email": "Некорректный email.",
@@ -359,7 +389,6 @@ function translateAuthError(code) {
   return map[code] || ("Ошибка: " + code);
 }
 
-/* ─── Главная логика ─── */
 onAuthStateChanged(auth, async function (user) {
   console.log("🔐 user=" + (user ? user.uid : "null"));
   if (user) {
@@ -375,14 +404,15 @@ onAuthStateChanged(auth, async function (user) {
     const currentInSession = sessionStorage.getItem(loadedFlag);
 
     if (currentInSession !== user.uid) {
-      console.log("🆕 Новая сессия — загрузка");
+      console.log("🆕 Новая сессия — проверка пользователя + загрузка из Firebase");
       sessionStorage.setItem(loadedFlag, user.uid);
+      clearAllUserData(user.uid);
       await loadUserData(user.uid);
       location.reload();
       return;
     }
 
-    console.log("✅ Сессия активна");
+    console.log("✅ Сессия активна — показываем приложение");
     hideAuthScreen();
     setupStoreSync(user.uid);
     startAutoSave(user.uid);

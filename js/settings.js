@@ -1,4 +1,6 @@
-/* DOTA JETCH — SETTINGS v4.0 */
+/* DOTA JETCH — SETTINGS v4.1
+   - ФИКС: засчитываем задание дня «Смени тему» + ачивку «Стилист»
+   - Убран дублирующий renderAbout (остался в app.js) */
 
 var FOREVER_KEY = "DANYA8228PRO";
 
@@ -59,7 +61,6 @@ function makeDropdown(opts, currentValue, onChange) {
   var btn = el("button", { class: "dropdown-btn", type: "button" });
   var label = el("span", { class: "dropdown-label" });
   var arrow = el("span", { class: "dropdown-arrow" });
-  arrow.innerHTML = "";
   btn.appendChild(label);
   btn.appendChild(arrow);
   wrap.appendChild(btn);
@@ -113,7 +114,6 @@ function renderSettings() {
   var frag = document.createDocumentFragment();
   var plus = checkLicense();
 
-  /* ПОДПИСКА */
   var plan = UI.card("Подписка JETCH+");
   if (plus) {
     var forever = Store.get("license.forever", false);
@@ -130,13 +130,12 @@ function renderSettings() {
     }}));
   } else {
     plan.appendChild(el("div", { style: "color:var(--gold);font-size:14px;font-weight:700;margin-bottom:10px;" }, "Возможности:"));
-    plan.appendChild(el("div", { class: "dim", style: "font-size:12px;margin-bottom:12px;line-height:1.6;" }, "+ Бесконечные анализы", el("br"), "+ Статус в меню", el("br"),"+ ИИ чат"));
+    plan.appendChild(el("div", { class: "dim", style: "font-size:12px;margin-bottom:12px;line-height:1.6;" }, "+ Бесконечные анализы", el("br"), "+ ИИ чат", el("br"), "+ Все функции"));
     plan.appendChild(el("div", { style: "font-size:11px;color:var(--text-muted);margin-bottom:8px;" }, "КЛЮЧ АКТИВАЦИИ:"));
     var keyInp = UI.input("");
     keyInp.id = "licenseKeyInput";
     keyInp.style.marginBottom = "10px";
     plan.appendChild(keyInp);
-
     var btnWrap = el("div", { style: "display:flex;justify-content:flex-start;" });
     var actBtn = UI.btn("Активировать");
     actBtn.style.width = "auto";
@@ -152,7 +151,6 @@ function renderSettings() {
   }
   frag.appendChild(plan);
 
-  /* ТЕМА */
   var theme = UI.card("Тема оформления");
   var themeOpts = [];
   for (var key in THEMES) {
@@ -160,11 +158,13 @@ function renderSettings() {
   }
   theme.appendChild(makeDropdown(themeOpts, loadTheme(), function (v) {
     applyTheme(v);
+    /* ФИКС: засчитываем задание дня «Смени тему» + открываем ачивку «Стилист» */
+    try { if (typeof Daily !== "undefined") Daily.bump("theme"); } catch (e) {}
+    try { if (typeof Achievements !== "undefined") Achievements.onThemeChange(); } catch (e) {}
     showDialog("Тема", THEMES[v].label, "success");
   }));
   frag.appendChild(theme);
 
-  /* ПРОИЗВОДИТЕЛЬНОСТЬ */
   var perf = UI.card("Производительность");
   var lbl = el("label", { style: "display:flex;align-items:center;gap:10px;font-size:13px;cursor:pointer;" });
   var tgl = el("input", { type: "checkbox" });
@@ -176,7 +176,6 @@ function renderSettings() {
   perf.appendChild(lbl);
   frag.appendChild(perf);
 
-  /* ДАННЫЕ */
   var data = UI.card("Данные");
   var eb = UI.btn("Экспорт / Импорт");
   eb.addEventListener("click", function () { switchPage("export"); });
@@ -184,30 +183,4 @@ function renderSettings() {
   frag.appendChild(data);
 
   return frag;
-}
-
-function renderAbout() {
-  var frag = document.createDocumentFragment();
-  var head = UI.card("");
-  head.appendChild(el("div", { style: "font-size:20px;font-weight:bold;color:var(--accent-light);" }, "DOTA JETCH AI 2.0"));
-  head.appendChild(el("div", { class: "dim", style: "font-size:12px;margin-top:6px;" }, "Version " + APP_VERSION));
-  frag.appendChild(head);
-  var feat = UI.card("Возможности");
-  var list = ["Анализ матчей", "ИИ-ассистент (JETCH+)", "История и графики", "Дневник", "Достижения", "Мини-игры", "Система ключей JETCH+"];
-  for (var i = 0; i < list.length; i++) {
-    feat.appendChild(el("div", { style: "padding:4px 0;font-size:12px;color:var(--text-muted);" }, "• " + list[i]));
-  }
-  frag.appendChild(feat);
-  return frag;
-}
-
-function updateSidebarPlan() {
-  var plus = checkLicense();
-  var t = qs("#planTitle"), i = qs("#planInfo"), v = qs("#planValue");
-  if (t) t.textContent = plus ? "JETCH+" : "FREE";
-  if (i) i.textContent = plus ? "Бессрочно" : "5 анализов/день";
-  if (v) {
-    var rem = typeof analyzeQuotaRemaining === "function" ? analyzeQuotaRemaining() : 5;
-    v.textContent = plus ? "∞" : String(rem) + " / 5";
-  }
 }

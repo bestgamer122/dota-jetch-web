@@ -1,14 +1,15 @@
-/* DOTA JETCH — APP v8.0 */
+/* DOTA JETCH — APP v8.1
+   - Добавлен Daily.bump("chart") при открытии "Прогресс"
+   - Убран дублирующий renderAbout (остался только здесь, из settings.js удалён) */
 
-var APP_VERSION = "8.0";
+var APP_VERSION = "8.1";
 
-/* ─── Навигация ─── */
 var PAGES = {
   dashboard:    { title: "Главная",         render: renderDashboard },
   analyze:      { title: "Анализ матча",    render: renderAnalyze },
   chat:         { title: "ИИ-ассистент",    render: renderChat },
   history:      { title: "История",         render: renderHistory },
-  charts:       { title: "Прогресс",        render: Charts.render },
+  charts:       { title: "Прогресс",        render: renderChartsPage },
   diary:        { title: "Дневник",         render: renderDiary },
   games:        { title: "Мини-игры",       render: renderGames },
   achievements: { title: "Достижения",      render: renderAchievements },
@@ -80,6 +81,12 @@ function switchPage(name) {
   var s = qs(".page-scroll");
   if (s) s.scrollTop = 0;
   location.hash = name;
+
+  /* ФИКС: засчитываем задание дня «Открой графики» */
+  if (name === "charts" && typeof Daily !== "undefined") {
+    try { Daily.bump("chart"); } catch (e) {}
+  }
+
   if (typeof updateSidebarPlan === "function") updateSidebarPlan();
 }
 
@@ -123,6 +130,10 @@ function renderDashboard() {
     ]
   ));
 
+  if (typeof renderDailyWidget === "function") {
+    try { frag.appendChild(renderDailyWidget()); } catch (e) {}
+  }
+
   var stats = el("div", { class: "stat-grid" });
   var left = typeof analyzeQuotaRemaining === "function" ? (plus ? "∞" : String(analyzeQuotaRemaining())) : "-";
   stats.appendChild(UI.statCard("S", "var(--cyan)", "var(--cyan-bg)", "Сессий", String(Store.get("sessions", 0)), "Всего"));
@@ -149,6 +160,36 @@ function renderDashboard() {
     frag.appendChild(last);
   }
 
+  return frag;
+}
+
+function renderChartsPage() {
+  try { if (typeof Daily !== "undefined") Daily.bump("chart"); } catch (e) {}
+  if (typeof Charts === "undefined") return UI.card("Прогресс");
+  return Charts.render();
+}
+
+function renderAbout() {
+  var frag = document.createDocumentFragment();
+  var head = UI.card("");
+  head.appendChild(el("div", { style: "font-size:20px;font-weight:bold;color:var(--accent-light);" }, "DOTA JETCH AI 2.0"));
+  head.appendChild(el("div", { class: "dim", style: "font-size:12px;margin-top:6px;" }, "Version " + APP_VERSION));
+  frag.appendChild(head);
+  var feat = UI.card("Возможности");
+  var list = [
+    "Анализ матчей с оценкой S/A/B/C/D",
+    "ИИ-ассистент (JETCH+)",
+    "История и графики",
+    "Дневник",
+    "Достижения (24)",
+    "Мини-игры",
+    "Система ключей JETCH+",
+    "Firebase-синхронизация"
+  ];
+  for (var i = 0; i < list.length; i++) {
+    feat.appendChild(el("div", { style: "padding:4px 0;font-size:12px;color:var(--text-muted);" }, "• " + list[i]));
+  }
+  frag.appendChild(feat);
   return frag;
 }
 

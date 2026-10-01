@@ -1,6 +1,24 @@
-/* DOTA JETCH — ANALYZE v3.2 (добавлена кнопка «Новый анализ») */
+/* DOTA JETCH — ANALYZE v3.3
+   - Расширен MODE_NAMES: Turbo, Ranked All Pick, Ability Draft, Mid Only, Captains Draft, ARDM */
 
-var MODE_NAMES = { 1:"All Pick", 2:"Captains Mode", 3:"Random Draft", 4:"Single Draft", 5:"All Random", 22:"Ranked", 23:"Turbo" };
+var MODE_NAMES = {
+  1:  "All Pick",
+  2:  "Captains Mode",
+  3:  "Random Draft",
+  4:  "Single Draft",
+  5:  "All Random",
+  11: "Mid Only",
+  12: "Least Played",
+  13: "Limited Heroes",
+  16: "Captains Draft",
+  18: "Ability Draft",
+  20: "All Random Death Match",
+  21: "1v1 Mid",
+  22: "Ranked All Pick",
+  23: "Turbo",
+  24: "Mutation"
+};
+
 var POS_NAMES = { 1:"Pos 1 Керри", 2:"Pos 2 Мид", 3:"Pos 3 Оффлейн", 4:"Pos 4 Роум", 5:"Pos 5 Саппорт" };
 var ANALYZE_FREE_LIMIT = 5;
 var lastAnalysis = null;
@@ -154,7 +172,6 @@ function renderAnalyze() {
   var plus = (typeof checkLicense === "function") ? checkLicense() : (Store.get("license.active", false) === true);
 
   if (lastAnalysis && lastAnalysis.match) {
-    /* Кнопка «Новый анализ» */
     var resetBtn = UI.btn("🔄 Новый анализ", { variant: "ghost" });
     resetBtn.style.marginBottom = "14px";
     resetBtn.addEventListener("click", function () {
@@ -197,8 +214,8 @@ function renderAnalyze() {
   form.appendChild(btnRow);
   frag.appendChild(form);
 
-  var report = el("div", { id: "analyzeReport" });
-  frag.appendChild(report);
+  var report2 = el("div", { id: "analyzeReport" });
+  frag.appendChild(report2);
   return frag;
 }
 
