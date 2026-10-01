@@ -10,8 +10,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/style.css?v=55.0">
-<link rel="stylesheet" href="css/lite.css?v=55.0">
+<link rel="stylesheet" href="css/style.css?v=56.0">
+<link rel="stylesheet" href="css/lite.css?v=56.0">
 <style>
 #splashScreen {
   position: fixed !important;
@@ -62,6 +62,9 @@
 #authScreen .auth-hint { font-size: 11px; color: #666; text-align: center; margin-top: 18px; }
 #authScreen .auth-forgot { text-align: center; margin-top: 14px; }
 #authScreen .auth-forgot a { font-size: 12px; color: #8b5cf6; text-decoration: none; }
+
+/* ─── ФИКС КУРСОРА: поднимаем над всеми модалками ─── */
+.cursor-dot, .cursor-ring { z-index: 9999999 !important; }
 
 /* ─── Профиль в сайдбаре ─── */
 #sidebarUserBlock {
@@ -135,9 +138,16 @@
   transition: color 0.2s, border-color 0.2s;
 }
 .profile-modal-close:hover { color: var(--text); border-color: var(--accent); }
+
+/* ФИКС: убираем фиксированную высоту, чтобы подсказка не накладывалась на ник */
 .profile-avatar-wrap {
-  width: 96px; height: 96px; margin: 0 auto 12px;
-  cursor: pointer; position: relative;
+  width: 96px;
+  margin: 0 auto 0;
+  cursor: pointer;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 .profile-avatar-big {
   width: 96px; height: 96px; border-radius: 50%;
@@ -148,15 +158,34 @@
   background-size: cover; background-position: center;
   border: 3px solid var(--accent);
   transition: transform 0.2s ease;
+  flex-shrink: 0;
 }
 .profile-avatar-wrap:hover .profile-avatar-big { transform: scale(1.05); }
 .profile-avatar-hint {
   font-size: 10px; color: var(--text-dim); text-align: center;
-  margin-top: 6px; letter-spacing: 0.04em; text-transform: uppercase;
+  margin-top: 6px; letter-spacing: 0.04em;
+  line-height: 1.3;
+  max-width: 120px;
 }
+.profile-reset-avatar {
+  display: none;
+  margin: 8px auto 4px;
+  padding: 4px 10px;
+  font-size: 10px;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  border-radius: 8px;
+  cursor: pointer;
+  font-family: inherit;
+  letter-spacing: 0.05em;
+  transition: color 0.15s, border-color 0.15s;
+}
+.profile-reset-avatar:hover { color: var(--red); border-color: var(--red); }
+
 .profile-modal-nick {
   font-size: 22px; font-weight: 800; color: var(--text);
-  text-align: center; margin-bottom: 4px; line-height: 1.2;
+  text-align: center; margin-top: 14px; margin-bottom: 4px; line-height: 1.2;
   word-break: break-all;
 }
 .profile-modal-email {
@@ -255,6 +284,7 @@
       <div id="profileAvatarBig" class="profile-avatar-big">?</div>
       <div class="profile-avatar-hint">Нажми, чтобы сменить</div>
     </div>
+    <button id="profileResetAvatarBtn" class="profile-reset-avatar" type="button">✕ Убрать аватар</button>
 
     <div id="profileModalNick" class="profile-modal-nick">—</div>
     <div id="profileModalEmail" class="profile-modal-email">—</div>
@@ -304,71 +334,71 @@
 })();
 </script>
 
-<script src="js/firebase-config.js?v=55.0"></script>
-<script src="js/config.js?v=55.0"></script>
-<script src="js/uid-store.js?v=55.0"></script>
-<script type="module" src="js/auth.js?v=55.0"></script>
-<script src="js/fallback.js?v=55.0"></script>
-<script src="js/ui.js?v=55.0"></script>
-<script src="js/knowledge.js?v=55.0"></script>
-<script src="js/brain-core.js?v=55.0"></script>
-<script src="js/brain-learn.js?v=55.0"></script>
-<script src="js/brain-time.js?v=55.0"></script>
-<script src="js/brain-stats.js?v=55.0"></script>
-<script src="js/brain-context.js?v=55.0"></script>
-<script src="js/brain-opinions.js?v=55.0"></script>
-<script src="js/brain-tools.js?v=55.0"></script>
-<script src="js/brain-mood.js?v=55.0"></script>
-<script src="js/brain-facts.js?v=55.0"></script>
-<script src="js/brain-user.js?v=55.0"></script>
-<script src="js/brain-variation.js?v=55.0"></script>
-<script src="js/brain-suggest.js?v=55.0"></script>
-<script src="js/brain-lang.js?v=55.0"></script>
-<script src="js/brain-reason.js?v=55.0"></script>
-<script src="js/brain-infer.js?v=55.0"></script>
-<script src="js/brain-graph.js?v=55.0"></script>
-<script src="js/brain-memory-long.js?v=55.0"></script>
-<script src="js/brain-think.js?v=55.0"></script>
-<script src="js/brain-chain.js?v=55.0"></script>
-<script src="js/brain-emotion.js?v=55.0"></script>
-<script src="js/brain-feedback.js?v=55.0"></script>
-<script src="js/brain-selfcheck.js?v=55.0"></script>
-<script src="js/brain-shared-memory.js?v=55.0"></script>
-<script src="js/brain-reason-v2.js?v=55.0"></script>
-<script src="js/brain-learning.js?v=55.0"></script>
-<script src="js/brain-predictor.js?v=55.0"></script>
-<script src="js/brain-insights.js?v=55.0"></script>
-<script src="js/brain-universal.js?v=55.0"></script>
-<script src="js/brain-personality.js?v=55.0"></script>
-<script src="js/brain-autolearner.js?v=55.0"></script>
-<script src="js/brain-chain-v2.js?v=55.0"></script>
-<script src="js/brain-match-review.js?v=55.0"></script>
-<script src="js/brain-meta.js?v=55.0"></script>
-<script src="js/brain-mmr.js?v=55.0"></script>
-<script src="js/brain-draft.js?v=55.0"></script>
-<script src="js/brain-heroes.js?v=55.0"></script>
-<script src="js/brain-builds.js?v=55.0"></script>
-<script src="js/brain-timings.js?v=55.0"></script>
-<script src="js/brain-counters.js?v=55.0"></script>
-<script src="js/brain-prokasts.js?v=55.0"></script>
-<script src="js/brain-lanes.js?v=55.0"></script>
-<script src="js/brain-items-full.js?v=55.0"></script>
-<script src="js/brain-situations.js?v=55.0"></script>
-<script src="js/brain-mindset.js?v=55.0"></script>
-<script src="js/brain-compare.js?v=55.0"></script>
-<script src="js/brain-rus.js?v=55.0"></script>
-<script src="js/brain.js?v=55.0"></script>
-<script src="js/achievements.js?v=55.0"></script>
-<script src="js/history.js?v=55.0"></script>
-<script src="js/diary.js?v=55.0"></script>
-<script src="js/assistant.js?v=55.0"></script>
-<script src="js/games.js?v=55.0"></script>
-<script src="js/charts.js?v=55.0"></script>
-<script src="js/daily.js?v=55.0"></script>
-<script src="js/analyze.js?v=55.0"></script>
-<script src="js/ai-match.js?v=55.0"></script>
-<script src="js/settings.js?v=55.0"></script>
-<script src="js/app.js?v=55.0"></script>
-<script src="js/visual.js?v=55.0"></script>
+<script src="js/firebase-config.js?v=56.0"></script>
+<script src="js/config.js?v=56.0"></script>
+<script src="js/uid-store.js?v=56.0"></script>
+<script type="module" src="js/auth.js?v=56.0"></script>
+<script src="js/fallback.js?v=56.0"></script>
+<script src="js/ui.js?v=56.0"></script>
+<script src="js/knowledge.js?v=56.0"></script>
+<script src="js/brain-core.js?v=56.0"></script>
+<script src="js/brain-learn.js?v=56.0"></script>
+<script src="js/brain-time.js?v=56.0"></script>
+<script src="js/brain-stats.js?v=56.0"></script>
+<script src="js/brain-context.js?v=56.0"></script>
+<script src="js/brain-opinions.js?v=56.0"></script>
+<script src="js/brain-tools.js?v=56.0"></script>
+<script src="js/brain-mood.js?v=56.0"></script>
+<script src="js/brain-facts.js?v=56.0"></script>
+<script src="js/brain-user.js?v=56.0"></script>
+<script src="js/brain-variation.js?v=56.0"></script>
+<script src="js/brain-suggest.js?v=56.0"></script>
+<script src="js/brain-lang.js?v=56.0"></script>
+<script src="js/brain-reason.js?v=56.0"></script>
+<script src="js/brain-infer.js?v=56.0"></script>
+<script src="js/brain-graph.js?v=56.0"></script>
+<script src="js/brain-memory-long.js?v=56.0"></script>
+<script src="js/brain-think.js?v=56.0"></script>
+<script src="js/brain-chain.js?v=56.0"></script>
+<script src="js/brain-emotion.js?v=56.0"></script>
+<script src="js/brain-feedback.js?v=56.0"></script>
+<script src="js/brain-selfcheck.js?v=56.0"></script>
+<script src="js/brain-shared-memory.js?v=56.0"></script>
+<script src="js/brain-reason-v2.js?v=56.0"></script>
+<script src="js/brain-learning.js?v=56.0"></script>
+<script src="js/brain-predictor.js?v=56.0"></script>
+<script src="js/brain-insights.js?v=56.0"></script>
+<script src="js/brain-universal.js?v=56.0"></script>
+<script src="js/brain-personality.js?v=56.0"></script>
+<script src="js/brain-autolearner.js?v=56.0"></script>
+<script src="js/brain-chain-v2.js?v=56.0"></script>
+<script src="js/brain-match-review.js?v=56.0"></script>
+<script src="js/brain-meta.js?v=56.0"></script>
+<script src="js/brain-mmr.js?v=56.0"></script>
+<script src="js/brain-draft.js?v=56.0"></script>
+<script src="js/brain-heroes.js?v=56.0"></script>
+<script src="js/brain-builds.js?v=56.0"></script>
+<script src="js/brain-timings.js?v=56.0"></script>
+<script src="js/brain-counters.js?v=56.0"></script>
+<script src="js/brain-prokasts.js?v=56.0"></script>
+<script src="js/brain-lanes.js?v=56.0"></script>
+<script src="js/brain-items-full.js?v=56.0"></script>
+<script src="js/brain-situations.js?v=56.0"></script>
+<script src="js/brain-mindset.js?v=56.0"></script>
+<script src="js/brain-compare.js?v=56.0"></script>
+<script src="js/brain-rus.js?v=56.0"></script>
+<script src="js/brain.js?v=56.0"></script>
+<script src="js/achievements.js?v=56.0"></script>
+<script src="js/history.js?v=56.0"></script>
+<script src="js/diary.js?v=56.0"></script>
+<script src="js/assistant.js?v=56.0"></script>
+<script src="js/games.js?v=56.0"></script>
+<script src="js/charts.js?v=56.0"></script>
+<script src="js/daily.js?v=56.0"></script>
+<script src="js/analyze.js?v=56.0"></script>
+<script src="js/ai-match.js?v=56.0"></script>
+<script src="js/settings.js?v=56.0"></script>
+<script src="js/app.js?v=56.0"></script>
+<script src="js/visual.js?v=56.0"></script>
 </body>
 </html>
