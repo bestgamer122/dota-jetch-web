@@ -1,5 +1,6 @@
-/* DOTA JETCH — FIREBASE AUTH v6.2
-   - Умная очистка localData при смене аккаунта (не трогает данные того же юзера)
+/* DOTA JETCH — FIREBASE AUTH v7.0
+   - Полная изоляция аккаунтов: при смене пользователя удаляются все локальные данные
+   - Первый вход на устройстве: данные сохраняются, UID запоминается
    - Расширенный список SYNC_KEYS (лицензия, тема, ачивки, дневник, всё)
    - Подробные логи для диагностики */
 
@@ -15,7 +16,8 @@ const app = initializeApp(window.FIREBASE_CONFIG);
 const auth = getAuth(app);
 const db = getDatabase(app);
 
-setPersistence(auth, browserLocalPersistence).catch(e => console.warn(e));
+/* ВАЖНО: setPersistence вызывается один раз. Повторный вызов затирает localStorage. */
+setPersistence(auth, browserLocalPersistence).catch(e => console.warn("persistence:", e));
 
 let currentUser = null;
 let autoSaveInterval = null;
@@ -259,7 +261,7 @@ const SYNC_KEYS = [
   "dailylastclaimdate","diarynotes"
 ];
 
-/* Ключи, которые НЕ удаляются при смене пользователя */
+/* Ключи, которые НЕ удаляются при смене пользователя (лицензия остаётся) */
 const KEEP_ON_CLEAR = ["license.active","license.forever","license.expires","jetch_keys"];
 
 function collectLocalData() {
@@ -341,10 +343,10 @@ window.addEventListener("beforeunload", function () {
   if (currentUser) { try { saveUserData(currentUser.uid); } catch (e) {} }
 });
 
-/* ─── Умная очистка при смене аккаунта ─── */
+/* ─── Полная очистка локальных данных пользователя ─── */
 function clearAllUserData(uid) {
   try {
-    var lastUid = localStorage.getItem(LAST_UID_KEY);
+    const lastUid = localStorage.getItem(LAST_UID_KEY);
 
     if (!lastUid) {
       console.log("🔓 Первый вход на этом устройстве — данные сохраняются");
@@ -356,18 +358,24 @@ function clearAllUserData(uid) {
       return;
     }
 
-    console.log("👥 Смена пользователя (" + lastUid + " → " + uid + ") — очистка");
+    console.log("👥 Смена пользователя (" + lastUid + " → " + uid + ") — полная очистка");
     localStorage.setItem(LAST_UID_KEY, uid);
 
-    var keys = Object.keys(localStorage);
-    var removed = 0;
-    for (var i = 0; i < keys.length; i++) {
-      var k = keys[i];
+    const keys = Object.keys(localStorage);
+    let removed = 0;
+    for (let i = 0; i < keys.length; i++) {
+      const k = keys[i];
+      /* Пропускаем системные ключи */
+      if (k === LAST_UID_KEY) continue;
+      if (k.indexOf("firebase:") === 0) continue;
       if (k.indexOf("__") === 0) continue;
-      var dotaIdx = k.indexOf("dota.");
-      if (dotaIdx < 0) continue;
-      var shortKey = k.slice(dotaIdx + 5);
+
+      /* Удаляем только ключи с префиксом dota. */
+      if (k.indexOf(STORE_PREFIX) !== 0) continue;
+
+      const shortKey = k.slice(STORE_PREFIX.length);
       if (KEEP_ON_CLEAR.indexOf(shortKey) >= 0) continue;
+
       localStorage.removeItem(k);
       removed++;
     }

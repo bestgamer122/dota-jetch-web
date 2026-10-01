@@ -1,11 +1,7 @@
-/* DOTA JETCH — UID-STORE v3.0
-   DEPRECATED.
-   Раньше здесь был префикс uid поверх localStorage, но это ломало
-   доступ к данным, потому что __active_uid никогда не устанавливался.
-   Теперь очисткой localData при смене аккаунта занимается auth.js.
-   Файл оставлен для совместимости со <script> в index.html. */
+/* DOTA JETCH — UID-STORE v4.0
+   Пустой файл. Раньше здесь переопределялся localStorage с префиксом uid,
+   но это ломало изоляцию аккаунтов, так как __active_uid никогда не устанавливался.
+   Теперь очисткой данных при смене пользователя занимается auth.js.
+   Файл оставлен, чтобы не менять index.html. */
 
-(function () {
-  "use strict";
-  console.log("uid-store v3.0 (deprecated — no localStorage override)");
-})();
+console.log("uid-store v4.0 (disabled — handled by auth.js)");
