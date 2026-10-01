@@ -1,9 +1,9 @@
-/* DOTA JETCH — APP v8.4
+/* DOTA JETCH — APP v8.5
    - Модалка профиля: ник, email, аватар, статистика, выход
-   - Загрузка аватара с ПК (resize + JPEG)
-   - Клик по юзеру в сайдбаре открывает профиль */
+   - Загрузка и СБРОС аватара
+   - ФИКС: убран фиксированный размер .profile-avatar-wrap (текст не наезжает) */
 
-var APP_VERSION = "8.4";
+var APP_VERSION = "8.5";
 
 var PAGES = {
   dashboard:    { title: "Главная",         render: renderDashboard },
@@ -199,9 +199,7 @@ function renderAbout() {
   return frag;
 }
 
-/* ─────────────────────────────────────────
-   ПРОФИЛЬ — модальное окно
-   ───────────────────────────────────────── */
+/* ─── Профиль — модальное окно ─── */
 
 function resizeImage(file, maxSize, cb) {
   var reader = new FileReader();
@@ -227,10 +225,14 @@ function resizeImage(file, maxSize, cb) {
   reader.readAsDataURL(file);
 }
 
+function hasAvatar() {
+  var av = Store.get("avatar", null);
+  return !!(av && typeof av === "string" && av.indexOf("data:image") === 0);
+}
+
 function renderAvatarInto(el, nick) {
-  var avatar = Store.get("avatar", null);
-  if (avatar && typeof avatar === "string" && avatar.indexOf("data:image") === 0) {
-    el.style.backgroundImage = "url(" + avatar + ")";
+  if (hasAvatar()) {
+    el.style.backgroundImage = "url(" + Store.get("avatar", "") + ")";
     el.style.backgroundSize = "cover";
     el.style.backgroundPosition = "center";
     el.textContent = "";
@@ -248,10 +250,16 @@ function updateProfileModal() {
   var emailEl = document.getElementById("profileModalEmail");
   var avEl = document.getElementById("profileAvatarBig");
   var statsEl = document.getElementById("profileModalStats");
+  var resetBtn = document.getElementById("profileResetAvatarBtn");
 
   if (nickEl) nickEl.textContent = nick;
   if (emailEl) emailEl.textContent = email;
   if (avEl) renderAvatarInto(avEl, nick);
+
+  /* Кнопка "Убрать аватар" — только если аватар есть */
+  if (resetBtn) {
+    resetBtn.style.display = hasAvatar() ? "inline-block" : "none";
+  }
 
   if (statsEl) {
     statsEl.innerHTML = "";
@@ -309,12 +317,10 @@ function bindProfileModal() {
   var ov = document.getElementById("profileModalOverlay");
   if (!ov) return;
 
-  /* Клик по фону — закрыть */
   ov.addEventListener("click", function (e) {
     if (e.target === ov) window.closeProfileModal();
   });
 
-  /* Закрыть */
   var closeBtn = ov.querySelector(".profile-modal-close");
   if (closeBtn) closeBtn.addEventListener("click", window.closeProfileModal);
 
@@ -353,6 +359,18 @@ function bindProfileModal() {
     });
   }
 
+  /* СБРОС аватара */
+  var resetBtn = document.getElementById("profileResetAvatarBtn");
+  if (resetBtn && !resetBtn.__bound) {
+    resetBtn.__bound = true;
+    resetBtn.addEventListener("click", function () {
+      if (!confirm("Убрать аватар?")) return;
+      Store.set("avatar", null);
+      updateProfileModal();
+      if (typeof window.refreshUserUI === "function") window.refreshUserUI();
+    });
+  }
+
   /* Смена ника */
   var changeNickBtn = document.getElementById("profileChangeNickBtn");
   var nickForm = document.getElementById("profileNickForm");
@@ -369,43 +387,43 @@ function bindProfileModal() {
 
   var nickSave = document.getElementById("profileNickSaveBtn");
   var nickCancel = document.getElementById("profileNickCancelBtn");
-  var nickInp = document.getElementById("profileNickInput");
-  var nickMsg = document.getElementById("profileNickMsg");
+  var nickInpEl = document.getElementById("profileNickInput");
+  var nickMsgEl = document.getElementById("profileNickMsg");
 
   if (nickCancel && !nickCancel.__bound) {
     nickCancel.__bound = true;
     nickCancel.addEventListener("click", function () {
       if (nickForm) nickForm.style.display = "none";
-      if (nickMsg) nickMsg.textContent = "";
-      if (nickInp) nickInp.value = "";
+      if (nickMsgEl) nickMsgEl.textContent = "";
+      if (nickInpEl) nickInpEl.value = "";
     });
   }
 
   if (nickSave && !nickSave.__bound) {
     nickSave.__bound = true;
     nickSave.addEventListener("click", async function () {
-      if (!nickMsg) return;
-      nickMsg.style.color = "var(--text-muted)";
-      nickMsg.textContent = "Проверяю...";
+      if (!nickMsgEl) return;
+      nickMsgEl.style.color = "var(--text-muted)";
+      nickMsgEl.textContent = "Проверяю...";
       if (typeof window.changeNickname !== "function") {
-        nickMsg.style.color = "var(--red)";
-        nickMsg.textContent = "Функция недоступна. Перезагрузи страницу.";
+        nickMsgEl.style.color = "var(--red)";
+        nickMsgEl.textContent = "Функция недоступна. Перезагрузи страницу.";
         return;
       }
-      var val = nickInp ? nickInp.value : "";
+      var val = nickInpEl ? nickInpEl.value : "";
       var res = await window.changeNickname(val);
       if (res.ok) {
-        nickMsg.style.color = "var(--green)";
-        nickMsg.textContent = "✓ " + res.msg;
+        nickMsgEl.style.color = "var(--green)";
+        nickMsgEl.textContent = "✓ " + res.msg;
         updateProfileModal();
         if (typeof window.refreshUserUI === "function") window.refreshUserUI();
         setTimeout(function () {
           if (nickForm) nickForm.style.display = "none";
-          if (nickMsg) nickMsg.textContent = "";
+          if (nickMsgEl) nickMsgEl.textContent = "";
         }, 1500);
       } else {
-        nickMsg.style.color = "var(--red)";
-        nickMsg.textContent = "✕ " + res.msg;
+        nickMsgEl.style.color = "var(--red)";
+        nickMsgEl.textContent = "✕ " + res.msg;
       }
     });
   }
@@ -426,7 +444,6 @@ function bindProfileModal() {
   }
 }
 
-/* ─── Инициализация ─── */
 function init() {
   try { if (typeof applyTheme === "function") applyTheme(loadTheme()); } catch (e) {}
   try { if (typeof applyLiteMode === "function") applyLiteMode(isLiteMode()); } catch (e) {}
