@@ -1,8 +1,8 @@
-/* DOTA JETCH — APP v9.0
-   - Переписано приветствие в hero-баннере: приветствие с ником + статус FREE/JETCH+
-   - Таймер смены ника обновляется в реальном времени */
+/* DOTA JETCH — APP v9.1
+   - ФИКС: сайдбар показывает "Бессрочно" только для license.forever
+     Для недельного JETCH+ — показывает дату окончания и остаток дней */
 
-var APP_VERSION = "9.0";
+var APP_VERSION = "9.1";
 
 var PAGES = {
   dashboard:    { title: "Главная",         render: renderDashboard },
@@ -93,43 +93,92 @@ function switchPage(name) {
   if (typeof updateSidebarPlan === "function") updateSidebarPlan();
 }
 
+/* ─── Обновление сайдбара с учётом типа лицензии ─── */
 function updateSidebarPlan() {
   var plus = (typeof checkLicense === "function") ? checkLicense() : (Store.get("license.active", false) === true);
+  var forever = Store.get("license.forever", false) === true;
+  var expires = Store.get("license.expires", null);
+
   var t = qs("#planTitle"), i = qs("#planInfo"), v = qs("#planValue");
   var bar = qs(".plan-bar-fill");
 
   if (t) t.textContent = plus ? "JETCH+" : "FREE";
-  if (i) i.textContent = plus ? "Бессрочно" : "5 анализов/день";
 
-  var total = 5;
-  var rem = plus ? total : ((typeof analyzeQuotaRemaining === "function") ? analyzeQuotaRemaining() : total);
+  if (plus) {
+    if (forever) {
+      if (i) i.textContent = "Бессрочно";
+      if (v) v.textContent = "∞";
+      if (bar) {
+        bar.style.width = "100%";
+        bar.style.background = "linear-gradient(90deg, var(--gold), var(--yellow))";
+      }
+    } else if (expires) {
+      var expDate = new Date(expires);
+      var now = new Date();
+      var msLeft = expDate - now;
+      var daysLeft = Math.max(0, Math.ceil(msLeft / (24 * 60 * 60 * 1000)));
+      var dd = String(expDate.getDate()).padStart(2, "0");
+      var mm = String(expDate.getMonth() + 1).padStart(2, "0");
+      var yyyy = expDate.getFullYear();
 
-  if (v) v.textContent = plus ? "∞" : String(rem) + " / " + total;
+      if (i) i.textContent = "до " + dd + "." + mm + "." + yyyy;
 
-  if (bar) {
-    var pct = plus ? 100 : Math.max(0, Math.min(100, (rem / total) * 100));
-    bar.style.width = pct + "%";
-    bar.style.background = plus
-      ? "linear-gradient(90deg, var(--gold), var(--yellow))"
-      : (pct > 60 ? "linear-gradient(90deg, var(--accent), var(--cyan))"
-        : pct > 30 ? "linear-gradient(90deg, var(--yellow), var(--orange))"
-        : "linear-gradient(90deg, var(--orange), var(--red))");
+      var word = daysLeft === 1 ? "день" : (daysLeft < 5 ? "дня" : "дней");
+      if (v) v.textContent = daysLeft + " " + word;
+
+      if (bar) {
+        /* Полоса: чем меньше дней осталось, тем меньше ширина.
+           При изначальных 7 днях считаем от 7. Если больше 7 — всё равно 100%. */
+        var total = Math.max(7, daysLeft);
+        var pct = Math.max(5, Math.min(100, Math.round((daysLeft / total) * 100)));
+        bar.style.width = pct + "%";
+        bar.style.background = daysLeft > 3
+          ? "linear-gradient(90deg, var(--gold), var(--yellow))"
+          : "linear-gradient(90deg, var(--orange), var(--red))";
+      }
+    } else {
+      /* Плюс есть, но ни forever, ни expires — пограничный случай */
+      if (i) i.textContent = "Активен";
+      if (v) v.textContent = "∞";
+    }
+  } else {
+    if (i) i.textContent = "5 анализов/день";
+    var totalFree = 5;
+    var rem = (typeof analyzeQuotaRemaining === "function") ? analyzeQuotaRemaining() : totalFree;
+    if (v) v.textContent = String(rem) + " / " + totalFree;
+    if (bar) {
+      var pctF = Math.max(0, Math.min(100, (rem / totalFree) * 100));
+      bar.style.width = pctF + "%";
+      bar.style.background = pctF > 60
+        ? "linear-gradient(90deg, var(--accent), var(--cyan))"
+        : pctF > 30
+          ? "linear-gradient(90deg, var(--yellow), var(--orange))"
+          : "linear-gradient(90deg, var(--orange), var(--red))";
+    }
   }
 }
 
 /* ─── Приветствие ─── */
 function buildGreeting() {
   var plus = (typeof checkLicense === "function") ? checkLicense() : (Store.get("license.active", false) === true);
+  var forever = Store.get("license.forever", false) === true;
   var nick = Store.get("nickname", "") || "";
   var remain = (typeof analyzeQuotaRemaining === "function") ? analyzeQuotaRemaining() : 5;
 
-  var hello;
-  if (nick) hello = "Привет, " + nick + "!";
-  else hello = "Добро пожаловать!";
-
+  var hello = nick ? ("Привет, " + nick + "!") : "Добро пожаловать!";
   var status;
-  if (plus) {
+
+  if (plus && forever) {
     status = "JETCH+ активен · безлимит";
+  } else if (plus) {
+    var expires = Store.get("license.expires", null);
+    if (expires) {
+      var daysLeft = Math.max(0, Math.ceil((new Date(expires) - new Date()) / (24 * 60 * 60 * 1000)));
+      var word = daysLeft === 1 ? "день" : (daysLeft < 5 ? "дня" : "дней");
+      status = "JETCH+ · осталось " + daysLeft + " " + word;
+    } else {
+      status = "JETCH+ активен";
+    }
   } else if (remain > 0) {
     status = "Сегодня доступно " + remain + " " + pluralAnalyses(remain);
   } else {
