@@ -1,8 +1,9 @@
-/* DOTA JETCH — FIREBASE AUTH v10.0
-   - ФИКС: loadUserData теперь всегда JSON.stringify (ник/тема больше не слетают)
-   - Добавлен ключ "avatar" в SYNC_KEYS
-   - window.refreshUserUI() — обновляет сайдбар (ник, email, аватар)
-   - Ник + кулдаун смены 30 дней */
+/* DOTA JETCH — FIREBASE AUTH v10.1
+   - ФИКС: nickname не слетает — при регистрации сразу пишется в Store
+   - ФИКС: saveUserData не отправляет null/undefined в Firebase
+   - ФИКС: window.__fbAuth и __fbSignOut для модалки профиля
+   - Кулдаун смены ника 30 дней
+   - Данные в sessionStorage + Firebase */
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.8.0/firebase-app.js";
 import {
@@ -15,6 +16,15 @@ import { getDatabase, ref, get, update, remove } from "https://www.gstatic.com/f
 const app = initializeApp(window.FIREBASE_CONFIG);
 const auth = getAuth(app);
 const db = getDatabase(app);
+
+/* Пробрасываем наружу — нужно для модалки профиля */
+window.__fbAuth = auth;
+window.__fbSignOut = async function () {
+  if (currentUser) {
+    try { await saveUserData(currentUser.uid); } catch (e) {}
+  }
+  try { await signOut(auth); } catch (e) {}
+};
 
 setPersistence(auth, browserLocalPersistence).catch(e => console.warn("persistence:", e));
 
@@ -349,8 +359,14 @@ function bindRegisterHandlers() {
       const uid = cred.user.uid;
 
       await claimNickname(nick, uid);
+
+      /* ФИКС: сразу пишем ник в sessionStorage, чтобы после reload он точно был */
+      Store.set("nickname", nick);
+      Store.set("nicknameChangedAt", Date.now());
+
+      /* Дублируем в Firebase явно */
       try {
-        await update(ref(db, "users/" + uid), { nickname: nick });
+        await update(ref(db, "users/" + uid), { nickname: nick, nicknameChangedAt: Date.now() });
       } catch (e) { console.warn("save nickname error:", e); }
 
       await sendEmailVerification(cred.user);
@@ -417,8 +433,15 @@ function collectLocalData() {
   const data = {};
   for (const key of SYNC_KEYS) {
     const val = sessionStorage.getItem(STORE_PREFIX + key);
-    if (val !== null) {
-      try { data[encodeKey(key)] = JSON.parse(val); } catch (e) { data[encodeKey(key)] = val; }
+    /* ФИКС: не отправляем null/undefined/пустые значения в Firebase */
+    if (val === null || val === undefined || val === "null" || val === "undefined") continue;
+    try {
+      const parsed = JSON.parse(val);
+      if (parsed === null || parsed === undefined) continue;
+      data[encodeKey(key)] = parsed;
+    } catch (e) {
+      /* не JSON — отправляем строкой, если не пусто */
+      if (val !== "") data[encodeKey(key)] = val;
     }
   }
   return data;
@@ -431,23 +454,29 @@ async function loadUserData(uid) {
     const data = snap.val();
     if (data && typeof data === "object") {
       let loaded = 0;
+      let skipped = 0;
       for (const key in data) {
         if (!Object.prototype.hasOwnProperty.call(data, key)) continue;
         const realKey = decodeKey(key);
         const val = data[key];
-        /* ФИКС: всегда JSON.stringify — чтобы Store.get корректно распарсил */
+        /* ФИКС: не пишем null/undefined в sessionStorage */
+        if (val === null || val === undefined) { skipped++; continue; }
         let strVal;
         try {
-          strVal = JSON.stringify(val === undefined ? null : val);
+          strVal = JSON.stringify(val);
         } catch (e) {
-          strVal = "\"\"";
+          skipped++;
+          continue;
         }
         try {
           sessionStorage.setItem(STORE_PREFIX + realKey, strVal);
           loaded++;
         } catch (e) {}
       }
-      console.log("✅ Загружено из Firebase: " + loaded + " ключей");
+      console.log("✅ Загружено из Firebase: " + loaded + " ключей" + (skipped ? ", пропущено: " + skipped : ""));
+      /* Диагностика ника */
+      const nick = sessionStorage.getItem(STORE_PREFIX + "nickname");
+      console.log("🔍 nickname в sessionStorage: " + (nick === null ? "ПУСТО" : nick));
     } else {
       console.log("⚠ Новый аккаунт — данных в Firebase ещё нет");
     }
@@ -457,9 +486,13 @@ async function loadUserData(uid) {
 async function saveUserData(uid) {
   try {
     const data = collectLocalData();
-    if (Object.keys(data).length === 0) return;
+    const keys = Object.keys(data);
+    if (keys.length === 0) {
+      console.log("ℹ️ Нечего сохранять");
+      return;
+    }
     await update(ref(db, "users/" + uid), data);
-    console.log("💾 Сохранено в Firebase: " + Object.keys(data).length + " ключей");
+    console.log("💾 Сохранено в Firebase: " + keys.length + " ключей (" + keys.slice(0, 5).join(", ") + (keys.length > 5 ? "..." : "") + ")");
   } catch (e) { console.warn("saveUserData:", e); }
 }
 
@@ -468,6 +501,11 @@ function setupStoreSync(uid) {
     const origSet = window.Store.set.bind(window.Store);
     window.Store.set = function (key, value) {
       origSet(key, value);
+      /* ФИКС: не отправляем null/undefined */
+      if (value === null || value === undefined) {
+        remove(ref(db, "users/" + uid + "/" + encodeKey(key))).catch(() => {});
+        return;
+      }
       const patch = {};
       patch[encodeKey(key)] = value;
       update(ref(db, "users/" + uid), patch).catch((e) => {
@@ -484,19 +522,6 @@ function startAutoSave(uid) {
 }
 function stopAutoSave() {
   if (autoSaveInterval) { clearInterval(autoSaveInterval); autoSaveInterval = null; }
-}
-
-function bindLogoutHandler() {
-  /* Выход теперь через модалку профиля — там кнопка с id=profileLogoutBtn,
-     которую вешает app.js. Эта функция больше не нужна, но оставлена
-     на случай старой вёрстки. */
-  const btn = document.getElementById("logoutBtn");
-  if (!btn || btn.__bound) return;
-  btn.__bound = true;
-  btn.addEventListener("click", async function () {
-    if (currentUser) { try { await saveUserData(currentUser.uid); } catch (e) {} }
-    try { await signOut(auth); } catch (e) {}
-  });
 }
 
 window.addEventListener("beforeunload", function () {
@@ -538,7 +563,6 @@ function translateAuthError(code) {
   return map[code] || ("Ошибка: " + code);
 }
 
-/* ─── Обновление UI сайдбара (ник, email, аватар) ─── */
 window.refreshUserUI = function () {
   try {
     const nick = getCurrentNickname() || "—";
@@ -597,7 +621,6 @@ onAuthStateChanged(auth, async function (user) {
     hideAuthScreen();
     setupStoreSync(user.uid);
     startAutoSave(user.uid);
-    bindLogoutHandler();
     window.refreshUserUI();
 
     saveUserData(user.uid);

@@ -1,9 +1,8 @@
-/* DOTA JETCH — APP v8.5
-   - Модалка профиля: ник, email, аватар, статистика, выход
-   - Загрузка и СБРОС аватара
-   - ФИКС: убран фиксированный размер .profile-avatar-wrap (текст не наезжает) */
+/* DOTA JETCH — APP v8.6
+   - Кнопка сброса аватара — иконка ✕ в углу аватара (появляется при hover)
+   - Использует window.__fbAuth для email */
 
-var APP_VERSION = "8.5";
+var APP_VERSION = "8.6";
 
 var PAGES = {
   dashboard:    { title: "Главная",         render: renderDashboard },
@@ -256,9 +255,9 @@ function updateProfileModal() {
   if (emailEl) emailEl.textContent = email;
   if (avEl) renderAvatarInto(avEl, nick);
 
-  /* Кнопка "Убрать аватар" — только если аватар есть */
+  /* Кнопка «Убрать аватар» — маленькая иконка в углу, видна только при наличии аватара */
   if (resetBtn) {
-    resetBtn.style.display = hasAvatar() ? "inline-block" : "none";
+    resetBtn.classList.toggle("visible", hasAvatar());
   }
 
   if (statsEl) {
@@ -359,11 +358,13 @@ function bindProfileModal() {
     });
   }
 
-  /* СБРОС аватара */
+  /* Удаление аватара — маленькая иконка в углу */
   var resetBtn = document.getElementById("profileResetAvatarBtn");
   if (resetBtn && !resetBtn.__bound) {
     resetBtn.__bound = true;
-    resetBtn.addEventListener("click", function () {
+    resetBtn.addEventListener("click", function (e) {
+      e.stopPropagation();
+      if (!hasAvatar()) return;
       if (!confirm("Убрать аватар?")) return;
       Store.set("avatar", null);
       updateProfileModal();
