@@ -1,7 +1,5 @@
-/* DOTA JETCH — FIREBASE AUTH v10.2
-   - ФИКС: при регистрации nicknameChangedAt НЕ ставится (первый ник бесплатный)
-   - ФИКС: nicknameChangedAt ставится только при реальной смене ника
-   - window.__fbAuth и __fbSignOut для модалки профиля */
+/* DOTA JETCH — FIREBASE AUTH v10.3
+   - refreshUserUI теперь рендерит и бейдж тарифа (FREE / JETCH+) */
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.8.0/firebase-app.js";
 import {
@@ -88,8 +86,6 @@ function nicknameCooldownDaysLeft() {
   if (elapsed >= NICK_COOLDOWN_MS) return 0;
   return Math.ceil((NICK_COOLDOWN_MS - elapsed) / (24 * 60 * 60 * 1000));
 }
-
-/* Экспортируем для app.js */
 window.nicknameCooldownDaysLeft = nicknameCooldownDaysLeft;
 
 window.changeNickname = async function(newNick) {
@@ -113,7 +109,6 @@ window.changeNickname = async function(newNick) {
     if (oldNick) await releaseNickname(oldNick);
     await claimNickname(newNick, currentUser.uid);
     Store.set("nickname", newNick);
-    /* ФИКС: кулдаун ставится ТОЛЬКО здесь — при реальной смене ника */
     Store.set("nicknameChangedAt", Date.now());
     if (typeof window.refreshUserUI === "function") window.refreshUserUI();
     return { ok: true, msg: "Ник изменён на " + newNick + ". Следующая смена — через 30 дней." };
@@ -358,9 +353,6 @@ function bindRegisterHandlers() {
       const uid = cred.user.uid;
 
       await claimNickname(nick, uid);
-
-      /* ФИКС: сохраняем nickname, но НЕ nicknameChangedAt
-         (первый ник — бесплатно, кулдаун начинается только при первой смене) */
       Store.set("nickname", nick);
 
       try {
@@ -551,15 +543,30 @@ function translateAuthError(code) {
   return map[code] || ("Ошибка: " + code);
 }
 
+/* ─── Проверка лицензии (локальная копия, чтобы не зависеть от settings.js) ─── */
+function isPlusActive() {
+  if (typeof window.checkLicense === "function") {
+    try { return window.checkLicense() === true; } catch (e) {}
+  }
+  if (Store.get("license.forever", false)) return true;
+  var exp = Store.get("license.expires", null);
+  if (!exp) return Store.get("license.active", false) === true;
+  return new Date(exp) > new Date();
+}
+
+/* ─── Обновление UI сайдбара (ник, email, аватар, бейдж) ─── */
 window.refreshUserUI = function () {
   try {
     const nick = getCurrentNickname() || "—";
     const email = (auth.currentUser && auth.currentUser.email) || "—";
     const avatar = Store.get("avatar", null);
+    const plus = isPlusActive();
 
     const nickEl = document.getElementById("userNick");
     const emailEl = document.getElementById("userEmailSmall");
     const avEl = document.getElementById("sidebarAvatar");
+    const badgeEl = document.getElementById("sidebarUserBadge");
+    const modalBadgeEl = document.getElementById("profileModalBadge");
 
     if (nickEl) nickEl.textContent = nick;
     if (emailEl) emailEl.textContent = email;
@@ -577,6 +584,19 @@ window.refreshUserUI = function () {
         avEl.textContent = String(nick).charAt(0).toUpperCase() || "?";
       }
     }
+
+    [badgeEl, modalBadgeEl].forEach(function (b) {
+      if (!b) return;
+      b.classList.remove("free", "jetch");
+      if (plus) {
+        b.textContent = "JETCH+";
+        b.classList.add("jetch");
+      } else {
+        b.textContent = "FREE";
+        b.classList.add("free");
+      }
+      b.style.display = "inline-flex";
+    });
   } catch (e) { console.warn("refreshUserUI:", e); }
 };
 

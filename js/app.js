@@ -1,8 +1,8 @@
-/* DOTA JETCH — APP v9.1
-   - ФИКС: сайдбар показывает "Бессрочно" только для license.forever
-     Для недельного JETCH+ — показывает дату окончания и остаток дней */
+/* DOTA JETCH — APP v9.2
+   - Бейдж FREE / JETCH+ в сайдбаре и профиле (обновляется при смене лицензии)
+   - updateSidebarPlan теперь дергает refreshUserUI — синхронизация бейджа */
 
-var APP_VERSION = "9.1";
+var APP_VERSION = "9.2";
 
 var PAGES = {
   dashboard:    { title: "Главная",         render: renderDashboard },
@@ -93,7 +93,6 @@ function switchPage(name) {
   if (typeof updateSidebarPlan === "function") updateSidebarPlan();
 }
 
-/* ─── Обновление сайдбара с учётом типа лицензии ─── */
 function updateSidebarPlan() {
   var plus = (typeof checkLicense === "function") ? checkLicense() : (Store.get("license.active", false) === true);
   var forever = Store.get("license.forever", false) === true;
@@ -122,13 +121,10 @@ function updateSidebarPlan() {
       var yyyy = expDate.getFullYear();
 
       if (i) i.textContent = "до " + dd + "." + mm + "." + yyyy;
-
       var word = daysLeft === 1 ? "день" : (daysLeft < 5 ? "дня" : "дней");
       if (v) v.textContent = daysLeft + " " + word;
 
       if (bar) {
-        /* Полоса: чем меньше дней осталось, тем меньше ширина.
-           При изначальных 7 днях считаем от 7. Если больше 7 — всё равно 100%. */
         var total = Math.max(7, daysLeft);
         var pct = Math.max(5, Math.min(100, Math.round((daysLeft / total) * 100)));
         bar.style.width = pct + "%";
@@ -137,9 +133,9 @@ function updateSidebarPlan() {
           : "linear-gradient(90deg, var(--orange), var(--red))";
       }
     } else {
-      /* Плюс есть, но ни forever, ни expires — пограничный случай */
       if (i) i.textContent = "Активен";
       if (v) v.textContent = "∞";
+      if (bar) bar.style.width = "100%";
     }
   } else {
     if (i) i.textContent = "5 анализов/день";
@@ -155,6 +151,11 @@ function updateSidebarPlan() {
           ? "linear-gradient(90deg, var(--yellow), var(--orange))"
           : "linear-gradient(90deg, var(--orange), var(--red))";
     }
+  }
+
+  /* Синхронизируем бейдж в сайдбаре */
+  if (typeof window.refreshUserUI === "function") {
+    try { window.refreshUserUI(); } catch (e) {}
   }
 }
 
@@ -497,6 +498,10 @@ window.openProfileModal = function () {
   var ov = document.getElementById("profileModalOverlay");
   if (!ov) return;
   updateProfileModal();
+  /* Синхронизируем бейдж в модалке */
+  if (typeof window.refreshUserUI === "function") {
+    try { window.refreshUserUI(); } catch (e) {}
+  }
   ov.style.display = "flex";
   document.body.style.overflow = "hidden";
 };
