@@ -1,8 +1,8 @@
-/* DOTA JETCH — FIREBASE AUTH v8.0
-   - Данные живут только в sessionStorage + Firebase
-   - sessionStorage очищается автоматически при закрытии вкладки
-   - Изоляция аккаунтов: Firebase — единственный источник истины
-   - localStorage используется только для токена Firebase Auth (это стандарт) */
+/* DOTA JETCH — FIREBASE AUTH v9.0
+   - Регистрация с ником (уникальным, проверка через Firebase nicknames)
+   - Отображение ника в сайдбаре, email мелко под ним
+   - Смена ника в настройках через window.changeNickname()
+   - Данные в sessionStorage + Firebase, изоляция по uid */
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.8.0/firebase-app.js";
 import {
@@ -16,13 +16,13 @@ const app = initializeApp(window.FIREBASE_CONFIG);
 const auth = getAuth(app);
 const db = getDatabase(app);
 
-/* Firebase сам хранит токен — это не наши данные, это сессия входа */
 setPersistence(auth, browserLocalPersistence).catch(e => console.warn("persistence:", e));
 
 let currentUser = null;
 let autoSaveInterval = null;
 
 const STORE_PREFIX = "dota.";
+const NICK_REGEX = /^[A-Za-z0-9_]{3,20}$/;
 
 function encodeKey(k) {
   return String(k).replace(/\./g, "__DOT__").replace(/\//g, "__SLASH__")
@@ -35,14 +35,75 @@ function decodeKey(k) {
                   .replace(/__LB__/g, "[").replace(/__RB__/g, "]");
 }
 
-/* ─── Анимации экрана входа ─── */
+/* Проверка доступности ника (public read из Firebase) */
+async function isNicknameTaken(nick) {
+  const lower = String(nick).toLowerCase();
+  try {
+    const snap = await get(ref(db, "nicknames/" + lower));
+    return snap.exists();
+  } catch (e) {
+    console.warn("isNicknameTaken error:", e);
+    return false;
+  }
+}
+
+/* Занять ник: запись nicknames/{lower} = uid */
+async function claimNickname(nick, uid) {
+  const lower = String(nick).toLowerCase();
+  try {
+    await update(ref(db, "nicknames/" + lower), { __v: uid });
+    /* Firebase заменит { __v: uid } на uid, но чтобы быть уверенным: */
+    await update(ref(db, "nicknames"), { [lower]: uid });
+    console.log("✅ Ник занят: " + nick);
+    return true;
+  } catch (e) {
+    console.error("claimNickname error:", e);
+    return false;
+  }
+}
+
+/* Освободить ник */
+async function releaseNickname(nick) {
+  const lower = String(nick).toLowerCase();
+  try {
+    await remove(ref(db, "nicknames/" + lower));
+    console.log("🔓 Ник освобождён: " + nick);
+  } catch (e) { console.warn("releaseNickname error:", e); }
+}
+
+/* Сменить ник (вызывается из настроек) */
+window.changeNickname = async function(newNick) {
+  if (!currentUser) return { ok: false, msg: "Не авторизован." };
+  newNick = String(newNick || "").trim();
+  if (!NICK_REGEX.test(newNick)) return { ok: false, msg: "Ник: 3-20 символов, латиница, цифры, _" };
+  const oldNick = getCurrentNickname() || "";
+  if (oldNick && oldNick.toLowerCase() === newNick.toLowerCase()) {
+    return { ok: false, msg: "Это твой текущий ник." };
+  }
+  const taken = await isNicknameTaken(newNick);
+  if (taken) return { ok: false, msg: "Этот ник уже занят." };
+  try {
+    if (oldNick) await releaseNickname(oldNick);
+    await claimNickname(newNick, currentUser.uid);
+    Store.set("nickname", newNick);
+    return { ok: true, msg: "Ник изменён на " + newNick };
+  } catch (e) {
+    return { ok: false, msg: "Ошибка: " + (e.message || e) };
+  }
+};
+
+function getCurrentNickname() {
+  const n = Store.get("nickname", "");
+  return typeof n === "string" ? n : "";
+}
+
+/* ─── Анимации ─── */
 function injectAuthAnimations() {
   if (document.getElementById("authAnimationsStyle")) return;
   var s = document.createElement("style");
   s.id = "authAnimationsStyle";
   s.textContent = `
     @keyframes authCardIn { 0%{opacity:0;transform:translateY(40px) scale(0.96)} 60%{transform:translateY(-4px) scale(1.01)} 100%{opacity:1;transform:translateY(0) scale(1)} }
-    @keyframes authFadeIn { from{opacity:0} to{opacity:1} }
     @keyframes authSlideUp { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
     @keyframes authIconFloat { 0%,100%{transform:translateY(0) rotate(0)} 50%{transform:translateY(-8px) rotate(6deg)} }
     @keyframes authShake { 0%,20%,40%,60%,80%,100%{transform:translateX(0)} 10%,30%{transform:translateX(-10px)} 50%,70%{transform:translateX(10px)} }
@@ -50,22 +111,11 @@ function injectAuthAnimations() {
     #authScreen .auth-card { animation: authCardIn 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
     #authScreen .auth-logo svg { animation: authIconFloat 3s ease-in-out infinite, authGlow 2.5s ease-in-out infinite; }
     #authScreen input, #authScreen .auth-btn, #authScreen .auth-switch { animation: authSlideUp 0.45s ease-out both; }
-    #authScreen input:nth-of-type(1) { animation-delay: 0.05s; }
-    #authScreen input:nth-of-type(2) { animation-delay: 0.12s; }
-    #authScreen input:nth-of-type(3) { animation-delay: 0.19s; }
-    #authScreen .auth-btn-primary { animation-delay: 0.25s; }
-    #authScreen .auth-forgot { animation-delay: 0.32s; }
-    #authScreen .auth-switch { animation-delay: 0.38s; }
     #authScreen .auth-error-shake { animation: authShake 0.4s ease-in-out; }
-    #authScreen .auth-switch { text-align: center; margin-top: 16px; font-size: 12px; color: var(--text-muted, #888); }
-    #authScreen .auth-switch a { color: #8b5cf6; text-decoration: none; font-weight: 600; cursor: pointer; margin-left: 4px; }
-    #authScreen .auth-switch a:hover { text-decoration: underline; }
-    #authScreen .auth-title { font-size: 22px; font-weight: 800; color: #fff; text-align: center; margin: 0 0 4px; }
   `;
   document.head.appendChild(s);
 }
 
-/* ─── Показ экранов ─── */
 function showAuthScreen() {
   injectAuthAnimations();
   const el = document.getElementById("authScreen");
@@ -130,9 +180,11 @@ function buildRegisterScreen() {
     <div class="auth-logo">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 L15 9 L22 12 L15 15 L12 22 L9 15 L2 12 L9 9 Z"/></svg>
       <h1 class="auth-title">Создать аккаунт</h1>
-      <div class="auth-sub">Все данные будут привязаны только к твоему аккаунту</div>
+      <div class="auth-sub">Ник будет виден другим игрокам, а данные привяжутся к аккаунту</div>
     </div>
     <div id="authError" class="auth-error"></div>
+    <input type="text" id="regNick" placeholder="Ник (3-20 символов, A-Z, 0-9, _)" autocomplete="username" maxlength="20">
+    <div id="regNickHint" class="nick-hint">Ник будет виден другим</div>
     <input type="email" id="regEmail" placeholder="Email" autocomplete="email">
     <input type="password" id="regPassword" placeholder="Пароль (минимум 6 символов)" autocomplete="new-password">
     <input type="password" id="regPassword2" placeholder="Повтори пароль" autocomplete="new-password">
@@ -192,31 +244,99 @@ function bindLoginHandlers() {
 
 function bindRegisterHandlers() {
   const rBtn = document.getElementById("authRegisterBtn");
+  const nInp = document.getElementById("regNick");
+  const nHint = document.getElementById("regNickHint");
   const eInp = document.getElementById("regEmail");
   const pInp = document.getElementById("regPassword");
   const p2Inp = document.getElementById("regPassword2");
   const toLog = document.getElementById("toLoginLink");
 
+  /* Живая проверка ника */
+  let nickCheckTimer = null;
+  let nickLastChecked = "";
+
+  async function checkNickLive() {
+    if (!nInp || !nHint) return;
+    const nick = (nInp.value || "").trim();
+    nInp.classList.remove("nick-status-ok", "nick-status-bad");
+    nHint.classList.remove("nick-hint-ok", "nick-hint-bad");
+    if (!nick) {
+      nHint.textContent = "Ник будет виден другим";
+      return;
+    }
+    if (!NICK_REGEX.test(nick)) {
+      nInp.classList.add("nick-status-bad");
+      nHint.classList.add("nick-hint-bad");
+      nHint.textContent = "3-20 символов: A-Z, 0-9, _";
+      return;
+    }
+    nHint.textContent = "Проверяю...";
+    if (nickLastChecked === nick.toLowerCase()) return;
+    nickLastChecked = nick.toLowerCase();
+    const taken = await isNicknameTaken(nick);
+    if (nickLastChecked !== nick.toLowerCase()) return; // пока ждали — ник поменяли
+    if (taken) {
+      nInp.classList.add("nick-status-bad");
+      nHint.classList.add("nick-hint-bad");
+      nHint.textContent = "✕ Ник занят";
+    } else {
+      nInp.classList.add("nick-status-ok");
+      nHint.classList.add("nick-hint-ok");
+      nHint.textContent = "✓ Свободен";
+    }
+  }
+
+  if (nInp) nInp.addEventListener("input", function() {
+    if (nickCheckTimer) clearTimeout(nickCheckTimer);
+    nickCheckTimer = setTimeout(checkNickLive, 400);
+  });
+
   if (rBtn) rBtn.addEventListener("click", async function () {
     setAuthError("");
+    const nick = (nInp && nInp.value || "").trim();
     const email = (eInp && eInp.value || "").trim();
     const password = pInp && pInp.value || "";
     const password2 = p2Inp && p2Inp.value || "";
+
+    if (!nick) { setAuthError("Введи ник."); return; }
+    if (!NICK_REGEX.test(nick)) { setAuthError("Ник: 3-20 символов, латиница, цифры, _"); return; }
     if (!email || !password || !password2) { setAuthError("Заполни все поля."); return; }
     if (password.length < 6) { setAuthError("Пароль минимум 6 символов."); return; }
     if (password !== password2) { setAuthError("Пароли не совпадают."); return; }
+
     rBtn.disabled = true;
+    rBtn.textContent = "Проверяю ник...";
+
+    /* Проверяем уникальность ДО создания аккаунта */
+    const taken = await isNicknameTaken(nick);
+    if (taken) {
+      setAuthError("Этот ник уже занят. Выбери другой.");
+      rBtn.disabled = false;
+      rBtn.textContent = "Зарегистрироваться";
+      return;
+    }
+
+    rBtn.textContent = "Создаю аккаунт...";
     try {
-      /* Очищаем sessionStorage ДО создания аккаунта — на всякий случай,
-         если до этого в этой же вкладке был другой пользователь */
-      Store.clear();
-      sessionStorage.removeItem("dotaJetchLoadedUid_session");
       const cred = await createUserWithEmailAndPassword(auth, email, password);
+      const uid = cred.user.uid;
+
+      /* Занимаем ник + сохраняем в профиль */
+      await claimNickname(nick, uid);
+      try {
+        await update(ref(db, "users/" + uid), { nickname: nick });
+      } catch (e) { console.warn("save nickname error:", e); }
+
       await sendEmailVerification(cred.user);
-    } catch (e) { setAuthError(translateAuthError(e.code)); rBtn.disabled = false; }
+    } catch (e) {
+      setAuthError(translateAuthError(e.code));
+      rBtn.disabled = false;
+      rBtn.textContent = "Зарегистрироваться";
+    }
   });
 
   if (toLog) toLog.addEventListener("click", function (e) { e.preventDefault(); showAuthScreen(); });
+  if (nInp) nInp.addEventListener("keydown", e => { if (e.key === "Enter" && eInp) eInp.focus(); });
   if (eInp) eInp.addEventListener("keydown", e => { if (e.key === "Enter" && pInp) pInp.focus(); });
   if (pInp) pInp.addEventListener("keydown", e => { if (e.key === "Enter" && p2Inp) p2Inp.focus(); });
   if (p2Inp) p2Inp.addEventListener("keydown", e => { if (e.key === "Enter" && rBtn) rBtn.click(); });
@@ -252,16 +372,16 @@ function bindVerificationHandlers() {
   });
 }
 
-/* ─── Список ключей, которые синхронизируем ─── */
+/* ─── Синхронизация ─── */
 const SYNC_KEYS = [
-  "chathistory","brainprofile","brainvariation","braincontext","brainfeedback",
+  "nickname","chathistory","brainprofile","brainvariation","braincontext","brainfeedback",
   "brainlongmemory","license.active","license.forever","license.expires",
   "aiquestions","streak","daily","history","achievements","diary","settings",
   "sessions","dailystreak","recentmatches","analyzequota","brain_learning",
   "brain_shared_memory","brain_insights","brain_autolearner","brain_personality_v2",
   "jetch_keys","litemode","achievementsunlocked","analyzedcount","dailydate",
   "gamesplayed","guessbeststreak","quizbest","reactionbest","theme","uniqueheroes",
-  "dailystreakclaimed","themechanged","datareset","brainmemory",
+  "dailystreakclaimed","themechanged","brainmemory","visitedabout",
   "dailyprogress.analyze","dailyprogress.chat","dailyprogress.diary",
   "dailyprogress.game","dailyprogress.chart","dailyprogress.theme",
   "dailylastclaimdate","diarynotes"
@@ -278,7 +398,6 @@ function collectLocalData() {
   return data;
 }
 
-/* Загрузка данных из Firebase в sessionStorage */
 async function loadUserData(uid) {
   console.log("📥 Загружаю данные из Firebase для " + uid);
   try {
@@ -303,7 +422,6 @@ async function loadUserData(uid) {
   } catch (e) { console.error("❌ loadUserData:", e); }
 }
 
-/* Сохранение данных из sessionStorage в Firebase */
 async function saveUserData(uid) {
   try {
     const data = collectLocalData();
@@ -313,7 +431,6 @@ async function saveUserData(uid) {
   } catch (e) { console.warn("saveUserData:", e); }
 }
 
-/* Мгновенная синхронизация: каждый Store.set летит в Firebase */
 function setupStoreSync(uid) {
   if (window.Store && typeof window.Store.set === "function" && !window.Store.__fbSync) {
     const origSet = window.Store.set.bind(window.Store);
@@ -347,19 +464,16 @@ function bindLogoutHandler() {
   });
 }
 
-/* Сохранение при уходе со страницы (страховка) */
 window.addEventListener("beforeunload", function () {
   if (currentUser) { try { saveUserData(currentUser.uid); } catch (e) {} }
 });
 
-/* Дополнительно — при скрытии вкладки, потому что beforeunload иногда не срабатывает */
 document.addEventListener("visibilitychange", function () {
   if (document.visibilityState === "hidden" && currentUser) {
     try { saveUserData(currentUser.uid); } catch (e) {}
   }
 });
 
-/* ─── Полная очистка sessionStorage (данные пользователя) ─── */
 function wipeLocalUserData() {
   try {
     let removed = 0;
@@ -389,6 +503,15 @@ function translateAuthError(code) {
   return map[code] || ("Ошибка: " + code);
 }
 
+/* ─── Обновление UI сайдбара (ник + email) ─── */
+function updateSidebarUser(user) {
+  const nickEl = document.getElementById("userNick");
+  const emailEl = document.getElementById("userEmailSmall");
+  const nick = getCurrentNickname();
+  if (nickEl) nickEl.textContent = nick || "—";
+  if (emailEl) emailEl.textContent = (user && user.email) || "—";
+}
+
 /* ─── Главная логика ─── */
 onAuthStateChanged(auth, async function (user) {
   console.log("🔐 onAuthStateChanged: " + (user ? user.uid : "null"));
@@ -396,44 +519,35 @@ onAuthStateChanged(auth, async function (user) {
   if (user) {
     currentUser = user;
 
-    /* Не подтвердил email */
     if (!user.emailVerified) {
       stopAutoSave();
       showVerificationScreen(user.email);
       return;
     }
 
-    /* Проверяем: загружали ли мы уже данные этого uid в этой сессии (в этой вкладке) */
     const loadedFlag = "dotaJetchLoadedUid_session";
     const currentInSession = sessionStorage.getItem(loadedFlag);
 
     if (currentInSession !== user.uid) {
       console.log("🆕 Загрузка данных для " + user.uid);
-      /* Стираем всё, что было в этой вкладке от предыдущего пользователя */
       wipeLocalUserData();
-      /* Ставим флаг ПОСЛЕ очистки */
       sessionStorage.setItem(loadedFlag, user.uid);
-      /* Грузим данные из Firebase */
       await loadUserData(user.uid);
-      /* Перезагружаем — чтобы UI построился на свежих данных */
       console.log("🔄 Перезагрузка страницы с данными из Firebase");
       location.reload();
       return;
     }
 
-    /* Данные уже в sessionStorage — показываем приложение */
     console.log("✅ Данные загружены — показываю приложение");
     hideAuthScreen();
     setupStoreSync(user.uid);
     startAutoSave(user.uid);
     bindLogoutHandler();
+    updateSidebarUser(user);
 
     const lb = document.getElementById("logoutBtn");
     if (lb) lb.style.display = "block";
-    const ue = document.getElementById("userEmail");
-    if (ue) ue.textContent = user.email || "";
 
-    /* Досылаем в Firebase то, что могло появиться локально до синка */
     saveUserData(user.uid);
   } else {
     currentUser = null;

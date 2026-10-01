@@ -1,6 +1,6 @@
-/* DOTA JETCH — SETTINGS v4.2
-   - Убрана карточка «Данные» (Экспорт / Импорт) — пользователи не управляют данными
-   - Оставлены: подписка, тема, производительность */
+/* DOTA JETCH — SETTINGS v4.3
+   - Добавлена карточка «Профиль» с ником и сменой ника
+   - Убрана карточка «Данные» */
 
 var FOREVER_KEY = "DANYA8228PRO";
 
@@ -114,7 +114,75 @@ function renderSettings() {
   var frag = document.createDocumentFragment();
   var plus = checkLicense();
 
-  /* ПОДПИСКА */
+  /* ─── ПРОФИЛЬ ─── */
+  var profile = UI.card("Профиль");
+  var currentNick = Store.get("nickname", "") || "—";
+
+  var nickRow = el("div", { style: "display:flex;align-items:center;gap:12px;margin-bottom:14px;" });
+  var nickIcon = el("div", { style: "width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,var(--accent),var(--cyan));display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:900;color:#fff;font-family:'JetBrains Mono',monospace;flex-shrink:0;" }, String(currentNick).charAt(0).toUpperCase() || "?");
+  nickRow.appendChild(nickIcon);
+  var nickInfo = el("div", { style: "flex:1;min-width:0;" });
+  nickInfo.appendChild(el("div", { style: "font-size:16px;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" }, String(currentNick)));
+  nickInfo.appendChild(el("div", { class: "dim", style: "font-size:11px;margin-top:2px;" }, "Ник в Dota Jetch"));
+  nickRow.appendChild(nickInfo);
+  profile.appendChild(nickRow);
+
+  /* Форма смены ника (свёрнута по умолчанию) */
+  var toggleBtn = UI.btn("Сменить ник", { variant: "ghost" });
+  toggleBtn.style.width = "auto";
+  toggleBtn.style.minWidth = "160px";
+  var formBox = el("div", { style: "display:none;margin-top:12px;padding-top:14px;border-top:1px solid var(--border);" });
+  var nickInp = UI.input("Новый ник (3-20, A-Z 0-9 _)");
+  nickInp.maxLength = 20;
+  nickInp.style.marginBottom = "8px";
+  formBox.appendChild(nickInp);
+  var msg = el("div", { style: "font-size:11px;min-height:16px;margin-bottom:8px;" });
+  formBox.appendChild(msg);
+  var formRow = el("div", { class: "row" });
+  var saveBtn = UI.btn("Сохранить");
+  var cancelBtn = UI.btn("Отмена", { variant: "ghost" });
+  formRow.appendChild(saveBtn);
+  formRow.appendChild(cancelBtn);
+  formBox.appendChild(formRow);
+
+  toggleBtn.addEventListener("click", function () {
+    formBox.style.display = formBox.style.display === "none" ? "block" : "none";
+    msg.textContent = "";
+    nickInp.value = "";
+    if (formBox.style.display === "block") nickInp.focus();
+  });
+  cancelBtn.addEventListener("click", function () {
+    formBox.style.display = "none";
+    nickInp.value = "";
+    msg.textContent = "";
+  });
+  saveBtn.addEventListener("click", async function () {
+    msg.style.color = "var(--text-muted)";
+    msg.textContent = "Проверяю...";
+    if (typeof window.changeNickname !== "function") {
+      msg.style.color = "var(--red)";
+      msg.textContent = "Функция недоступна. Перезагрузи страницу.";
+      return;
+    }
+    var res = await window.changeNickname(nickInp.value);
+    if (res.ok) {
+      msg.style.color = "var(--green)";
+      msg.textContent = "✓ " + res.msg;
+      /* Обновляем сайдбар и перерисовываем страницу */
+      var nickEl = document.getElementById("userNick");
+      if (nickEl) nickEl.textContent = Store.get("nickname", "—");
+      setTimeout(function () { switchPage("settings"); }, 900);
+    } else {
+      msg.style.color = "var(--red)";
+      msg.textContent = "✕ " + res.msg;
+    }
+  });
+
+  profile.appendChild(toggleBtn);
+  profile.appendChild(formBox);
+  frag.appendChild(profile);
+
+  /* ─── ПОДПИСКА ─── */
   var plan = UI.card("Подписка JETCH+");
   if (plus) {
     var forever = Store.get("license.forever", false);
@@ -152,7 +220,7 @@ function renderSettings() {
   }
   frag.appendChild(plan);
 
-  /* ТЕМА */
+  /* ─── ТЕМА ─── */
   var theme = UI.card("Тема оформления");
   var themeOpts = [];
   for (var key in THEMES) {
@@ -166,7 +234,7 @@ function renderSettings() {
   }));
   frag.appendChild(theme);
 
-  /* ПРОИЗВОДИТЕЛЬНОСТЬ */
+  /* ─── ПРОИЗВОДИТЕЛЬНОСТЬ ─── */
   var perf = UI.card("Производительность");
   var lbl = el("label", { style: "display:flex;align-items:center;gap:10px;font-size:13px;cursor:pointer;" });
   var tgl = el("input", { type: "checkbox" });

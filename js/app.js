@@ -1,8 +1,8 @@
-/* DOTA JETCH — APP v8.2
-   - Убрана вкладка «Экспорт» из PAGES и NAV
-   - Добавлен трекинг «О программе» для ачивки «Любопытный» */
+/* DOTA JETCH — APP v8.3
+   - Hero banner показывает «Привет, {ник}!»
+   - Остальное без изменений */
 
-var APP_VERSION = "8.2";
+var APP_VERSION = "8.3";
 
 var PAGES = {
   dashboard:    { title: "Главная",         render: renderDashboard },
@@ -80,12 +80,9 @@ function switchPage(name) {
   if (s) s.scrollTop = 0;
   location.hash = name;
 
-  /* Задание дня «Открой графики» */
   if (name === "charts" && typeof Daily !== "undefined") {
     try { Daily.bump("chart"); } catch (e) {}
   }
-
-  /* Ачивка «Любопытный» — открыл «О программе» */
   if (name === "about") {
     try {
       Store.set("visitedabout", true);
@@ -123,10 +120,14 @@ function updateSidebarPlan() {
 function renderDashboard() {
   var frag = document.createDocumentFragment();
   var plus = (typeof checkLicense === "function") ? checkLicense() : (Store.get("license.active", false) === true);
+  var nick = Store.get("nickname", "") || "";
+  var subtitle = nick
+    ? "Привет, " + nick + "! " + (plus ? "JETCH+ активен" : "Веб-версия")
+    : (plus ? "AI 2.0 активен" : "Веб-версия");
 
   frag.appendChild(UI.heroBanner(
     "DOTA JETCH",
-    plus ? "AI 2.0 активен" : "Веб-версия",
+    subtitle,
     [
       UI.btn("Анализ матча", { onclick: function () { switchPage("analyze"); } }),
       UI.btn("Мини-игры", { onclick: function () { switchPage("games"); }, variant: "ghost" }),
@@ -188,7 +189,7 @@ function renderAbout() {
     "Достижения (24)",
     "Мини-игры",
     "Система ключей JETCH+",
-    "Firebase-синхронизация"
+    "Ник + Firebase-синхронизация"
   ];
   for (var i = 0; i < list.length; i++) {
     feat.appendChild(el("div", { style: "padding:4px 0;font-size:12px;color:var(--text-muted);" }, "• " + list[i]));
