@@ -1,9 +1,7 @@
-/* DOTA JETCH — APP v8.7
-   - ФИКС: кнопка «Сменить ник» теперь сразу проверяет кулдаун
-     и показывает таймер вместо раскрытия формы
-   - Использует window.nicknameCooldownDaysLeft() из auth.js */
+/* DOTA JETCH — APP v8.8
+   - ФИКС: секция ника — компактный минималистичный блок вместо плашки */
 
-var APP_VERSION = "8.7";
+var APP_VERSION = "8.8";
 
 var PAGES = {
   dashboard:    { title: "Главная",         render: renderDashboard },
@@ -242,7 +240,6 @@ function renderAvatarInto(el, nick) {
   }
 }
 
-/* Возвращает сколько дней осталось до смены ника (0 = можно) */
 function getNickCooldownLeft() {
   if (typeof window.nicknameCooldownDaysLeft === "function") {
     return window.nicknameCooldownDaysLeft();
@@ -250,6 +247,38 @@ function getNickCooldownLeft() {
   return 0;
 }
 
+/* ─── Компактная плашка кулдауна ─── */
+function buildNickLockBlock(daysLeft) {
+  var word = daysLeft === 1 ? "день" : (daysLeft < 5 ? "дня" : "дней");
+
+  var wrap = document.createElement("div");
+  wrap.style.cssText = "display:flex;align-items:center;gap:11px;padding:11px 14px;background:var(--bg-elev);border:1px solid var(--border);border-radius:12px;";
+
+  /* Иконка — круг с символом */
+  var ico = document.createElement("div");
+  ico.style.cssText = "width:30px;height:30px;border-radius:9px;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:rgba(251,191,36,0.10);border:1px solid rgba(251,191,36,0.28);color:var(--gold);font-size:14px;font-weight:700;line-height:1;";
+  ico.textContent = "⏳";
+
+  var body = document.createElement("div");
+  body.style.cssText = "flex:1;min-width:0;";
+
+  var title = document.createElement("div");
+  title.style.cssText = "font-size:12px;font-weight:600;color:var(--text);line-height:1.3;";
+  title.textContent = "Смена ника недоступна";
+
+  var sub = document.createElement("div");
+  sub.style.cssText = "font-size:10.5px;color:var(--text-dim);margin-top:3px;line-height:1.35;letter-spacing:0.01em;";
+  sub.textContent = "Раз в 30 дней · осталось " + daysLeft + " " + word;
+
+  body.appendChild(title);
+  body.appendChild(sub);
+
+  wrap.appendChild(ico);
+  wrap.appendChild(body);
+  return wrap;
+}
+
+/* ─── Секция смены ника ─── */
 function renderNickSection() {
   var container = document.getElementById("profileNickSection");
   if (!container) return;
@@ -258,18 +287,7 @@ function renderNickSection() {
   var daysLeft = getNickCooldownLeft();
 
   if (daysLeft > 0) {
-    /* Кулдаун активен — показываем плашку, кнопки нет */
-    var word = daysLeft === 1 ? "день" : (daysLeft < 5 ? "дня" : "дней");
-    var lock = document.createElement("div");
-    lock.style.cssText = "padding:12px 14px;background:var(--bg-elev);border:1px solid var(--border);border-radius:12px;font-size:12px;color:var(--text-muted);line-height:1.5;";
-    var head = document.createElement("div");
-    head.style.cssText = "color:var(--yellow);font-weight:700;margin-bottom:4px;";
-    head.textContent = "⏳ Смена ника заблокирована";
-    var info = document.createElement("div");
-    info.textContent = "Ник можно менять раз в 30 дней. Следующая смена — через " + daysLeft + " " + word + ".";
-    lock.appendChild(head);
-    lock.appendChild(info);
-    container.appendChild(lock);
+    container.appendChild(buildNickLockBlock(daysLeft));
     return;
   }
 
@@ -303,7 +321,6 @@ function renderNickSection() {
   container.appendChild(changeBtn);
   container.appendChild(form);
 
-  /* Биндим кнопки формы после вставки в DOM */
   setTimeout(function () {
     var saveBtn = document.getElementById("profileNickSaveBtn");
     var cancelBtn = document.getElementById("profileNickCancelBtn");
@@ -333,7 +350,6 @@ function renderNickSection() {
         var nickEl = document.getElementById("profileModalNick");
         if (nickEl) nickEl.textContent = Store.get("nickname", "—");
         if (typeof window.refreshUserUI === "function") window.refreshUserUI();
-        /* Перерисовываем секцию ника — теперь покажет блокировку */
         setTimeout(function () { renderNickSection(); }, 1500);
       } else {
         msg.style.color = "var(--red)";
@@ -386,7 +402,6 @@ function updateProfileModal() {
     }
   }
 
-  /* Секция ника — перерисовываем каждый раз */
   renderNickSection();
 }
 
@@ -421,7 +436,6 @@ function bindProfileModal() {
   var closeBtn = ov.querySelector(".profile-modal-close");
   if (closeBtn) closeBtn.addEventListener("click", window.closeProfileModal);
 
-  /* Загрузка аватара */
   var fileInp = document.getElementById("avatarFileInput");
   if (fileInp && !fileInp.__bound) {
     fileInp.__bound = true;
@@ -456,7 +470,6 @@ function bindProfileModal() {
     });
   }
 
-  /* Удаление аватара */
   var resetBtn = document.getElementById("profileResetAvatarBtn");
   if (resetBtn && !resetBtn.__bound) {
     resetBtn.__bound = true;
@@ -470,7 +483,6 @@ function bindProfileModal() {
     });
   }
 
-  /* Выход */
   var logoutBtn = document.getElementById("profileLogoutBtn");
   if (logoutBtn && !logoutBtn.__bound) {
     logoutBtn.__bound = true;
