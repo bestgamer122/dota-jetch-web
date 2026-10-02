@@ -1,4 +1,4 @@
-/* DOTA JETCH — LEADERBOARD v1.2 */
+/* DOTA JETCH - LEADERBOARD v1.2 */
 
 import { getDatabase, ref, get, update, query, orderByChild, limitToLast } from "https://www.gstatic.com/firebasejs/11.8.0/firebase-database.js";
 
@@ -18,10 +18,10 @@ function getCtx() {
 window.submitToLeaderboard = async function (game, rawScore, mmr) {
   if (game === "quiz") return;
   var ctx = getCtx();
-  if (!ctx) { console.warn("leaderboard: не готов (auth)"); return; }
+  if (!ctx) { console.warn("leaderboard: not ready"); return; }
   var user = ctx.auth.currentUser;
   if (!user) return;
-  var nick = (window.Store && Store.get("nickname", "")) || "Аноним";
+  var nick = (window.Store && Store.get("nickname", "")) || "Anon";
   try {
     await update(ref(ctx.db, "leaderboards/" + game + "/" + user.uid), {
       nickname: nick,
@@ -29,7 +29,7 @@ window.submitToLeaderboard = async function (game, rawScore, mmr) {
       mmr: mmr,
       ts: Date.now()
     });
-    console.log("🏅 Лидерборд обновлён: " + game + " = " + rawScore);
+    console.log("leaderboard updated: " + game + " = " + rawScore);
   } catch (e) { console.warn("submitToLeaderboard:", e); }
 };
 
@@ -61,15 +61,15 @@ window.fetchLeaderboard = async function (game, limit) {
 };
 
 window.renderLeaderboard = async function (game) {
-  var card = UI.card("🏅 Лидерборд");
+  var card = UI.card("Лидерборд");
   var tabsRow = el("div", { style: "display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;" });
   var games = [
-    { id: "lockpick", label: "🔓 Взлом" },
-    { id: "automaton", label: "⌨️ Автоматоны" }
+    { id: "lockpick", label: "Lockpick" },
+    { id: "automaton", label: "Automaton" }
   ];
   var currentLbGame = game || "lockpick";
   var contentWrap = el("div", { id: "lbContent" });
-  contentWrap.appendChild(el("div", { class: "dim", style: "font-size:12px;padding:8px 0;" }, "Загрузка..."));
+  contentWrap.appendChild(el("div", { class: "dim", style: "font-size:12px;padding:8px 0;" }, "Loading..."));
 
   for (var g = 0; g < games.length; g++) {
     (function (gm) {
@@ -94,14 +94,14 @@ window.renderLeaderboard = async function (game) {
 
   async function loadLb(gameId) {
     contentWrap.innerHTML = "";
-    contentWrap.appendChild(el("div", { class: "dim", style: "font-size:12px;padding:8px 0;" }, "Загрузка..."));
+    contentWrap.appendChild(el("div", { class: "dim", style: "font-size:12px;padding:8px 0;" }, "Loading..."));
 
     var list = await window.fetchLeaderboard(gameId, 20);
 
     contentWrap.innerHTML = "";
 
     if (list.length === 0) {
-      contentWrap.appendChild(el("div", { class: "dim", style: "font-size:12px;padding:8px 0;" }, "Пока никто не играл. Будь первым!"));
+      contentWrap.appendChild(el("div", { class: "dim", style: "font-size:12px;padding:8px 0;" }, "Empty. Be first!"));
       return;
     }
 
@@ -109,23 +109,23 @@ window.renderLeaderboard = async function (game) {
       var r = list[i];
       var row = el("div", { style: "display:flex;align-items:center;gap:12px;padding:10px 4px;border-bottom:1px solid var(--border);" });
 
-      var place = el("div", { style: "width:30px;text-align:center;font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:900;flex-shrink:0;" });
-      if (i === 0) { place.textContent = "🥇"; place.style.fontSize = "20px"; }
-      else if (i === 1) { place.textContent = "🥈"; place.style.fontSize = "20px"; }
-      else if (i === 2) { place.textContent = "🥉"; place.style.fontSize = "20px"; }
-      else { place.textContent = "#" + (i + 1); place.style.color = "var(--text-dim)"; }
+      var place = el("div", { style: "width:30px;text-align:center;font-family:monospace;font-size:15px;font-weight:900;flex-shrink:0;" });
+      if (i === 0) { place.textContent = "1"; place.style.color = "var(--gold)"; }
+      else if (i === 1) { place.textContent = "2"; place.style.color = "var(--text-muted)"; }
+      else if (i === 2) { place.textContent = "3"; place.style.color = "var(--orange)"; }
+      else { place.textContent = String(i + 1); place.style.color = "var(--text-dim)"; }
       row.appendChild(place);
 
-      var av = el("div", { style: "width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--cyan));display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:900;color:#fff;font-family:'JetBrains Mono',monospace;flex-shrink:0;" });
+      var av = el("div", { style: "width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--cyan));display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:900;color:#fff;font-family:monospace;flex-shrink:0;" });
       av.textContent = String(r.nickname || "?").charAt(0).toUpperCase() || "?";
       row.appendChild(av);
 
       var info = el("div", { style: "flex:1;min-width:0;" });
-      info.appendChild(el("div", { style: "font-size:13px;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" }, r.nickname || "Аноним"));
+      info.appendChild(el("div", { style: "font-size:13px;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" }, r.nickname || "Anon"));
       info.appendChild(el("div", { class: "dim", style: "font-size:10px;" }, r.mmr + " MMR"));
       row.appendChild(info);
 
-      var sc = el("div", { style: "font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:900;color:var(--gold);" });
+      var sc = el("div", { style: "font-family:monospace;font-size:14px;font-weight:900;color:var(--gold);" });
       sc.textContent = (r.score || 0).toLocaleString();
       row.appendChild(sc);
 
@@ -133,4 +133,8 @@ window.renderLeaderboard = async function (game) {
     }
   }
 
-  setTimeout(function () { loadLb(currentLbGame); }, 50
+  setTimeout(function () { loadLb(currentLbGame); }, 50);
+  return card;
+};
+
+console.log("leaderboard v1.2 ready");
