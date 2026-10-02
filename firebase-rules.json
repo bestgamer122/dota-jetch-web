@@ -16,6 +16,7 @@
     "leaderboards": {
       "$game": {
         ".read": "auth != null",
+        ".indexOn": ["score"],
         "$uid": {
           ".write": "auth != null && $uid === auth.uid"
         }
