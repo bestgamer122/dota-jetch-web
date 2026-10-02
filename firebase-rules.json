@@ -13,6 +13,12 @@
         ".validate": "newData.val() === auth.uid || !newData.exists()"
       }
     },
+    "publicProfiles": {
+      ".read": "auth != null",
+      "$uid": {
+        ".write": "auth != null && $uid === auth.uid"
+      }
+    },
     "leaderboards": {
       "$game": {
         ".read": "auth != null",
