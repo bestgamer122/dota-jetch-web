@@ -1,7 +1,5 @@
-/* DOTA JETCH — RATING v2.0
-   - Реальные иконки медалей Dota 2 с CDN Valve
-   - Многоуровневый fallback (несколько CDN → эмодзи)
-   - 8 рангов + звёзды */
+/* DOTA JETCH — RATING v3.0
+   - SVG-иконки медалей (не зависят от CDN) */
 
 var RATING_TABLE = [
   { name: "Recruit",  ru: "Рекрут",    icon: "🪖", color: "#8b8b8b", rankIdx: 0, stars: [0, 150, 300, 460, 610] },
@@ -14,12 +12,67 @@ var RATING_TABLE = [
   { name: "Immortal", ru: "Титан",     icon: "🔥", color: "#e74c3c", rankIdx: 7, stars: [5620, 5800, 6000, 6200, 6500] }
 ];
 
-/* Реальные иконки медалей Dota 2 (Valve CDN) */
-var MEDAL_CDN = [
-  "https://cdn.cloudflare.steamstatic.com/apps/dota2/images/dota_react/icons/ranks/rank_icon_",
-  "https://cdn.akamai.steamstatic.com/apps/dota2/images/dota_react/icons/ranks/rank_icon_",
-  "https://cdn.fastly.steamstatic.com/apps/dota2/images/dota_react/icons/ranks/rank_icon_"
-];
+/* SVG-иконки медалей (собственные, не зависят от внешних CDN) */
+function buildMedalSVG(rankIdx, size, color) {
+  size = size || 96;
+  var svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", "0 0 100 100");
+  svg.setAttribute("width", size);
+  svg.setAttribute("height", size);
+  svg.style.cssText = "display:block;flex-shrink:0;filter:drop-shadow(0 0 12px " + color + "88);";
+
+  /* Внешний круг */
+  var circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+  circle.setAttribute("cx", "50");
+  circle.setAttribute("cy", "50");
+  circle.setAttribute("r", "44");
+  circle.setAttribute("fill", "none");
+  circle.setAttribute("stroke", color);
+  circle.setAttribute("stroke-width", "3");
+  circle.setAttribute("opacity", "0.6");
+  svg.appendChild(circle);
+
+  /* Внутренний круг */
+  var circle2 = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+  circle2.setAttribute("cx", "50");
+  circle2.setAttribute("cy", "50");
+  circle2.setAttribute("r", "36");
+  circle2.setAttribute("fill", color);
+  circle2.setAttribute("opacity", "0.15");
+  svg.appendChild(circle2);
+
+  /* Символ ранга (по индексу) */
+  var symbol = document.createElementNS("http://www.w3.org/2000/svg", "text");
+  symbol.setAttribute("x", "50");
+  symbol.setAttribute("y", "55");
+  symbol.setAttribute("text-anchor", "middle");
+  symbol.setAttribute("dominant-baseline", "middle");
+  symbol.setAttribute("font-size", "28");
+  symbol.setAttribute("fill", color);
+  symbol.setAttribute("font-family", "sans-serif");
+  var symbols = ["⚔️", "🛡️", "⚔️", "🏅", "🌟", "💎", "👑", "🔥"];
+  symbol.textContent = symbols[rankIdx] || "⚔️";
+  svg.appendChild(symbol);
+
+  /* Звёзды вокруг (5 маленьких звёзд) */
+  for (var i = 0; i < 5; i++) {
+    var angle = (i * 72 - 90) * Math.PI / 180;
+    var x = 50 + Math.cos(angle) * 42;
+    var y = 50 + Math.sin(angle) * 42;
+    var star = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    star.setAttribute("x", x);
+    star.setAttribute("y", y);
+    star.setAttribute("text-anchor", "middle");
+    star.setAttribute("dominant-baseline", "middle");
+    star.setAttribute("font-size", "8");
+    star.setAttribute("fill", color);
+    star.setAttribute("opacity", "0.5");
+    star.textContent = "★";
+    svg.appendChild(star);
+  }
+
+  return svg;
+}
 
 function getMedalForMMR(mmr) {
   for (var i = RATING_TABLE.length - 1; i >= 0; i--) {
@@ -43,48 +96,6 @@ function getMMRFromGame(game, rawScore) {
   };
   var c = config[game] || config.lockpick;
   return Math.round(c.base + rawScore * c.perPoint);
-}
-
-/* Универсальная картинка медали с fallback на эмодзи */
-function buildMedalImage(rankIdx, size, fallbackEmoji, color) {
-  size = size || 88;
-  var wrap = document.createElement("div");
-  wrap.style.cssText = "position:relative;width:" + size + "px;height:" + size + "px;flex-shrink:0;display:flex;align-items:center;justify-content:center;";
-
-  /* Fallback эмодзи (показывается, если картинка не загрузится) */
-  var fb = document.createElement("div");
-  fb.style.cssText = "position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:" + Math.round(size * 0.55) + "px;line-height:1;";
-  fb.textContent = fallbackEmoji;
-  wrap.appendChild(fb);
-
-  /* Пробуем картинку с нескольких CDN по очереди */
-  var img = document.createElement("img");
-  img.alt = "";
-  img.loading = "lazy";
-  img.style.cssText = "position:relative;width:100%;height:100%;object-fit:contain;display:block;z-index:1;filter:drop-shadow(0 0 12px " + color + "55);";
-  img.style.opacity = "0";
-  img.style.transition = "opacity 0.3s ease";
-
-  var idx = 0;
-  var tried = 0;
-  img.onload = function () {
-    img.style.opacity = "1";
-    fb.style.display = "none";
-  };
-  img.onerror = function () {
-    idx++;
-    if (idx < MEDAL_CDN.length) {
-      img.src = MEDAL_CDN[idx] + rankIdx + ".png";
-    } else {
-      /* Все CDN не сработали — оставляем эмодзи */
-      img.style.display = "none";
-      fb.style.display = "flex";
-    }
-  };
-
-  img.src = MEDAL_CDN[0] + rankIdx + ".png";
-  wrap.appendChild(img);
-  return wrap;
 }
 
 window.getRatingData = function () {
@@ -137,9 +148,8 @@ window.renderRatingWidget = function () {
 
   var main = el("div", { style: "display:flex;align-items:center;gap:20px;margin-bottom:16px;flex-wrap:wrap;" });
 
-  /* Медаль */
   var medalBox = el("div", { style: "text-align:center;flex-shrink:0;" });
-  medalBox.appendChild(buildMedalImage(medal.medal.rankIdx, 96, medal.medal.icon, medal.medal.color));
+  medalBox.appendChild(buildMedalSVG(medal.medal.rankIdx, 96, medal.medal.color));
 
   var starsRow = el("div", { style: "display:flex;gap:3px;justify-content:center;margin-top:8px;" });
   for (var s = 0; s < 5; s++) {
@@ -149,7 +159,6 @@ window.renderRatingWidget = function () {
   medalBox.appendChild(starsRow);
   main.appendChild(medalBox);
 
-  /* Инфо */
   var info = el("div", { style: "flex:1;min-width:180px;" });
   var rankName = el("div", { style: "font-size:24px;font-weight:900;color:" + medal.medal.color + ";" });
   rankName.textContent = medal.medal.ru;
@@ -159,7 +168,6 @@ window.renderRatingWidget = function () {
   info.appendChild(el("div", { style: "font-size:11px;color:var(--text-dim);margin-top:6px;" },
     "Игр: " + data.gamesPlayed + " · Побед: " + data.wins));
 
-  /* Прогресс до след. звезды */
   var nextStarMMR = null;
   for (var i = 0; i < RATING_TABLE.length; i++) {
     var m = RATING_TABLE[i];
@@ -185,7 +193,6 @@ window.renderRatingWidget = function () {
   main.appendChild(info);
   card.appendChild(main);
 
-  /* Калибровка */
   if (!data.calibrated) {
     var cal = el("div", { style: "background:var(--accent-bg);border:1px solid var(--accent);border-radius:12px;padding:12px 14px;margin-bottom:14px;" });
     cal.appendChild(el("div", { style: "font-size:12px;font-weight:700;color:var(--accent-light);margin-bottom:4px;" }, "📊 Калибровка"));
@@ -196,7 +203,6 @@ window.renderRatingWidget = function () {
     card.appendChild(cal);
   }
 
-  /* Лучшие очки по играм */
   var scores = el("div", { style: "display:grid;grid-template-columns:repeat(3,1fr);gap:8px;" });
   var scoreDefs = [
     { icon: "🔓", name: "Взлом", val: data.bestScores.lockpick, color: "var(--gold)" },
@@ -215,4 +221,4 @@ window.renderRatingWidget = function () {
   return card;
 };
 
-console.log("rating v2.0 ready (real medal icons)");
+console.log("rating v3.0 ready (SVG medals)");

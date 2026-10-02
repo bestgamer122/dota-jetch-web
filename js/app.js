@@ -1,7 +1,6 @@
-/* DOTA JETCH — APP v10.4
-   - ФИКС: renderLeaderboardPage больше не возвращает Promise (async-заполнение) */
+/* DOTA JETCH — APP v10.5 */
 
-var APP_VERSION = "10.4";
+var APP_VERSION = "10.5";
 
 var PAGES = {
   dashboard:    { title: "Главная",         render: renderDashboard },
@@ -18,17 +17,17 @@ var PAGES = {
 };
 
 var NAV = [
-  { page: "dashboard",    label: "Главная",       icon: "◈" },
-  { page: "analyze",      label: "Анализ матча",  icon: "▶" },
-  { page: "chat",         label: "ИИ-ассистент",  icon: "✦" },
-  { page: "history",      label: "История",       icon: "☰" },
-  { page: "charts",       label: "Прогресс",      icon: "◱" },
-  { page: "diary",        label: "Дневник",       icon: "✎" },
-  { page: "games",        label: "Мини-игры",     icon: "◉" },
-  { page: "leaderboard",  label: "Лидерборд",     icon: "🏅" },
-  { page: "achievements", label: "Достижения",    icon: "★" },
-  { page: "settings",     label: "Настройки",     icon: "⚙" },
-  { page: "about",        label: "О программе",   icon: "ⓘ" }
+  { page: "dashboard",    label: "Главная",       icon: "M3 11l9-8 9 8v9a2 2 0 0 1-2 2h-4v-7h-6v7H5a2 2 0 0 1-2-2z" },
+  { page: "analyze",      label: "Анализ матча",  icon: "M5 3l14 9-14 9z" },
+  { page: "chat",         label: "ИИ-ассистент",  icon: "M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" },
+  { page: "history",      label: "История",       icon: "M3 6h18M3 12h18M3 18h18" },
+  { page: "charts",       label: "Прогресс",      icon: "M3 3v18h18M7 14l3-3 4 4 5-6" },
+  { page: "diary",        label: "Дневник",       icon: "M4 4h12l4 4v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z" },
+  { page: "games",        label: "Мини-игры",     icon: "M3 7h18v12H3z" },
+  { page: "leaderboard",  label: "Лидерборд",     icon: "M19 5h-2V3H7v2H5c-1.1 0-2 .9-2 2v1c0 2.55 1.92 4.63 4.39 4.94.63 1.5 1.98 2.63 3.61 2.96V19H7v2h10v-2h-4v-3.1c1.63-.33 2.98-1.46 3.61-2.96C19.08 12.63 21 10.55 21 8V7c0-1.1-.9-2-2-2zM5 8V7h2v3.82C5.84 10.4 5 9.3 5 8zm14 0c0 1.3-.84 2.4-2 2.82V7h2v1z" },
+  { page: "achievements", label: "Достижения",    icon: "M12 9m-6 0a6 6 0 1 0 12 0a6 6 0 1 0 -12 0" },
+  { page: "settings",     label: "Настройки",     icon: "M12 12m-3 0a3 3 0 1 0 6 0a3 3 0 1 0 -6 0" },
+  { page: "about",        label: "О программе",   icon: "M12 12m-10 0a10 10 0 1 0 20 0a10 10 0 1 0 -20 0" }
 ];
 
 var currentPage = "dashboard";
@@ -40,7 +39,9 @@ function buildNav() {
   for (var i = 0; i < NAV.length; i++) {
     (function (item) {
       var btn = el("button", { class: "nav-btn" + (item.page === currentPage ? " active" : ""), "data-page": item.page });
-      btn.appendChild(el("span", { class: "nav-ico" }, item.icon));
+      var ico = el("span", { class: "nav-ico" });
+      ico.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="' + item.icon + '"/></svg>';
+      btn.appendChild(ico);
       btn.appendChild(document.createTextNode(item.label));
       btn.addEventListener("click", function () { switchPage(item.page); });
       nav.appendChild(btn);
@@ -161,14 +162,12 @@ function pluralAnalyses(n) {
   return "анализов";
 }
 
-/* ФИКС: возвращаем синхронный контейнер, leaderboard грузится в фоне */
 function renderLeaderboardPage() {
   var frag = document.createDocumentFragment();
   var placeholder = el("div", { id: "leaderboardPlaceholder" });
   placeholder.appendChild(el("div", { class: "dim", style: "font-size:12px;padding:8px 0;" }, "Загрузка лидерборда..."));
   frag.appendChild(placeholder);
 
-  /* Асинхронно подтягиваем настоящий лидерборд */
   setTimeout(function () {
     if (typeof window.renderLeaderboard !== "function") {
       placeholder.innerHTML = "";
@@ -177,7 +176,6 @@ function renderLeaderboardPage() {
     }
     try {
       var result = window.renderLeaderboard();
-      /* renderLeaderboard — async, значит Promise */
       if (result && typeof result.then === "function") {
         result.then(function (card) {
           placeholder.innerHTML = "";
@@ -517,4 +515,5 @@ else setTimeout(init, 0);
 
 window.addEventListener("hashchange", function () {
   var h = (location.hash || "#dashboard").slice(1);
-
+  if (h !== currentPage && PAGES[h]) switchPage(h);
+});

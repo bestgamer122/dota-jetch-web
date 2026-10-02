@@ -1,8 +1,4 @@
-/* DOTA JETCH — MINI-GAMES v4.0
-   - Экран-заставка с кнопкой «Играть» (нет автозапуска)
-   - Улучшенный геймплей:
-     * Взлом замка — нормальные зоны, комбо, счёт
-     * Атака автоматонов — 3 жизни, прогресс HP робота, нарастающая сложность */
+/* DOTA JETCH — MINI-GAMES v5.0 */
 
 var QUIZ = [
   { q: "Какая способность у Juggernaut даёт неуязвимость?", a: "Omnislash", opts: ["Omnislash", "Blade Fury", "Blade Dance", "Healing Ward"] },
@@ -47,7 +43,6 @@ function renderGames() {
   var frag = document.createDocumentFragment();
   frag.appendChild(UI.heroBanner("Мини-игры", "Выбери игру и покажи лучший результат", []));
 
-  /* Табы */
   var tabs = el("div", { class: "row", style: "margin-bottom:16px;gap:8px;flex-wrap:wrap;" });
   var tabDefs = [
     { id: "lockpick", label: "🔓 Взлом замка" },
@@ -73,12 +68,10 @@ function renderGames() {
   }
   frag.appendChild(tabs);
 
-  /* Рейтинг */
   if (typeof window.renderRatingWidget === "function") {
     try { frag.appendChild(window.renderRatingWidget()); } catch (e) { console.warn("rating widget:", e); }
   }
 
-  /* Статистика */
   var stats = el("div", { class: "stat-grid" });
   var lpBest = Store.get("lockpickbest", 0) || 0;
   var autoBest = Store.get("automatonbest", 0) || 0;
@@ -88,7 +81,6 @@ function renderGames() {
   stats.appendChild(UI.statCard("🧠", "var(--green)", "var(--green-bg)", "Викторина", q ? q + "/10" : "—", "лучший"));
   frag.appendChild(stats);
 
-  /* Область игры — НЕ автозапуск, а заставка */
   var area = el("div", { id: "gameArea" });
   frag.appendChild(area);
 
@@ -120,10 +112,7 @@ function startGame(kind) {
   if (typeof Achievements !== "undefined") Achievements.check();
 }
 
-/* ═══════════════════════════════════════
-   ЗАСТАВКИ ИГР
-   ═══════════════════════════════════════ */
-
+/* ─── Заставки игр ─── */
 function buildRulesBlock(title, items) {
   var box = el("div", { style: "background:var(--bg-elev);border:1px solid var(--border);border-radius:14px;padding:16px 18px;margin-top:16px;" });
   box.appendChild(el("div", { style: "font-size:13px;font-weight:700;color:var(--text);margin-bottom:10px;" }, title));
@@ -202,12 +191,11 @@ function buildQuizIntro() {
 }
 
 /* ═══════════════════════════════════════
-   ИГРА 1: ВЗЛОМ ЗАМКА
+   ИГРА 1: ВЗЛОМ ЗАМКА (улучшенная)
    ═══════════════════════════════════════ */
 function renderLockpick() {
   var card = UI.card("🔓 Взлом замка");
 
-  /* Верхняя панель: выход */
   var topRow = el("div", { style: "display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;" });
   topRow.appendChild(el("div", { class: "dim", style: "font-size:11px;text-transform:uppercase;letter-spacing:0.08em;" }, "Взлом замка"));
   var menuBtn = UI.btn("← В меню", { variant: "ghost" });
@@ -216,7 +204,6 @@ function renderLockpick() {
   topRow.appendChild(menuBtn);
   card.appendChild(topRow);
 
-  /* Канвас */
   var canvasWrap = el("div", { style: "position:relative;max-width:440px;margin:0 auto;" });
   var canvas = document.createElement("canvas");
   canvas.width = 440;
@@ -225,7 +212,6 @@ function renderLockpick() {
   canvasWrap.appendChild(canvas);
   card.appendChild(canvasWrap);
 
-  /* HUD */
   var hud = el("div", { style: "display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:14px;" });
   var scoreBox = el("div", { style: "text-align:center;padding:10px;background:var(--bg-elev);border:1px solid var(--border);border-radius:12px;" });
   scoreBox.appendChild(el("div", { class: "dim", style: "font-size:9px;text-transform:uppercase;letter-spacing:0.1em;" }, "Очки"));
@@ -249,7 +235,6 @@ function renderLockpick() {
   var statusEl = el("div", { style: "text-align:center;margin-top:12px;font-size:13px;font-weight:600;color:var(--text-muted);min-height:20px;" }, "Жми когда стрелка в жёлтой зоне!");
   card.appendChild(statusEl);
 
-  /* Состояние */
   var state = {
     score: 0, timeLeft: 30, combo: 1, maxCombo: 1,
     angle: -Math.PI / 2, speed: 0.9, running: false,
@@ -269,7 +254,7 @@ function renderLockpick() {
 
   function spawnZones() {
     state.zones = [];
-    var count = 2 + Math.floor(Math.random() * 2); /* 2-3 зоны */
+    var count = 2 + Math.floor(Math.random() * 2);
     var used = [];
     for (var i = 0; i < count; i++) {
       var tries = 0;
@@ -288,10 +273,7 @@ function renderLockpick() {
   function overlaps(z, others) {
     for (var i = 0; i < others.length; i++) {
       var a1 = z.start % (Math.PI * 2);
-      var a2 = (z.start + z.size * Math.PI * 2) % (Math.PI * 2);
       var b1 = others[i].start % (Math.PI * 2);
-      var b2 = (others[i].start + others[i].size * Math.PI * 2) % (Math.PI * 2);
-      /* грубая проверка */
       if (Math.abs(norm(a1) - norm(b1)) < 0.4) return true;
     }
     return false;
@@ -307,38 +289,32 @@ function renderLockpick() {
     var ctx = canvas.getContext("2d");
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    /* Фон */
     ctx.fillStyle = "#12141a";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    /* Внешнее тонкое кольцо */
     ctx.beginPath();
     ctx.arc(cx, cy, r + ringWidth / 2 + 8, 0, Math.PI * 2);
     ctx.strokeStyle = "rgba(139,92,246,0.18)";
     ctx.lineWidth = 1;
     ctx.stroke();
 
-    /* Базовое кольцо */
     ctx.beginPath();
     ctx.arc(cx, cy, r, 0, Math.PI * 2);
     ctx.strokeStyle = "rgba(139,92,246,0.28)";
     ctx.lineWidth = ringWidth;
     ctx.stroke();
 
-    /* Зоны */
     for (var i = 0; i < state.zones.length; i++) {
       var z = state.zones[i];
       var startAng = z.start - Math.PI / 2;
       var endAng = startAng + z.size * Math.PI * 2;
 
-      /* Мягкое свечение */
       ctx.beginPath();
       ctx.arc(cx, cy, r, startAng, endAng);
       ctx.strokeStyle = z.blue ? "rgba(34,211,238,0.25)" : "rgba(251,191,36,0.25)";
       ctx.lineWidth = ringWidth + 14;
       ctx.stroke();
 
-      /* Сама зона */
       ctx.beginPath();
       ctx.arc(cx, cy, r, startAng, endAng);
       ctx.strokeStyle = z.blue ? "rgba(34,211,238,0.95)" : "rgba(251,191,36,0.95)";
@@ -346,7 +322,6 @@ function renderLockpick() {
       ctx.stroke();
     }
 
-    /* Стрелка */
     var ax = cx + Math.cos(state.angle - Math.PI / 2) * (r - ringWidth / 2 - 2);
     var ay = cy + Math.sin(state.angle - Math.PI / 2) * (r - ringWidth / 2 - 2);
     ctx.beginPath();
@@ -357,7 +332,6 @@ function renderLockpick() {
     ctx.lineCap = "round";
     ctx.stroke();
 
-    /* Центральный круг с эмодзи */
     ctx.beginPath();
     ctx.arc(cx, cy, 46, 0, Math.PI * 2);
     ctx.fillStyle = "rgba(20,22,30,1)";
@@ -371,7 +345,6 @@ function renderLockpick() {
     ctx.textBaseline = "middle";
     ctx.fillText("🔒", cx, cy + 3);
 
-    /* Флеш */
     if (state.flash) {
       ctx.fillStyle = state.flash.color;
       ctx.globalAlpha = state.flash.alpha;
@@ -409,7 +382,6 @@ function renderLockpick() {
           statusEl.textContent = "✓ +" + pts.toLocaleString() + " · комбо x" + state.combo;
           statusEl.style.color = "var(--gold)";
         }
-        /* ускоряем после каждого попадания */
         state.speed = Math.min(2.4, 0.9 + state.hitCount * 0.06);
         spawnZones();
         break;
@@ -492,14 +464,13 @@ function renderLockpick() {
   canvas.addEventListener("mousedown", function (e) { e.preventDefault(); checkHit(); });
   canvas.addEventListener("touchstart", function (e) { e.preventDefault(); checkHit(); }, { passive: false });
 
-  /* Запуск сразу */
   setTimeout(function () { start(); }, 50);
 
   return card;
 }
 
 /* ═══════════════════════════════════════
-   ИГРА 2: АТАКА АВТОМАТОНОВ
+   ИГРА 2: АТАКА АВТОМАТОНОВ (улучшенная)
    ═══════════════════════════════════════ */
 function renderAutomaton() {
   var card = UI.card("⌨️ Атака автоматонов");
@@ -512,7 +483,6 @@ function renderAutomaton() {
   topRow.appendChild(menuBtn);
   card.appendChild(topRow);
 
-  /* HUD */
   var hud = el("div", { style: "display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px;" });
   function hudBox(label, color) {
     var b = el("div", { style: "text-align:center;padding:8px;background:var(--bg-elev);border:1px solid var(--border);border-radius:10px;" });
@@ -528,12 +498,10 @@ function renderAutomaton() {
   hud.appendChild(scoreH.box); hud.appendChild(timeH.box); hud.appendChild(livesH.box); hud.appendChild(multiH.box);
   card.appendChild(hud);
 
-  /* Игровое поле */
   var field = el("div", { style: "position:relative;height:340px;border-radius:16px;background:linear-gradient(180deg,#0c0e14 0%,#151824 100%);border:1px solid var(--border);overflow:hidden;" });
   var wordsLayer = el("div", { style: "position:absolute;inset:0;pointer-events:none;overflow:hidden;" });
   field.appendChild(wordsLayer);
 
-  /* Автоматон внизу */
   var botWrap = el("div", { style: "position:absolute;left:50%;bottom:12px;transform:translateX(-50%);text-align:center;z-index:5;" });
   var botEmoji = el("div", { style: "font-size:54px;line-height:1;filter:drop-shadow(0 0 12px rgba(34,211,238,0.5));transition:transform 0.15s ease;" }, "🤖");
   botWrap.appendChild(botEmoji);
@@ -544,7 +512,6 @@ function renderAutomaton() {
   field.appendChild(botWrap);
   card.appendChild(field);
 
-  /* Input */
   var inputRow = el("div", { class: "row", style: "gap:8px;margin-top:14px;" });
   var inp = UI.input("Начни печатать...");
   inp.id = "automatonInput";
@@ -563,7 +530,6 @@ function renderAutomaton() {
   var statusEl = el("div", { style: "text-align:center;margin-top:12px;font-size:13px;font-weight:600;color:var(--text-muted);min-height:20px;" }, "");
   card.appendChild(statusEl);
 
-  /* Состояние */
   var st = {
     score: 0, timeLeft: 60, multiplier: 1, hits: 0,
     running: false, words: [], lastFrame: 0, spawnTimer: 0,
@@ -575,7 +541,6 @@ function renderAutomaton() {
     st.running = false;
     if (rafId) cancelAnimationFrame(rafId);
     rafId = null;
-    /* почистить слова */
     for (var i = 0; i < st.words.length; i++) {
       if (st.words[i].el && st.words[i].el.parentNode) st.words[i].el.parentNode.removeChild(st.words[i].el);
     }
@@ -587,8 +552,6 @@ function renderAutomaton() {
     timeH.val.textContent = Math.max(0, st.timeLeft).toFixed(1);
     livesH.val.textContent = st.lives + "/" + st.maxLives;
     multiH.val.textContent = "x" + st.multiplier;
-    if (st.lives <= 1) livesH.val.style.color = "var(--red)";
-    else livesH.val.style.color = "var(--red)";
     if (st.timeLeft <= 10) timeH.val.style.color = "var(--red)";
     else timeH.val.style.color = "var(--cyan)";
   }
@@ -614,7 +577,6 @@ function renderAutomaton() {
       w.y += w.speed * dt;
       w.el.style.top = w.y + "px";
       if (w.y > fieldH - 90) {
-        /* слово дошло до робота */
         if (w.el.parentNode) w.el.parentNode.removeChild(w.el);
         st.words.splice(i, 1);
         st.multiplier = 1;
@@ -634,7 +596,6 @@ function renderAutomaton() {
     var typed = String(rawVal || "").toLowerCase().replace(/[^a-z0-9]/g, "");
     if (!typed) return;
 
-    /* Точное совпадение? */
     for (var i = 0; i < st.words.length; i++) {
       var w = st.words[i];
       var target = w.word.toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -658,7 +619,6 @@ function renderAutomaton() {
         return;
       }
     }
-    /* Подсветка совпадений по префиксу */
     for (var j = 0; j < st.words.length; j++) {
       var w2 = st.words[j];
       var t2 = w2.word.toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -693,7 +653,6 @@ function renderAutomaton() {
   }
 
   function start() {
-    /* Полная очистка */
     stopAutomaton();
     st.score = 0;
     st.timeLeft = 60;
@@ -758,7 +717,6 @@ function renderAutomaton() {
   });
   startBtn.addEventListener("click", function () { start(); });
 
-  /* Автозапуск */
   setTimeout(function () { start(); }, 50);
 
   return card;
