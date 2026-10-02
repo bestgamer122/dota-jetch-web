@@ -1,58 +1,21 @@
-/* DOTA JETCH — RATING v4.0
-   - Викторина НЕ даёт рейтинг (только викторина без MMR)
-   - Медленнее рост MMR (сложнее апнуть)
-   - SVG-иконки медалей */
+/* DOTA JETCH — RATING v4.1
+   - Викторина НЕ даёт рейтинг
+   - Медленный рост MMR
+   - Реальные иконки рангов Dota 2 (Valve CDN) */
 
 var RATING_TABLE = [
-  { name: "Recruit",  ru: "Рекрут",    icon: "🪖", color: "#8b8b8b", rankIdx: 0, stars: [0, 150, 300, 460, 610] },
-  { name: "Guardian", ru: "Страж",     icon: "🛡️", color: "#c0c0c0", rankIdx: 1, stars: [770, 920, 1080, 1230, 1400] },
-  { name: "Crusader", ru: "Рыцарь",    icon: "⚔️", color: "#cd7f32", rankIdx: 2, stars: [1540, 1700, 1850, 2000, 2150] },
-  { name: "Archon",   ru: "Герой",     icon: "🏅", color: "#4a9eff", rankIdx: 3, stars: [2310, 2450, 2610, 2770, 2930] },
-  { name: "Legend",   ru: "Легенда",   icon: "🌟", color: "#9b59b6", rankIdx: 4, stars: [3080, 3230, 3390, 3540, 3700] },
-  { name: "Ancient",  ru: "Властелин", icon: "💎", color: "#e67e22", rankIdx: 5, stars: [3850, 4000, 4150, 4300, 4460] },
-  { name: "Divine",   ru: "Божество",  icon: "👑", color: "#f1c40f", rankIdx: 6, stars: [4620, 4820, 5020, 5220, 5420] },
-  { name: "Immortal", ru: "Титан",     icon: "🔥", color: "#e74c3c", rankIdx: 7, stars: [5620, 5800, 6000, 6200, 6500] }
+  { name: "Herald",    ru: "Рекрут",    color: "#8b8b8b", rankIdx: 0, stars: [0, 150, 300, 460, 610] },
+  { name: "Guardian",  ru: "Страж",     color: "#c0c0c0", rankIdx: 1, stars: [770, 920, 1080, 1230, 1400] },
+  { name: "Crusader",  ru: "Рыцарь",    color: "#cd7f32", rankIdx: 2, stars: [1540, 1700, 1850, 2000, 2150] },
+  { name: "Archon",    ru: "Герой",     color: "#4a9eff", rankIdx: 3, stars: [2310, 2450, 2610, 2770, 2930] },
+  { name: "Legend",    ru: "Легенда",   color: "#9b59b6", rankIdx: 4, stars: [3080, 3230, 3390, 3540, 3700] },
+  { name: "Ancient",   ru: "Властелин", color: "#e67e22", rankIdx: 5, stars: [3850, 4000, 4150, 4300, 4460] },
+  { name: "Divine",    ru: "Божество",  color: "#f1c40f", rankIdx: 6, stars: [4620, 4820, 5020, 5220, 5420] },
+  { name: "Immortal",  ru: "Титан",     color: "#e74c3c", rankIdx: 7, stars: [5620, 5800, 6000, 6200, 6500] }
 ];
 
-function buildMedalSVG(rankIdx, size, color) {
-  size = size || 96;
-  var svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-  svg.setAttribute("viewBox", "0 0 100 100");
-  svg.setAttribute("width", size);
-  svg.setAttribute("height", size);
-  svg.style.cssText = "display:block;flex-shrink:0;filter:drop-shadow(0 0 12px " + color + "88);";
-
-  var circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-  circle.setAttribute("cx", "50"); circle.setAttribute("cy", "50"); circle.setAttribute("r", "44");
-  circle.setAttribute("fill", "none"); circle.setAttribute("stroke", color); circle.setAttribute("stroke-width", "3"); circle.setAttribute("opacity", "0.6");
-  svg.appendChild(circle);
-
-  var circle2 = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-  circle2.setAttribute("cx", "50"); circle2.setAttribute("cy", "50"); circle2.setAttribute("r", "36");
-  circle2.setAttribute("fill", color); circle2.setAttribute("opacity", "0.15");
-  svg.appendChild(circle2);
-
-  var symbol = document.createElementNS("http://www.w3.org/2000/svg", "text");
-  symbol.setAttribute("x", "50"); symbol.setAttribute("y", "55");
-  symbol.setAttribute("text-anchor", "middle"); symbol.setAttribute("dominant-baseline", "middle");
-  symbol.setAttribute("font-size", "28"); symbol.setAttribute("fill", color); symbol.setAttribute("font-family", "sans-serif");
-  var symbols = ["⚔️", "🛡️", "⚔️", "🏅", "🌟", "💎", "👑", "🔥"];
-  symbol.textContent = symbols[rankIdx] || "⚔️";
-  svg.appendChild(symbol);
-
-  for (var i = 0; i < 5; i++) {
-    var angle = (i * 72 - 90) * Math.PI / 180;
-    var x = 50 + Math.cos(angle) * 42;
-    var y = 50 + Math.sin(angle) * 42;
-    var star = document.createElementNS("http://www.w3.org/2000/svg", "text");
-    star.setAttribute("x", x); star.setAttribute("y", y);
-    star.setAttribute("text-anchor", "middle"); star.setAttribute("dominant-baseline", "middle");
-    star.setAttribute("font-size", "8"); star.setAttribute("fill", color); star.setAttribute("opacity", "0.5");
-    star.textContent = "★";
-    svg.appendChild(star);
-  }
-  return svg;
-}
+/* Иконки рангов Dota 2 (Valve CDN) */
+var MEDAL_CDN = "https://cdn.cloudflare.steamstatic.com/apps/dota2/images/dota_react/icons/ranks/rank_icon_";
 
 function getMedalForMMR(mmr) {
   for (var i = RATING_TABLE.length - 1; i >= 0; i--) {
@@ -68,12 +31,10 @@ function getMedalForMMR(mmr) {
   return { medal: RATING_TABLE[0], stars: 1, mmr: mmr };
 }
 
-/* ФИКС: медленнее рост MMR. Очков даём меньше. */
 function getMMRFromGame(game, rawScore) {
   var config = {
-    lockpick: { base: 6, perPoint: 0.0012 },
-    automaton: { base: 5, perPoint: 0.0015 }
-    /* quiz НЕ даёт рейтинг — если случайно вызовется, вернём 0 */
+    lockpick: { base: 5, perPoint: 0.0008 },
+    automaton: { base: 4, perPoint: 0.001 }
   };
   var c = config[game];
   if (!c) return 0;
@@ -96,9 +57,7 @@ window.getRatingData = function () {
 };
 
 window.submitGameScore = function (game, rawScore) {
-  /* Викторина не участвует в рейтинге */
-  if (game === "quiz") return { gained: 0, newMMR: Store.get("minigames_mmr", 0) || 0, medal: getMedalForMMR(Store.get("minigames_mmr", 0) || 0) };
-
+  if (game === "quiz") return { gained: 0, newMMR: Store.get("minigames_mmr", 0) || 0 };
   var data = window.getRatingData();
   var gained = getMMRFromGame(game, rawScore);
   data.gamesPlayed++;
@@ -114,7 +73,7 @@ window.submitGameScore = function (game, rawScore) {
       }
     }
   }
-  if (gained >= 15) data.wins++;
+  if (gained >= 10) data.wins++;
   Store.set("minigames_mmr", data.mmr);
   Store.set("minigames_games", data.gamesPlayed);
   Store.set("minigames_calibrated", data.calibrated);
@@ -133,17 +92,37 @@ window.renderRatingWidget = function () {
 
   var main = el("div", { style: "display:flex;align-items:center;gap:20px;margin-bottom:16px;flex-wrap:wrap;" });
 
-  var medalBox = el("div", { style: "text-align:center;flex-shrink:0;" });
-  medalBox.appendChild(buildMedalSVG(medal.medal.rankIdx, 96, medal.medal.color));
-
-  var starsRow = el("div", { style: "display:flex;gap:3px;justify-content:center;margin-top:8px;" });
-  for (var s = 0; s < 5; s++) {
-    var star = el("span", { style: "font-size:12px;color:" + (s < medal.stars ? medal.medal.color : "var(--border)") + ";text-shadow:" + (s < medal.stars ? "0 0 6px " + medal.medal.color + "88" : "none") + ";" }, "★");
-    starsRow.appendChild(star);
-  }
-  medalBox.appendChild(starsRow);
+  /* Иконка ранга */
+  var medalBox = el("div", { style: "text-align:center;flex-shrink:0;position:relative;width:96px;height:96px;" });
+  var img = document.createElement("img");
+  img.alt = medal.medal.name;
+  img.style.cssText = "width:96px;height:96px;object-fit:contain;filter:drop-shadow(0 0 12px " + medal.medal.color + "88);";
+  img.src = MEDAL_CDN + medal.medal.rankIdx + ".png";
+  img.onerror = function () {
+    /* Fallback: SVG-круг с эмодзи */
+    medalBox.innerHTML = "";
+    var svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("viewBox", "0 0 100 100");
+    svg.setAttribute("width", "96");
+    svg.setAttribute("height", "96");
+    var circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    circle.setAttribute("cx", "50"); circle.setAttribute("cy", "50"); circle.setAttribute("r", "44");
+    circle.setAttribute("fill", "none"); circle.setAttribute("stroke", medal.medal.color);
+    circle.setAttribute("stroke-width", "4");
+    svg.appendChild(circle);
+    var text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    text.setAttribute("x", "50"); text.setAttribute("y", "58");
+    text.setAttribute("text-anchor", "middle");
+    text.setAttribute("font-size", "36");
+    text.setAttribute("fill", medal.medal.color);
+    text.textContent = "★";
+    svg.appendChild(text);
+    medalBox.appendChild(svg);
+  };
+  medalBox.appendChild(img);
   main.appendChild(medalBox);
 
+  /* Инфо */
   var info = el("div", { style: "flex:1;min-width:180px;" });
   var rankName = el("div", { style: "font-size:24px;font-weight:900;color:" + medal.medal.color + ";" });
   rankName.textContent = medal.medal.ru;
@@ -153,6 +132,7 @@ window.renderRatingWidget = function () {
   info.appendChild(el("div", { style: "font-size:11px;color:var(--text-dim);margin-top:6px;" },
     "Игр: " + data.gamesPlayed + " · Побед: " + data.wins));
 
+  /* Прогресс до след. звезды */
   var nextStarMMR = null;
   for (var i = 0; i < RATING_TABLE.length; i++) {
     var m = RATING_TABLE[i];
@@ -188,7 +168,6 @@ window.renderRatingWidget = function () {
     card.appendChild(cal);
   }
 
-  /* Лучшие очки только для двух игр (викторина не в рейтинге) */
   var scores = el("div", { style: "display:grid;grid-template-columns:repeat(2,1fr);gap:8px;" });
   var scoreDefs = [
     { icon: "🔓", name: "Взлом", val: data.bestScores.lockpick, color: "var(--gold)" },
@@ -209,4 +188,4 @@ window.renderRatingWidget = function () {
   return card;
 };
 
-console.log("rating v4.0 ready (slow MMR, no quiz rating)");
+console.log("rating v4.1 ready");
