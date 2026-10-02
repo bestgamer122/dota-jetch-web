@@ -1,6 +1,7 @@
-/* DOTA JETCH — APP v10.3 */
+/* DOTA JETCH — APP v10.4
+   - ФИКС: renderLeaderboardPage больше не возвращает Promise (async-заполнение) */
 
-var APP_VERSION = "10.3";
+var APP_VERSION = "10.4";
 
 var PAGES = {
   dashboard:    { title: "Главная",         render: renderDashboard },
@@ -52,6 +53,7 @@ function safeRender(name) {
     if (!PAGES[name]) throw new Error("Страница не найдена: " + name);
     var node = PAGES[name].render();
     if (!node) throw new Error("Пустой результат рендера");
+    if (node instanceof Promise) throw new Error("Async render не поддерживается напрямую");
     return node;
   } catch (e) {
     console.error("Render error:", name, e);
@@ -159,13 +161,42 @@ function pluralAnalyses(n) {
   return "анализов";
 }
 
+/* ФИКС: возвращаем синхронный контейнер, leaderboard грузится в фоне */
 function renderLeaderboardPage() {
-  if (typeof window.renderLeaderboard === "function") {
-    try { return window.renderLeaderboard(); } catch (e) {}
-  }
-  var c = UI.card("Лидерборд");
-  c.appendChild(el("div", { class: "dim", style: "font-size:12px;" }, "Модуль лидерборда не загрузился."));
-  return c;
+  var frag = document.createDocumentFragment();
+  var placeholder = el("div", { id: "leaderboardPlaceholder" });
+  placeholder.appendChild(el("div", { class: "dim", style: "font-size:12px;padding:8px 0;" }, "Загрузка лидерборда..."));
+  frag.appendChild(placeholder);
+
+  /* Асинхронно подтягиваем настоящий лидерборд */
+  setTimeout(function () {
+    if (typeof window.renderLeaderboard !== "function") {
+      placeholder.innerHTML = "";
+      placeholder.appendChild(el("div", { class: "dim", style: "font-size:12px;" }, "Модуль лидерборда не загрузился."));
+      return;
+    }
+    try {
+      var result = window.renderLeaderboard();
+      /* renderLeaderboard — async, значит Promise */
+      if (result && typeof result.then === "function") {
+        result.then(function (card) {
+          placeholder.innerHTML = "";
+          if (card) placeholder.appendChild(card);
+        }).catch(function (e) {
+          placeholder.innerHTML = "";
+          placeholder.appendChild(el("div", { style: "color:var(--red);font-size:12px;" }, "Ошибка: " + (e.message || e)));
+        });
+      } else {
+        placeholder.innerHTML = "";
+        if (result) placeholder.appendChild(result);
+      }
+    } catch (e) {
+      placeholder.innerHTML = "";
+      placeholder.appendChild(el("div", { style: "color:var(--red);font-size:12px;" }, "Ошибка: " + (e.message || e)));
+    }
+  }, 30);
+
+  return frag;
 }
 
 function renderDashboard() {
@@ -181,7 +212,12 @@ function renderDashboard() {
     ]
   ));
   if (typeof renderDailyWidget === "function") { try { frag.appendChild(renderDailyWidget()); } catch (e) {} }
-  if (typeof window.renderRatingWidget === "function") { try { frag.appendChild(window.renderRatingWidget()); } catch (e) {} }
+  if (typeof window.renderRatingWidget === "function") {
+    try {
+      var rw = window.renderRatingWidget();
+      if (rw) frag.appendChild(rw);
+    } catch (e) { console.warn("rating widget:", e); }
+  }
   var stats = el("div", { class: "stat-grid" });
   var left = typeof analyzeQuotaRemaining === "function" ? (plus ? "∞" : String(analyzeQuotaRemaining())) : "-";
   stats.appendChild(UI.statCard("S", "var(--cyan)", "var(--cyan-bg)", "Сессий", String(Store.get("sessions", 0)), "Всего"));
@@ -481,5 +517,4 @@ else setTimeout(init, 0);
 
 window.addEventListener("hashchange", function () {
   var h = (location.hash || "#dashboard").slice(1);
-  if (h !== currentPage && PAGES[h]) switchPage(h);
-});
+

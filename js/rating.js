@@ -1,15 +1,24 @@
-/* DOTA JETCH — RATING v1.0
-   MMR + 8 медалей как в Dota 2 + калибровка */
+/* DOTA JETCH — RATING v2.0
+   - Реальные иконки медалей Dota 2 с CDN Valve
+   - Многоуровневый fallback (несколько CDN → эмодзи)
+   - 8 рангов + звёзды */
 
 var RATING_TABLE = [
-  { name: "Recruit",  ru: "Рекрут",    icon: "🪖", color: "#8b8b8b", stars: [0, 150, 300, 460, 610] },
-  { name: "Guardian", ru: "Страж",     icon: "🛡️", color: "#c0c0c0", stars: [770, 920, 1080, 1230, 1400] },
-  { name: "Crusader", ru: "Рыцарь",    icon: "⚔️", color: "#cd7f32", stars: [1540, 1700, 1850, 2000, 2150] },
-  { name: "Archon",   ru: "Герой",     icon: "🏅", color: "#4a9eff", stars: [2310, 2450, 2610, 2770, 2930] },
-  { name: "Legend",   ru: "Легенда",   icon: "🌟", color: "#9b59b6", stars: [3080, 3230, 3390, 3540, 3700] },
-  { name: "Ancient",  ru: "Властелин", icon: "💎", color: "#e67e22", stars: [3850, 4000, 4150, 4300, 4460] },
-  { name: "Divine",   ru: "Божество",  icon: "👑", color: "#f1c40f", stars: [4620, 4820, 5020, 5220, 5420] },
-  { name: "Immortal", ru: "Титан",     icon: "🔥", color: "#e74c3c", stars: [5620, 5800, 6000, 6200, 6500] }
+  { name: "Recruit",  ru: "Рекрут",    icon: "🪖", color: "#8b8b8b", rankIdx: 0, stars: [0, 150, 300, 460, 610] },
+  { name: "Guardian", ru: "Страж",     icon: "🛡️", color: "#c0c0c0", rankIdx: 1, stars: [770, 920, 1080, 1230, 1400] },
+  { name: "Crusader", ru: "Рыцарь",    icon: "⚔️", color: "#cd7f32", rankIdx: 2, stars: [1540, 1700, 1850, 2000, 2150] },
+  { name: "Archon",   ru: "Герой",     icon: "🏅", color: "#4a9eff", rankIdx: 3, stars: [2310, 2450, 2610, 2770, 2930] },
+  { name: "Legend",   ru: "Легенда",   icon: "🌟", color: "#9b59b6", rankIdx: 4, stars: [3080, 3230, 3390, 3540, 3700] },
+  { name: "Ancient",  ru: "Властелин", icon: "💎", color: "#e67e22", rankIdx: 5, stars: [3850, 4000, 4150, 4300, 4460] },
+  { name: "Divine",   ru: "Божество",  icon: "👑", color: "#f1c40f", rankIdx: 6, stars: [4620, 4820, 5020, 5220, 5420] },
+  { name: "Immortal", ru: "Титан",     icon: "🔥", color: "#e74c3c", rankIdx: 7, stars: [5620, 5800, 6000, 6200, 6500] }
+];
+
+/* Реальные иконки медалей Dota 2 (Valve CDN) */
+var MEDAL_CDN = [
+  "https://cdn.cloudflare.steamstatic.com/apps/dota2/images/dota_react/icons/ranks/rank_icon_",
+  "https://cdn.akamai.steamstatic.com/apps/dota2/images/dota_react/icons/ranks/rank_icon_",
+  "https://cdn.fastly.steamstatic.com/apps/dota2/images/dota_react/icons/ranks/rank_icon_"
 ];
 
 function getMedalForMMR(mmr) {
@@ -34,6 +43,48 @@ function getMMRFromGame(game, rawScore) {
   };
   var c = config[game] || config.lockpick;
   return Math.round(c.base + rawScore * c.perPoint);
+}
+
+/* Универсальная картинка медали с fallback на эмодзи */
+function buildMedalImage(rankIdx, size, fallbackEmoji, color) {
+  size = size || 88;
+  var wrap = document.createElement("div");
+  wrap.style.cssText = "position:relative;width:" + size + "px;height:" + size + "px;flex-shrink:0;display:flex;align-items:center;justify-content:center;";
+
+  /* Fallback эмодзи (показывается, если картинка не загрузится) */
+  var fb = document.createElement("div");
+  fb.style.cssText = "position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:" + Math.round(size * 0.55) + "px;line-height:1;";
+  fb.textContent = fallbackEmoji;
+  wrap.appendChild(fb);
+
+  /* Пробуем картинку с нескольких CDN по очереди */
+  var img = document.createElement("img");
+  img.alt = "";
+  img.loading = "lazy";
+  img.style.cssText = "position:relative;width:100%;height:100%;object-fit:contain;display:block;z-index:1;filter:drop-shadow(0 0 12px " + color + "55);";
+  img.style.opacity = "0";
+  img.style.transition = "opacity 0.3s ease";
+
+  var idx = 0;
+  var tried = 0;
+  img.onload = function () {
+    img.style.opacity = "1";
+    fb.style.display = "none";
+  };
+  img.onerror = function () {
+    idx++;
+    if (idx < MEDAL_CDN.length) {
+      img.src = MEDAL_CDN[idx] + rankIdx + ".png";
+    } else {
+      /* Все CDN не сработали — оставляем эмодзи */
+      img.style.display = "none";
+      fb.style.display = "flex";
+    }
+  };
+
+  img.src = MEDAL_CDN[0] + rankIdx + ".png";
+  wrap.appendChild(img);
+  return wrap;
 }
 
 window.getRatingData = function () {
@@ -83,26 +134,32 @@ window.renderRatingWidget = function () {
   var data = window.getRatingData();
   var medal = getMedalForMMR(data.mmr);
   var card = UI.card("🏆 Рейтинг мини-игр");
-  var main = el("div", { style: "display:flex;align-items:center;gap:20px;margin-bottom:16px;" });
+
+  var main = el("div", { style: "display:flex;align-items:center;gap:20px;margin-bottom:16px;flex-wrap:wrap;" });
+
+  /* Медаль */
   var medalBox = el("div", { style: "text-align:center;flex-shrink:0;" });
-  var medalCircle = el("div", { style: "width:88px;height:88px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:42px;background:radial-gradient(circle at 30% 30%, " + medal.medal.color + "44, " + medal.medal.color + "22);border:3px solid " + medal.medal.color + ";box-shadow:0 0 24px -6px " + medal.medal.color + ";" });
-  medalCircle.textContent = medal.medal.icon;
-  medalBox.appendChild(medalCircle);
-  var starsRow = el("div", { style: "display:flex;gap:2px;justify-content:center;margin-top:8px;" });
+  medalBox.appendChild(buildMedalImage(medal.medal.rankIdx, 96, medal.medal.icon, medal.medal.color));
+
+  var starsRow = el("div", { style: "display:flex;gap:3px;justify-content:center;margin-top:8px;" });
   for (var s = 0; s < 5; s++) {
-    var star = el("span", { style: "font-size:10px;color:" + (s < medal.stars ? medal.medal.color : "var(--border)") + ";" }, "★");
+    var star = el("span", { style: "font-size:12px;color:" + (s < medal.stars ? medal.medal.color : "var(--border)") + ";text-shadow:" + (s < medal.stars ? "0 0 6px " + medal.medal.color + "88" : "none") + ";" }, "★");
     starsRow.appendChild(star);
   }
   medalBox.appendChild(starsRow);
   main.appendChild(medalBox);
-  var info = el("div", { style: "flex:1;min-width:0;" });
-  var rankName = el("div", { style: "font-size:22px;font-weight:900;color:" + medal.medal.color + ";" });
+
+  /* Инфо */
+  var info = el("div", { style: "flex:1;min-width:180px;" });
+  var rankName = el("div", { style: "font-size:24px;font-weight:900;color:" + medal.medal.color + ";" });
   rankName.textContent = medal.medal.ru;
   info.appendChild(rankName);
   info.appendChild(el("div", { style: "font-size:12px;color:var(--text-muted);margin-top:4px;" },
     medal.stars + " ★ · " + data.mmr + " MMR"));
   info.appendChild(el("div", { style: "font-size:11px;color:var(--text-dim);margin-top:6px;" },
     "Игр: " + data.gamesPlayed + " · Побед: " + data.wins));
+
+  /* Прогресс до след. звезды */
   var nextStarMMR = null;
   for (var i = 0; i < RATING_TABLE.length; i++) {
     var m = RATING_TABLE[i];
@@ -111,6 +168,7 @@ window.renderRatingWidget = function () {
     }
     if (nextStarMMR) break;
   }
+
   if (nextStarMMR) {
     var currBase = medal.medal.stars[medal.stars - 1] || 0;
     var pct = Math.max(0, Math.min(100, ((data.mmr - currBase) / (nextStarMMR - currBase)) * 100));
@@ -126,6 +184,8 @@ window.renderRatingWidget = function () {
   }
   main.appendChild(info);
   card.appendChild(main);
+
+  /* Калибровка */
   if (!data.calibrated) {
     var cal = el("div", { style: "background:var(--accent-bg);border:1px solid var(--accent);border-radius:12px;padding:12px 14px;margin-bottom:14px;" });
     cal.appendChild(el("div", { style: "font-size:12px;font-weight:700;color:var(--accent-light);margin-bottom:4px;" }, "📊 Калибровка"));
@@ -135,7 +195,9 @@ window.renderRatingWidget = function () {
     cal.appendChild(calBar);
     card.appendChild(cal);
   }
-  var scores = el("div", { style: "display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px;" });
+
+  /* Лучшие очки по играм */
+  var scores = el("div", { style: "display:grid;grid-template-columns:repeat(3,1fr);gap:8px;" });
   var scoreDefs = [
     { icon: "🔓", name: "Взлом", val: data.bestScores.lockpick, color: "var(--gold)" },
     { icon: "⌨️", name: "Автоматоны", val: data.bestScores.automaton, color: "var(--cyan)" },
@@ -149,7 +211,8 @@ window.renderRatingWidget = function () {
     scores.appendChild(box);
   }
   card.appendChild(scores);
+
   return card;
 };
 
-console.log("rating v1.0 ready");
+console.log("rating v2.0 ready (real medal icons)");
