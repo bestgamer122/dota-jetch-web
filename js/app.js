@@ -1,6 +1,4 @@
-/* DOTA JETCH — APP v10.3
-   - Мини-игры + Лидерборд
-   - Модалка профиля: ник, аватар, статистика, выход */
+/* DOTA JETCH — APP v10.3 */
 
 var APP_VERSION = "10.3";
 
@@ -485,8 +483,3 @@ window.addEventListener("hashchange", function () {
   var h = (location.hash || "#dashboard").slice(1);
   if (h !== currentPage && PAGES[h]) switchPage(h);
 });
-```
-
-Замени **`js/app.js`** через Add file → Upload files, потом **Ctrl+Shift+Delete** → **Ctrl+F5**.
-
-Если после этого вылезут ещё ошибки — скинь скрин консоли.
