@@ -1,6 +1,5 @@
 /* DOTA JETCH — ACHIEVEMENTS v2.0
-   - Красивые анимации тостов: вылет справа, иконка пульсирует, прогресс-бар, плавное исчезновение
-   - Поддержка стека: несколько тостов идут друг над другом */
+   - Красивые тосты: вылет справа, иконка пульсирует, прогресс-бар */
 
 var ACHIEVEMENTS = [
   { id: "a1", cat: "Анализ", icon: "1", title: "Первый анализ", desc: "1 матч", check: function (s) { return s.analyzed >= 1; } },
@@ -47,17 +46,14 @@ var Achievements = {
       unlockedCount: (Store.get("achievementsunlocked", []) || []).length
     };
   },
-
   unlocked: function () {
     var u = Store.get("achievementsunlocked", []);
     return Array.isArray(u) ? u : [];
   },
-
   check: function () {
     var s = this.stats();
     var unlocked = this.unlocked();
     var newly = [];
-
     for (var i = 0; i < ACHIEVEMENTS.length; i++) {
       var a = ACHIEVEMENTS[i];
       if (a.late) continue;
@@ -71,11 +67,9 @@ var Achievements = {
       if (unlocked.indexOf(b.id) >= 0) continue;
       try { if (b.check(s)) { unlocked.push(b.id); newly.push(b); } } catch (e) {}
     }
-
     if (newly.length) {
       Store.set("achievementsunlocked", unlocked);
       for (var k = 0; k < newly.length; k++) {
-        /* Задержка между тостами — чтобы они не наезжали */
         (function (ach, delay) {
           setTimeout(function () { Achievements.toast(ach); }, delay);
         })(newly[k], k * 220);
@@ -83,20 +77,16 @@ var Achievements = {
     }
     return newly;
   },
-
   toast: function (a) {
     var c = qs("#achToast");
     if (!c) {
       c = el("div", { id: "achToast" });
       document.body.appendChild(c);
     }
-
     var t = el("div", { class: "ach-toast" });
-
     var icoWrap = el("div", { class: "ach-toast-ico" });
     icoWrap.textContent = a.icon;
     t.appendChild(icoWrap);
-
     var info = el("div", { class: "ach-toast-info" });
     var label = el("div", { class: "ach-toast-label" });
     label.textContent = "Достижение";
@@ -108,13 +98,9 @@ var Achievements = {
     info.appendChild(title);
     info.appendChild(desc);
     t.appendChild(info);
-
     var progress = el("div", { class: "ach-toast-progress" });
     t.appendChild(progress);
-
     c.appendChild(t);
-
-    /* Плавное удаление через 4 секунды (прогресс-бар синхронизирован с этим временем) */
     setTimeout(function () {
       t.classList.add("ach-toast-out");
       setTimeout(function () {
@@ -122,7 +108,6 @@ var Achievements = {
       }, 450);
     }, 4000);
   },
-
   onAnalyze: function (result) {
     if (!result || !result.hero) return;
     Store.set("analyzedcount", (Store.get("analyzedcount", 0) || 0) + 1);
@@ -130,7 +115,6 @@ var Achievements = {
     if (u.indexOf(result.hero.id) < 0) { u.push(result.hero.id); Store.set("uniqueheroes", u); }
     this.check();
   },
-
   onThemeChange: function () {
     Store.set("themechanged", true);
     this.check();
@@ -143,14 +127,12 @@ function renderAchievements() {
   var head = UI.card("Достижения");
   head.appendChild(el("div", { class: "dim", style: "font-size:12px;" }, "Открыто " + unlocked.length + " из " + ACHIEVEMENTS.length));
   frag.appendChild(head);
-
   var cats = {};
   for (var i = 0; i < ACHIEVEMENTS.length; i++) {
     var a = ACHIEVEMENTS[i];
     if (!cats[a.cat]) cats[a.cat] = [];
     cats[a.cat].push(a);
   }
-
   for (var cat in cats) {
     if (!cats.hasOwnProperty(cat)) continue;
     var card = UI.card(cat);

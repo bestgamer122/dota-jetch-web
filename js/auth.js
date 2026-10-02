@@ -1,5 +1,5 @@
 /* DOTA JETCH — FIREBASE AUTH v10.3
-   - refreshUserUI теперь рендерит и бейдж тарифа (FREE / JETCH+) */
+   - refreshUserUI рендерит бейдж тарифа (FREE / JETCH+) */
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.8.0/firebase-app.js";
 import {
@@ -15,9 +15,7 @@ const db = getDatabase(app);
 
 window.__fbAuth = auth;
 window.__fbSignOut = async function () {
-  if (currentUser) {
-    try { await saveUserData(currentUser.uid); } catch (e) {}
-  }
+  if (currentUser) { try { await saveUserData(currentUser.uid); } catch (e) {} }
   try { await signOut(auth); } catch (e) {}
 };
 
@@ -50,10 +48,7 @@ async function isNicknameTaken(nick) {
   try {
     const snap = await get(ref(db, "nicknames/" + lower));
     return snap.exists();
-  } catch (e) {
-    console.warn("isNicknameTaken error:", e);
-    return false;
-  }
+  } catch (e) { console.warn("isNicknameTaken error:", e); return false; }
 }
 async function claimNickname(nick, uid) {
   const lower = String(nick).toLowerCase();
@@ -61,10 +56,7 @@ async function claimNickname(nick, uid) {
     await update(ref(db, "nicknames"), { [lower]: uid });
     console.log("✅ Ник занят: " + nick);
     return true;
-  } catch (e) {
-    console.error("claimNickname error:", e);
-    return false;
-  }
+  } catch (e) { console.error("claimNickname error:", e); return false; }
 }
 async function releaseNickname(nick) {
   const lower = String(nick).toLowerCase();
@@ -94,14 +86,10 @@ window.changeNickname = async function(newNick) {
   if (!NICK_REGEX.test(newNick)) return { ok: false, msg: "Ник: 3-20 символов, латиница, цифры, _" };
 
   const daysLeft = nicknameCooldownDaysLeft();
-  if (daysLeft > 0) {
-    return { ok: false, msg: "Ник можно менять раз в 30 дней. Осталось: " + daysLeft + " дн." };
-  }
+  if (daysLeft > 0) return { ok: false, msg: "Ник можно менять раз в 30 дней. Осталось: " + daysLeft + " дн." };
 
   const oldNick = getCurrentNickname() || "";
-  if (oldNick && oldNick.toLowerCase() === newNick.toLowerCase()) {
-    return { ok: false, msg: "Это твой текущий ник." };
-  }
+  if (oldNick && oldNick.toLowerCase() === newNick.toLowerCase()) return { ok: false, msg: "Это твой текущий ник." };
   const taken = await isNicknameTaken(newNick);
   if (taken) return { ok: false, msg: "Этот ник уже занят." };
 
@@ -112,19 +100,13 @@ window.changeNickname = async function(newNick) {
     Store.set("nicknameChangedAt", Date.now());
     if (typeof window.refreshUserUI === "function") window.refreshUserUI();
     return { ok: true, msg: "Ник изменён на " + newNick + ". Следующая смена — через 30 дней." };
-  } catch (e) {
-    return { ok: false, msg: "Ошибка: " + (e.message || e) };
-  }
+  } catch (e) { return { ok: false, msg: "Ошибка: " + (e.message || e) }; }
 };
 
 window.changeAvatar = function(dataUrl) {
   if (!currentUser) return { ok: false, msg: "Не авторизован." };
-  if (typeof dataUrl !== "string" || dataUrl.indexOf("data:image") !== 0) {
-    return { ok: false, msg: "Неверный формат изображения." };
-  }
-  if (dataUrl.length > 200000) {
-    return { ok: false, msg: "Аватар слишком большой (макс ~150 КБ)." };
-  }
+  if (typeof dataUrl !== "string" || dataUrl.indexOf("data:image") !== 0) return { ok: false, msg: "Неверный формат изображения." };
+  if (dataUrl.length > 200000) return { ok: false, msg: "Аватар слишком большой (макс ~150 КБ)." };
   Store.set("avatar", dataUrl);
   if (typeof window.refreshUserUI === "function") window.refreshUserUI();
   return { ok: true, msg: "Аватар обновлён" };
@@ -338,7 +320,6 @@ function bindRegisterHandlers() {
 
     rBtn.disabled = true;
     rBtn.textContent = "Проверяю ник...";
-
     const taken = await isNicknameTaken(nick);
     if (taken) {
       setAuthError("Этот ник уже занят. Выбери другой.");
@@ -351,14 +332,9 @@ function bindRegisterHandlers() {
     try {
       const cred = await createUserWithEmailAndPassword(auth, email, password);
       const uid = cred.user.uid;
-
       await claimNickname(nick, uid);
       Store.set("nickname", nick);
-
-      try {
-        await update(ref(db, "users/" + uid), { nickname: nick });
-      } catch (e) { console.warn("save nickname error:", e); }
-
+      try { await update(ref(db, "users/" + uid), { nickname: nick }); } catch (e) { console.warn("save nickname error:", e); }
       await sendEmailVerification(cred.user);
     } catch (e) {
       setAuthError(translateAuthError(e.code));
@@ -416,7 +392,9 @@ const SYNC_KEYS = [
   "dailystreakclaimed","themechanged","brainmemory","visitedabout",
   "dailyprogress.analyze","dailyprogress.chat","dailyprogress.diary",
   "dailyprogress.game","dailyprogress.chart","dailyprogress.theme",
-  "dailylastclaimdate","diarynotes"
+  "dailylastclaimdate","diarynotes",
+  "lockpickbest","automatonbest","minigames_mmr","minigames_games",
+  "minigames_calibrated","minigames_calibration_games","minigames_wins"
 ];
 
 function collectLocalData() {
@@ -441,8 +419,7 @@ async function loadUserData(uid) {
     const snap = await get(ref(db, "users/" + uid));
     const data = snap.val();
     if (data && typeof data === "object") {
-      let loaded = 0;
-      let skipped = 0;
+      let loaded = 0, skipped = 0;
       for (const key in data) {
         if (!Object.prototype.hasOwnProperty.call(data, key)) continue;
         const realKey = decodeKey(key);
@@ -450,10 +427,7 @@ async function loadUserData(uid) {
         if (val === null || val === undefined) { skipped++; continue; }
         let strVal;
         try { strVal = JSON.stringify(val); } catch (e) { skipped++; continue; }
-        try {
-          sessionStorage.setItem(STORE_PREFIX + realKey, strVal);
-          loaded++;
-        } catch (e) {}
+        try { sessionStorage.setItem(STORE_PREFIX + realKey, strVal); loaded++; } catch (e) {}
       }
       console.log("✅ Загружено из Firebase: " + loaded + " ключей" + (skipped ? ", пропущено: " + skipped : ""));
       const nick = sessionStorage.getItem(STORE_PREFIX + "nickname");
@@ -468,10 +442,7 @@ async function saveUserData(uid) {
   try {
     const data = collectLocalData();
     const keys = Object.keys(data);
-    if (keys.length === 0) {
-      console.log("ℹ️ Нечего сохранять");
-      return;
-    }
+    if (keys.length === 0) { console.log("ℹ️ Нечего сохранять"); return; }
     await update(ref(db, "users/" + uid), data);
     console.log("💾 Сохранено в Firebase: " + keys.length + " ключей");
   } catch (e) { console.warn("saveUserData:", e); }
@@ -507,7 +478,6 @@ function stopAutoSave() {
 window.addEventListener("beforeunload", function () {
   if (currentUser) { try { saveUserData(currentUser.uid); } catch (e) {} }
 });
-
 document.addEventListener("visibilitychange", function () {
   if (document.visibilityState === "hidden" && currentUser) {
     try { saveUserData(currentUser.uid); } catch (e) {}
@@ -520,10 +490,7 @@ function wipeLocalUserData() {
     const keys = Object.keys(sessionStorage);
     for (let i = 0; i < keys.length; i++) {
       const k = keys[i];
-      if (k.indexOf(STORE_PREFIX) === 0) {
-        sessionStorage.removeItem(k);
-        removed++;
-      }
+      if (k.indexOf(STORE_PREFIX) === 0) { sessionStorage.removeItem(k); removed++; }
     }
     console.log("🧹 Очищено " + removed + " ключей из sessionStorage");
   } catch (e) { console.warn("wipeLocalUserData:", e); }
@@ -543,7 +510,6 @@ function translateAuthError(code) {
   return map[code] || ("Ошибка: " + code);
 }
 
-/* ─── Проверка лицензии (локальная копия, чтобы не зависеть от settings.js) ─── */
 function isPlusActive() {
   if (typeof window.checkLicense === "function") {
     try { return window.checkLicense() === true; } catch (e) {}
@@ -554,7 +520,6 @@ function isPlusActive() {
   return new Date(exp) > new Date();
 }
 
-/* ─── Обновление UI сайдбара (ник, email, аватар, бейдж) ─── */
 window.refreshUserUI = function () {
   try {
     const nick = getCurrentNickname() || "—";
@@ -588,13 +553,8 @@ window.refreshUserUI = function () {
     [badgeEl, modalBadgeEl].forEach(function (b) {
       if (!b) return;
       b.classList.remove("free", "jetch");
-      if (plus) {
-        b.textContent = "JETCH+";
-        b.classList.add("jetch");
-      } else {
-        b.textContent = "FREE";
-        b.classList.add("free");
-      }
+      if (plus) { b.textContent = "JETCH+"; b.classList.add("jetch"); }
+      else { b.textContent = "FREE"; b.classList.add("free"); }
       b.style.display = "inline-flex";
     });
   } catch (e) { console.warn("refreshUserUI:", e); }
@@ -602,19 +562,11 @@ window.refreshUserUI = function () {
 
 onAuthStateChanged(auth, async function (user) {
   console.log("🔐 onAuthStateChanged: " + (user ? user.uid : "null"));
-
   if (user) {
     currentUser = user;
-
-    if (!user.emailVerified) {
-      stopAutoSave();
-      showVerificationScreen(user.email);
-      return;
-    }
-
+    if (!user.emailVerified) { stopAutoSave(); showVerificationScreen(user.email); return; }
     const loadedFlag = "dotaJetchLoadedUid_session";
     const currentInSession = sessionStorage.getItem(loadedFlag);
-
     if (currentInSession !== user.uid) {
       console.log("🆕 Загрузка данных для " + user.uid);
       wipeLocalUserData();
@@ -624,13 +576,11 @@ onAuthStateChanged(auth, async function (user) {
       location.reload();
       return;
     }
-
     console.log("✅ Данные загружены — показываю приложение");
     hideAuthScreen();
     setupStoreSync(user.uid);
     startAutoSave(user.uid);
     window.refreshUserUI();
-
     saveUserData(user.uid);
   } else {
     currentUser = null;
