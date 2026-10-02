@@ -1,35 +1,55 @@
-/* DOTA JETCH — LEADERBOARD v1.0 */
+/* DOTA JETCH — LEADERBOARD v1.1
+   - Ленивое получение db/auth (нет гонки с auth.js) */
 
 import { getDatabase, ref, get, update, query, orderByChild, limitToLast } from "https://www.gstatic.com/firebasejs/11.8.0/firebase-database.js";
-import { getAuth } from "https://www.gstatic.com/firebasejs/11.8.0/firebase-auth.js";
 
-const auth = window.__fbAuth;
-const db = getDatabase(window.__fbAuth.app);
+function getCtx() {
+  if (!window.__fbAuth) return null;
+  try {
+    return {
+      auth: window.__fbAuth,
+      db: getDatabase(window.__fbAuth.app)
+    };
+  } catch (e) {
+    console.warn("leaderboard getCtx:", e);
+    return null;
+  }
+}
 
 window.submitToLeaderboard = async function (game, rawScore, mmr) {
-  var user = auth.currentUser;
+  var ctx = getCtx();
+  if (!ctx) { console.warn("leaderboard: не готов (auth)"); return; }
+  var user = ctx.auth.currentUser;
   if (!user) return;
   var nick = (window.Store && Store.get("nickname", "")) || "Аноним";
   try {
-    await update(ref(db, "leaderboards/" + game + "/" + user.uid), {
+    await update(ref(ctx.db, "leaderboards/" + game + "/" + user.uid), {
       nickname: nick,
       score: rawScore,
       mmr: mmr,
       ts: Date.now()
     });
+    console.log("🏅 Лидерборд обновлён: " + game + " = " + rawScore);
   } catch (e) { console.warn("submitToLeaderboard:", e); }
 };
 
 window.fetchLeaderboard = async function (game, limit) {
   limit = limit || 20;
+  var ctx = getCtx();
+  if (!ctx) return [];
   try {
-    var q = query(ref(db, "leaderboards/" + game), orderByChild("score"), limitToLast(limit));
+    var q = query(ref(ctx.db, "leaderboards/" + game), orderByChild("score"), limitToLast(limit));
     var snap = await get(q);
     var data = snap.val() || {};
     var list = [];
     for (var uid in data) {
-      if (data.hasOwnProperty(uid)) {
-        list.push({ uid: uid, nickname: data[uid].nickname, score: data[uid].score, mmr: data[uid].mmr });
+      if (Object.prototype.hasOwnProperty.call(data, uid)) {
+        list.push({
+          uid: uid,
+          nickname: data[uid].nickname,
+          score: data[uid].score,
+          mmr: data[uid].mmr
+        });
       }
     }
     list.sort(function (a, b) { return b.score - a.score; });
@@ -51,6 +71,7 @@ window.renderLeaderboard = async function (game) {
   var currentLbGame = game || "lockpick";
   var contentWrap = el("div", { id: "lbContent" });
   contentWrap.appendChild(el("div", { class: "dim", style: "font-size:12px;padding:8px 0;" }, "Загрузка..."));
+
   for (var g = 0; g < games.length; g++) {
     (function (gm) {
       var b = UI.btn(gm.label, { variant: gm.id === currentLbGame ? undefined : "ghost" });
@@ -75,31 +96,40 @@ window.renderLeaderboard = async function (game) {
   async function loadLb(gameId) {
     contentWrap.innerHTML = "";
     contentWrap.appendChild(el("div", { class: "dim", style: "font-size:12px;padding:8px 0;" }, "Загрузка..."));
+
     var list = await window.fetchLeaderboard(gameId, 20);
+
     contentWrap.innerHTML = "";
+
     if (list.length === 0) {
       contentWrap.appendChild(el("div", { class: "dim", style: "font-size:12px;padding:8px 0;" }, "Пока никто не играл. Будь первым!"));
       return;
     }
+
     for (var i = 0; i < list.length; i++) {
       var r = list[i];
       var row = el("div", { style: "display:flex;align-items:center;gap:12px;padding:10px 4px;border-bottom:1px solid var(--border);" });
+
       var place = el("div", { style: "width:30px;text-align:center;font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:900;flex-shrink:0;" });
       if (i === 0) { place.textContent = "🥇"; place.style.fontSize = "20px"; }
       else if (i === 1) { place.textContent = "🥈"; place.style.fontSize = "20px"; }
       else if (i === 2) { place.textContent = "🥉"; place.style.fontSize = "20px"; }
       else { place.textContent = "#" + (i + 1); place.style.color = "var(--text-dim)"; }
       row.appendChild(place);
+
       var av = el("div", { style: "width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--cyan));display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:900;color:#fff;font-family:'JetBrains Mono',monospace;flex-shrink:0;" });
       av.textContent = String(r.nickname || "?").charAt(0).toUpperCase() || "?";
       row.appendChild(av);
+
       var info = el("div", { style: "flex:1;min-width:0;" });
       info.appendChild(el("div", { style: "font-size:13px;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" }, r.nickname || "Аноним"));
       info.appendChild(el("div", { class: "dim", style: "font-size:10px;" }, r.mmr + " MMR"));
       row.appendChild(info);
+
       var sc = el("div", { style: "font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:900;color:var(--gold);" });
       sc.textContent = (r.score || 0).toLocaleString();
       row.appendChild(sc);
+
       contentWrap.appendChild(row);
     }
   }
@@ -108,4 +138,4 @@ window.renderLeaderboard = async function (game) {
   return card;
 };
 
-console.log("leaderboard v1.0 ready");
+console.log("leaderboard v1.1 ready");
