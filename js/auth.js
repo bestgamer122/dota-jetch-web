@@ -1,5 +1,5 @@
-/* DOTA JETCH — FIREBASE AUTH v10.3
-   - refreshUserUI рендерит бейдж тарифа (FREE / JETCH+) */
+/* DOTA JETCH — FIREBASE AUTH v11.0
+   - Добавлена синхронизация publicProfiles (ник + ава для лидерборда) */
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.8.0/firebase-app.js";
 import {
@@ -43,27 +43,41 @@ function decodeKey(k) {
                   .replace(/__LB__/g, "[").replace(/__RB__/g, "]");
 }
 
+/* ─── Синхронизация публичного профиля (для лидерборда) ─── */
+async function syncPublicProfile() {
+  if (!currentUser) return;
+  var nick = getCurrentNickname() || "";
+  var avatar = Store.get("avatar", null);
+  var data = { nickname: nick, ts: Date.now() };
+  if (avatar && typeof avatar === "string" && avatar.indexOf("data:image") === 0) {
+    data.avatar = avatar;
+  }
+  try {
+    await update(ref(db, "publicProfiles/" + currentUser.uid), data);
+    if (!data.avatar) {
+      try { await remove(ref(db, "publicProfiles/" + currentUser.uid + "/avatar")); } catch (e) {}
+    }
+    console.log("📇 publicProfiles: " + nick);
+  } catch (e) { console.warn("syncPublicProfile:", e); }
+}
+
 async function isNicknameTaken(nick) {
   const lower = String(nick).toLowerCase();
   try {
     const snap = await get(ref(db, "nicknames/" + lower));
     return snap.exists();
-  } catch (e) { console.warn("isNicknameTaken error:", e); return false; }
+  } catch (e) { return false; }
 }
 async function claimNickname(nick, uid) {
   const lower = String(nick).toLowerCase();
   try {
     await update(ref(db, "nicknames"), { [lower]: uid });
-    console.log("✅ Ник занят: " + nick);
     return true;
-  } catch (e) { console.error("claimNickname error:", e); return false; }
+  } catch (e) { return false; }
 }
 async function releaseNickname(nick) {
   const lower = String(nick).toLowerCase();
-  try {
-    await remove(ref(db, "nicknames/" + lower));
-    console.log("🔓 Ник освобождён: " + nick);
-  } catch (e) { console.warn("releaseNickname error:", e); }
+  try { await remove(ref(db, "nicknames/" + lower)); } catch (e) {}
 }
 
 function getCurrentNickname() {
@@ -84,30 +98,29 @@ window.changeNickname = async function(newNick) {
   if (!currentUser) return { ok: false, msg: "Не авторизован." };
   newNick = String(newNick || "").trim();
   if (!NICK_REGEX.test(newNick)) return { ok: false, msg: "Ник: 3-20 символов, латиница, цифры, _" };
-
   const daysLeft = nicknameCooldownDaysLeft();
   if (daysLeft > 0) return { ok: false, msg: "Ник можно менять раз в 30 дней. Осталось: " + daysLeft + " дн." };
-
   const oldNick = getCurrentNickname() || "";
   if (oldNick && oldNick.toLowerCase() === newNick.toLowerCase()) return { ok: false, msg: "Это твой текущий ник." };
   const taken = await isNicknameTaken(newNick);
   if (taken) return { ok: false, msg: "Этот ник уже занят." };
-
   try {
     if (oldNick) await releaseNickname(oldNick);
     await claimNickname(newNick, currentUser.uid);
     Store.set("nickname", newNick);
     Store.set("nicknameChangedAt", Date.now());
+    await syncPublicProfile();
     if (typeof window.refreshUserUI === "function") window.refreshUserUI();
-    return { ok: true, msg: "Ник изменён на " + newNick + ". Следующая смена — через 30 дней." };
+    return { ok: true, msg: "Ник изменён на " + newNick + "." };
   } catch (e) { return { ok: false, msg: "Ошибка: " + (e.message || e) }; }
 };
 
 window.changeAvatar = function(dataUrl) {
   if (!currentUser) return { ok: false, msg: "Не авторизован." };
-  if (typeof dataUrl !== "string" || dataUrl.indexOf("data:image") !== 0) return { ok: false, msg: "Неверный формат изображения." };
-  if (dataUrl.length > 200000) return { ok: false, msg: "Аватар слишком большой (макс ~150 КБ)." };
+  if (typeof dataUrl !== "string" || dataUrl.indexOf("data:image") !== 0) return { ok: false, msg: "Неверный формат." };
+  if (dataUrl.length > 200000) return { ok: false, msg: "Аватар слишком большой." };
   Store.set("avatar", dataUrl);
+  syncPublicProfile();
   if (typeof window.refreshUserUI === "function") window.refreshUserUI();
   return { ok: true, msg: "Аватар обновлён" };
 };
@@ -313,16 +326,17 @@ function bindRegisterHandlers() {
     const password2 = p2Inp && p2Inp.value || "";
 
     if (!nick) { setAuthError("Введи ник."); return; }
-    if (!NICK_REGEX.test(nick)) { setAuthError("Ник: 3-20 символов, латиница, цифры, _"); return; }
+    if (!NICK_REGEX.test(nick)) { setAuthError("Ник: 3-20 символов."); return; }
     if (!email || !password || !password2) { setAuthError("Заполни все поля."); return; }
     if (password.length < 6) { setAuthError("Пароль минимум 6 символов."); return; }
     if (password !== password2) { setAuthError("Пароли не совпадают."); return; }
 
     rBtn.disabled = true;
     rBtn.textContent = "Проверяю ник...";
+
     const taken = await isNicknameTaken(nick);
     if (taken) {
-      setAuthError("Этот ник уже занят. Выбери другой.");
+      setAuthError("Этот ник уже занят.");
       rBtn.disabled = false;
       rBtn.textContent = "Зарегистрироваться";
       return;
@@ -334,7 +348,10 @@ function bindRegisterHandlers() {
       const uid = cred.user.uid;
       await claimNickname(nick, uid);
       Store.set("nickname", nick);
-      try { await update(ref(db, "users/" + uid), { nickname: nick }); } catch (e) { console.warn("save nickname error:", e); }
+      try {
+        await update(ref(db, "users/" + uid), { nickname: nick });
+        await update(ref(db, "publicProfiles/" + uid), { nickname: nick, ts: Date.now() });
+      } catch (e) { console.warn("save nickname error:", e); }
       await sendEmailVerification(cred.user);
     } catch (e) {
       setAuthError(translateAuthError(e.code));
@@ -429,11 +446,9 @@ async function loadUserData(uid) {
         try { strVal = JSON.stringify(val); } catch (e) { skipped++; continue; }
         try { sessionStorage.setItem(STORE_PREFIX + realKey, strVal); loaded++; } catch (e) {}
       }
-      console.log("✅ Загружено из Firebase: " + loaded + " ключей" + (skipped ? ", пропущено: " + skipped : ""));
-      const nick = sessionStorage.getItem(STORE_PREFIX + "nickname");
-      console.log("🔍 nickname в sessionStorage: " + (nick === null ? "ПУСТО" : nick));
+      console.log("✅ Загружено из Firebase: " + loaded + " ключей");
     } else {
-      console.log("⚠ Новый аккаунт — данных в Firebase ещё нет");
+      console.log("⚠ Новый аккаунт");
     }
   } catch (e) { console.error("❌ loadUserData:", e); }
 }
@@ -442,9 +457,8 @@ async function saveUserData(uid) {
   try {
     const data = collectLocalData();
     const keys = Object.keys(data);
-    if (keys.length === 0) { console.log("ℹ️ Нечего сохранять"); return; }
+    if (keys.length === 0) return;
     await update(ref(db, "users/" + uid), data);
-    console.log("💾 Сохранено в Firebase: " + keys.length + " ключей");
   } catch (e) { console.warn("saveUserData:", e); }
 }
 
@@ -459,9 +473,7 @@ function setupStoreSync(uid) {
       }
       const patch = {};
       patch[encodeKey(key)] = value;
-      update(ref(db, "users/" + uid), patch).catch((e) => {
-        console.warn("Sync error для " + key + ":", e);
-      });
+      update(ref(db, "users/" + uid), patch).catch(() => {});
     };
     window.Store.__fbSync = true;
   }
@@ -492,8 +504,8 @@ function wipeLocalUserData() {
       const k = keys[i];
       if (k.indexOf(STORE_PREFIX) === 0) { sessionStorage.removeItem(k); removed++; }
     }
-    console.log("🧹 Очищено " + removed + " ключей из sessionStorage");
-  } catch (e) { console.warn("wipeLocalUserData:", e); }
+    console.log("🧹 Очищено " + removed + " ключей");
+  } catch (e) {}
 }
 
 function translateAuthError(code) {
@@ -544,8 +556,6 @@ window.refreshUserUI = function () {
         avEl.textContent = "";
       } else {
         avEl.style.backgroundImage = "";
-        avEl.style.backgroundSize = "";
-        avEl.style.backgroundPosition = "";
         avEl.textContent = String(nick).charAt(0).toUpperCase() || "?";
       }
     }
@@ -557,7 +567,7 @@ window.refreshUserUI = function () {
       else { b.textContent = "FREE"; b.classList.add("free"); }
       b.style.display = "inline-flex";
     });
-  } catch (e) { console.warn("refreshUserUI:", e); }
+  } catch (e) {}
 };
 
 onAuthStateChanged(auth, async function (user) {
@@ -568,23 +578,20 @@ onAuthStateChanged(auth, async function (user) {
     const loadedFlag = "dotaJetchLoadedUid_session";
     const currentInSession = sessionStorage.getItem(loadedFlag);
     if (currentInSession !== user.uid) {
-      console.log("🆕 Загрузка данных для " + user.uid);
       wipeLocalUserData();
       sessionStorage.setItem(loadedFlag, user.uid);
       await loadUserData(user.uid);
-      console.log("🔄 Перезагрузка страницы с данными из Firebase");
       location.reload();
       return;
     }
-    console.log("✅ Данные загружены — показываю приложение");
     hideAuthScreen();
     setupStoreSync(user.uid);
     startAutoSave(user.uid);
     window.refreshUserUI();
+    syncPublicProfile();
     saveUserData(user.uid);
   } else {
     currentUser = null;
-    console.log("🚪 Логаут — очистка sessionStorage");
     stopAutoSave();
     wipeLocalUserData();
     sessionStorage.removeItem("dotaJetchLoadedUid_session");
