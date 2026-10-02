@@ -1,6 +1,4 @@
-/* DOTA JETCH — LEADERBOARD v1.2
-   - Убран таб «Викторина» (нет смысла в рейтинге)
-   - Ленивое получение db/auth */
+/* DOTA JETCH — LEADERBOARD v1.2 */
 
 import { getDatabase, ref, get, update, query, orderByChild, limitToLast } from "https://www.gstatic.com/firebasejs/11.8.0/firebase-database.js";
 
@@ -18,7 +16,6 @@ function getCtx() {
 }
 
 window.submitToLeaderboard = async function (game, rawScore, mmr) {
-  /* Викторина не отправляется в лидерборд */
   if (game === "quiz") return;
   var ctx = getCtx();
   if (!ctx) { console.warn("leaderboard: не готов (auth)"); return; }
