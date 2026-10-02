@@ -1,18 +1,29 @@
-/* DOTA JETCH — MINI-GAMES v5.0 */
+/* DOTA JETCH — MINI-GAMES v6.0
+   - Взлом замка: меньше канвас, быстрая стрелка, сложнее
+   - Атака автоматонов: 2 жизни, 45 сек, быстрее
+   - Викторина: исправленные вопросы, без рейтинга */
 
 var QUIZ = [
-  { q: "Какая способность у Juggernaut даёт неуязвимость?", a: "Omnislash", opts: ["Omnislash", "Blade Fury", "Blade Dance", "Healing Ward"] },
+  { q: "Какая способность у Juggernaut даёт неуязвимость во время каста?", a: "Omnislash", opts: ["Omnislash", "Blade Fury", "Blade Dance", "Healing Ward"] },
   { q: "Сколько стоит Black King Bar?", a: "4050", opts: ["3900", "4050", "4200", "5000"] },
-  { q: "Какой предмет даёт иммунитет к магии?", a: "Black King Bar", opts: ["Linken's", "Black King Bar", "Lotus", "Eul's"] },
-  { q: "Кто имеет Blink на 3 заряда?", a: "Anti-Mage", opts: ["Anti-Mage", "QoP", "Void", "Storm"] },
-  { q: "Какой предмет снимает сайленс?", a: "Eul's Scepter", opts: ["Manta", "Eul's Scepter", "Force", "Glimmer"] },
-  { q: "Что делает Rune of Wisdom?", a: "Даёт опыт", opts: ["Золото", "Опыт", "Ману", "HP"] },
-  { q: "Кто невидим в ульте?", a: "Slark", opts: ["Riki", "Slark", "BH", "Clinkz"] },
-  { q: "Сколько длится стан Hex?", a: "3.5 сек", opts: ["2", "3", "3.5", "5"] },
-  { q: "Что даёт Aegis?", a: "Возрождение", opts: ["HP", "Ману", "Возрождение", "Урон"] },
-  { q: "Когда респавн Roshan?", a: "8-11 мин", opts: ["5", "8-11", "12", "15"] },
-  { q: "Что такое KDA?", a: "Kills/Deaths/Assists", opts: ["K/D/A", "K/Damage/A", "K/Deny/A", "K/Dmg/A"] },
-  { q: "Какая роль у Crystal Maiden?", a: "Pos 5", opts: ["Pos 1", "Pos 2", "Pos 4", "Pos 5"] }
+  { q: "Какой предмет даёт иммунитет к большинству магии?", a: "Black King Bar", opts: ["Linken's Sphere", "Black King Bar", "Lotus Orb", "Eul's Scepter"] },
+  { q: "Кто может блинкаться без задержки и кулдауна (Blink)?", a: "Anti-Mage", opts: ["Anti-Mage", "Queen of Pain", "Faceless Void", "Storm Spirit"] },
+  { q: "Какой предмет снимает сайленс с себя при использовании?", a: "Eul's Scepter", opts: ["Manta Style", "Eul's Scepter", "Force Staff", "Glimmer Cape"] },
+  { q: "Что даёт Rune of Wisdom?", a: "Опыт", opts: ["Золото", "Опыт", "Ману", "HP"] },
+  { q: "Кто становится невидимым в ульте (Shadow Dance)?", a: "Slark", opts: ["Riki", "Slark", "Bounty Hunter", "Clinkz"] },
+  { q: "Сколько длится Hex от Scythe of Vyse?", a: "3.5 сек", opts: ["2 сек", "3 сек", "3.5 сек", "5 сек"] },
+  { q: "Что даёт Aegis of the Immortal?", a: "Возрождение", opts: ["HP", "Ману", "Возрождение", "Урон"] },
+  { q: "Через сколько минут респавнится Roshan?", a: "8-11 мин", opts: ["5 мин", "8-11 мин", "12 мин", "15 мин"] },
+  { q: "Что такое KDA?", a: "Kills / Deaths / Assists", opts: ["Kills / Deaths / Assists", "Kills / Damage / Assists", "Kills / Denies / Assists", "Kills / Damage / Armor"] },
+  { q: "Какая роль чаще всего у Crystal Maiden?", a: "Pos 5", opts: ["Pos 1", "Pos 2", "Pos 4", "Pos 5"] },
+  { q: "Сколько тиров нейтральных предметов сейчас в игре?", a: "5", opts: ["3", "4", "5", "6"] },
+  { q: "Какой атрибут даёт +1 HP за единицу (у большинства героев)?", a: "Сила (Strength)", opts: ["Сила (Strength)", "Ловкость (Agility)", "Интеллект (Intelligence)", "Универсальность (Universal)"] },
+  { q: "Сколько героев в Dota 2 (на 2026 год)?", a: "127", opts: ["112", "120", "127", "135"] },
+  { q: "Какой предмет блокирует точечные заклинания?", a: "Linken's Sphere", opts: ["Black King Bar", "Linken's Sphere", "Lotus Orb", "Aeon Disk"] },
+  { q: "Что делает Smoke of Deceit?", a: "Скрывает союзников от вардов", opts: ["Даёт невидимость на 30 сек", "Скрывает союзников от вардов", "Увеличивает скорость", "Восстанавливает HP"] },
+  { q: "Какой предмет даёт иммунитет к физатакам?", a: "Ghost Scepter", opts: ["Ghost Scepter", "Ethereal Blade", "BKB", "Blade Mail"] },
+  { q: "Как называется нейтральный босс в центре карты?", a: "Roshan", opts: ["Roshan", "Aegis", "Tormentor", "Ancient"] },
+  { q: "Сколько золота даёт один крип на старте?", a: "~40", opts: ["~20", "~30", "~40", "~60"] }
 ];
 
 var WORD_BANK = [
@@ -38,7 +49,6 @@ function shuffle(a) {
 
 var CURRENT_GAME = "lockpick";
 
-/* ─── Главный рендер страницы ─── */
 function renderGames() {
   var frag = document.createDocumentFragment();
   frag.appendChild(UI.heroBanner("Мини-игры", "Выбери игру и покажи лучший результат", []));
@@ -88,7 +98,6 @@ function renderGames() {
   return frag;
 }
 
-/* ─── Заставка (intro) ─── */
 function showIntro(kind) {
   var area = qs("#gameArea");
   if (!area) return;
@@ -98,7 +107,6 @@ function showIntro(kind) {
   else if (kind === "quiz") area.appendChild(buildQuizIntro());
 }
 
-/* ─── Запуск игры ─── */
 function startGame(kind) {
   var area = qs("#gameArea");
   if (!area) return;
@@ -112,7 +120,6 @@ function startGame(kind) {
   if (typeof Achievements !== "undefined") Achievements.check();
 }
 
-/* ─── Заставки игр ─── */
 function buildRulesBlock(title, items) {
   var box = el("div", { style: "background:var(--bg-elev);border:1px solid var(--border);border-radius:14px;padding:16px 18px;margin-top:16px;" });
   box.appendChild(el("div", { style: "font-size:13px;font-weight:700;color:var(--text);margin-bottom:10px;" }, title));
@@ -140,12 +147,12 @@ function buildLockpickIntro() {
   card.appendChild(visual);
 
   card.appendChild(buildRulesBlock("Как играть", [
-    "Кликни ЛКМ (или тапни), когда стрелка в жёлтой зоне",
+    "Кликни, когда стрелка в жёлтой зоне",
     "Жёлтая зона = 1 000 очков",
-    "Синяя зона = +2 секунды",
+    "Синяя зона = +1.5 секунды",
     "Промах = −1 секунда, комбо сбрасывается",
-    "Комбо x2..x10 — каждая серия растёт",
-    "Начальное время: 30 секунд"
+    "Комбо x2..x8 — каждая серия растёт",
+    "Стартовое время: 25 секунд"
   ]));
 
   card.appendChild(buildPlayButton("🎮 Играть", "lockpick"));
@@ -162,10 +169,10 @@ function buildAutomatonIntro() {
   card.appendChild(buildRulesBlock("Как играть", [
     "Печатай слова Dota 2, которые летят к автоматону",
     "Правильно напечатал — слово сбито, +очки",
-    "Пропустил слово — автоматон бьёт по HP (3 жизни)",
+    "Пропустил слово — теряешь 1 жизнь (всего 2)",
     "Комбо-множитель до x5 за серию",
     "Очки зависят от длины слова",
-    "Скорость нарастает с каждой секундой"
+    "Всего 45 секунд — печатай быстро!"
   ]));
 
   card.appendChild(buildPlayButton("🎮 Играть", "automaton"));
@@ -183,7 +190,7 @@ function buildQuizIntro() {
     "10 случайных вопросов про Dota 2",
     "4 варианта ответа — выбери правильный",
     "Счёт: 1 балл за верный ответ",
-    "Рекорд сохраняется в лидерборде"
+    "Без рейтинга — просто проверь знания"
   ]));
 
   card.appendChild(buildPlayButton("🎮 Играть", "quiz"));
@@ -191,7 +198,7 @@ function buildQuizIntro() {
 }
 
 /* ═══════════════════════════════════════
-   ИГРА 1: ВЗЛОМ ЗАМКА (улучшенная)
+   ИГРА 1: ВЗЛОМ ЗАМКА
    ═══════════════════════════════════════ */
 function renderLockpick() {
   var card = UI.card("🔓 Взлом замка");
@@ -204,47 +211,48 @@ function renderLockpick() {
   topRow.appendChild(menuBtn);
   card.appendChild(topRow);
 
-  var canvasWrap = el("div", { style: "position:relative;max-width:440px;margin:0 auto;" });
+  /* Канвас меньше: 320x320 */
+  var canvasWrap = el("div", { style: "position:relative;max-width:340px;margin:0 auto;" });
   var canvas = document.createElement("canvas");
-  canvas.width = 440;
-  canvas.height = 440;
-  canvas.style.cssText = "display:block;width:100%;border-radius:18px;background:#12141a;cursor:pointer;user-select:none;";
+  canvas.width = 340;
+  canvas.height = 340;
+  canvas.style.cssText = "display:block;width:100%;border-radius:16px;background:#12141a;cursor:pointer;user-select:none;";
   canvasWrap.appendChild(canvas);
   card.appendChild(canvasWrap);
 
-  var hud = el("div", { style: "display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:14px;" });
-  var scoreBox = el("div", { style: "text-align:center;padding:10px;background:var(--bg-elev);border:1px solid var(--border);border-radius:12px;" });
+  var hud = el("div", { style: "display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:14px;max-width:340px;margin-left:auto;margin-right:auto;" });
+  var scoreBox = el("div", { style: "text-align:center;padding:8px;background:var(--bg-elev);border:1px solid var(--border);border-radius:10px;" });
   scoreBox.appendChild(el("div", { class: "dim", style: "font-size:9px;text-transform:uppercase;letter-spacing:0.1em;" }, "Очки"));
-  var scoreVal = el("div", { style: "font-size:22px;font-weight:900;font-family:'JetBrains Mono',monospace;color:var(--gold);" }, "0");
+  var scoreVal = el("div", { style: "font-size:18px;font-weight:900;font-family:'JetBrains Mono',monospace;color:var(--gold);" }, "0");
   scoreBox.appendChild(scoreVal);
   hud.appendChild(scoreBox);
 
-  var timeBox = el("div", { style: "text-align:center;padding:10px;background:var(--bg-elev);border:1px solid var(--border);border-radius:12px;" });
+  var timeBox = el("div", { style: "text-align:center;padding:8px;background:var(--bg-elev);border:1px solid var(--border);border-radius:10px;" });
   timeBox.appendChild(el("div", { class: "dim", style: "font-size:9px;text-transform:uppercase;letter-spacing:0.1em;" }, "Время"));
-  var timeVal = el("div", { style: "font-size:22px;font-weight:900;font-family:'JetBrains Mono',monospace;color:var(--cyan);" }, "30.0");
+  var timeVal = el("div", { style: "font-size:18px;font-weight:900;font-family:'JetBrains Mono',monospace;color:var(--cyan);" }, "25.0");
   timeBox.appendChild(timeVal);
   hud.appendChild(timeBox);
 
-  var comboBox = el("div", { style: "text-align:center;padding:10px;background:var(--bg-elev);border:1px solid var(--border);border-radius:12px;" });
+  var comboBox = el("div", { style: "text-align:center;padding:8px;background:var(--bg-elev);border:1px solid var(--border);border-radius:10px;" });
   comboBox.appendChild(el("div", { class: "dim", style: "font-size:9px;text-transform:uppercase;letter-spacing:0.1em;" }, "Комбо"));
-  var comboVal = el("div", { style: "font-size:22px;font-weight:900;font-family:'JetBrains Mono',monospace;color:var(--text);" }, "x1");
+  var comboVal = el("div", { style: "font-size:18px;font-weight:900;font-family:'JetBrains Mono',monospace;color:var(--text);" }, "x1");
   comboBox.appendChild(comboVal);
   hud.appendChild(comboBox);
   card.appendChild(hud);
 
-  var statusEl = el("div", { style: "text-align:center;margin-top:12px;font-size:13px;font-weight:600;color:var(--text-muted);min-height:20px;" }, "Жми когда стрелка в жёлтой зоне!");
+  var statusEl = el("div", { style: "text-align:center;margin-top:12px;font-size:12px;font-weight:600;color:var(--text-muted);min-height:20px;max-width:340px;margin-left:auto;margin-right:auto;" }, "Жми когда стрелка в жёлтой зоне!");
   card.appendChild(statusEl);
 
   var state = {
-    score: 0, timeLeft: 30, combo: 1, maxCombo: 1,
-    angle: -Math.PI / 2, speed: 0.9, running: false,
+    score: 0, timeLeft: 25, combo: 1, maxCombo: 1,
+    angle: -Math.PI / 2, speed: 1.6, running: false,
     lastFrame: 0, zones: [], flash: null, missCount: 0, hitCount: 0
   };
   var rafId = null;
   var cx = canvas.width / 2;
   var cy = canvas.height / 2;
-  var r = 165;
-  var ringWidth = 38;
+  var r = 128;
+  var ringWidth = 32;
 
   function stopLockpick() {
     state.running = false;
@@ -260,8 +268,8 @@ function renderLockpick() {
       var tries = 0;
       var z;
       do {
-        var isBlue = Math.random() < 0.22;
-        var size = isBlue ? (0.10 + Math.random() * 0.08) : (0.14 + Math.random() * 0.14);
+        var isBlue = Math.random() < 0.20;
+        var size = isBlue ? (0.09 + Math.random() * 0.06) : (0.12 + Math.random() * 0.10);
         z = { start: Math.random() * Math.PI * 2, size: size, blue: isBlue };
         tries++;
       } while (overlaps(z, used) && tries < 30);
@@ -293,7 +301,7 @@ function renderLockpick() {
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     ctx.beginPath();
-    ctx.arc(cx, cy, r + ringWidth / 2 + 8, 0, Math.PI * 2);
+    ctx.arc(cx, cy, r + ringWidth / 2 + 6, 0, Math.PI * 2);
     ctx.strokeStyle = "rgba(139,92,246,0.18)";
     ctx.lineWidth = 1;
     ctx.stroke();
@@ -312,7 +320,7 @@ function renderLockpick() {
       ctx.beginPath();
       ctx.arc(cx, cy, r, startAng, endAng);
       ctx.strokeStyle = z.blue ? "rgba(34,211,238,0.25)" : "rgba(251,191,36,0.25)";
-      ctx.lineWidth = ringWidth + 14;
+      ctx.lineWidth = ringWidth + 12;
       ctx.stroke();
 
       ctx.beginPath();
@@ -328,22 +336,22 @@ function renderLockpick() {
     ctx.moveTo(cx, cy);
     ctx.lineTo(ax, ay);
     ctx.strokeStyle = "#fff";
-    ctx.lineWidth = 3;
+    ctx.lineWidth = 2.5;
     ctx.lineCap = "round";
     ctx.stroke();
 
     ctx.beginPath();
-    ctx.arc(cx, cy, 46, 0, Math.PI * 2);
+    ctx.arc(cx, cy, 36, 0, Math.PI * 2);
     ctx.fillStyle = "rgba(20,22,30,1)";
     ctx.fill();
     ctx.strokeStyle = "rgba(139,92,246,0.5)";
     ctx.lineWidth = 2;
     ctx.stroke();
 
-    ctx.font = "36px sans-serif";
+    ctx.font = "28px sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText("🔒", cx, cy + 3);
+    ctx.fillText("🔒", cx, cy + 2);
 
     if (state.flash) {
       ctx.fillStyle = state.flash.color;
@@ -369,20 +377,21 @@ function renderLockpick() {
       if (isInZone(state.angle, z)) {
         hit = true;
         if (z.blue) {
-          state.timeLeft = Math.min(60, state.timeLeft + 2);
+          state.timeLeft = Math.min(50, state.timeLeft + 1.5);
           state.flash = { color: "rgba(34,211,238,0.20)", alpha: 0.5 };
-          statusEl.textContent = "⚡ +2 сек"; statusEl.style.color = "var(--cyan)";
+          statusEl.textContent = "⚡ +1.5 сек"; statusEl.style.color = "var(--cyan)";
         } else {
           var pts = 1000 * state.combo;
           state.score += pts;
-          state.combo = Math.min(10, state.combo + 1);
+          state.combo = Math.min(8, state.combo + 1);
           state.maxCombo = Math.max(state.maxCombo, state.combo);
           state.hitCount++;
           state.flash = { color: "rgba(251,191,36,0.18)", alpha: 0.4 };
           statusEl.textContent = "✓ +" + pts.toLocaleString() + " · комбо x" + state.combo;
           statusEl.style.color = "var(--gold)";
         }
-        state.speed = Math.min(2.4, 0.9 + state.hitCount * 0.06);
+        /* Быстрее с каждым попаданием */
+        state.speed = Math.min(4.5, 1.6 + state.hitCount * 0.12);
         spawnZones();
         break;
       }
@@ -423,8 +432,8 @@ function renderLockpick() {
 
   function start() {
     state = {
-      score: 0, timeLeft: 30, combo: 1, maxCombo: 1,
-      angle: -Math.PI / 2, speed: 0.9, running: true,
+      score: 0, timeLeft: 25, combo: 1, maxCombo: 1,
+      angle: -Math.PI / 2, speed: 1.6, running: true,
       lastFrame: performance.now(), zones: [], flash: null,
       missCount: 0, hitCount: 0
     };
@@ -443,11 +452,11 @@ function renderLockpick() {
     if (typeof window.submitGameScore === "function") {
       try { window.submitGameScore("lockpick", state.score); } catch (e) {}
     }
-    var overlay = el("div", { style: "position:absolute;inset:0;background:rgba(2,3,8,0.92);display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:18px;padding:24px;text-align:center;" });
-    overlay.appendChild(el("div", { style: "font-size:52px;margin-bottom:6px;" }, isRecord ? "🏆" : "🔓"));
-    overlay.appendChild(el("div", { style: "font-size:16px;font-weight:700;color:var(--text);margin-bottom:2px;" }, isRecord ? "Новый рекорд!" : "Замок взломан"));
-    overlay.appendChild(el("div", { style: "font-size:38px;font-weight:900;font-family:'JetBrains Mono',monospace;color:var(--gold);margin:14px 0 6px;" }, state.score.toLocaleString()));
-    overlay.appendChild(el("div", { class: "dim", style: "font-size:11px;margin-bottom:20px;" }, "Попаданий: " + state.hitCount + " · Промахов: " + state.missCount + " · Макс. комбо: x" + state.maxCombo));
+    var overlay = el("div", { style: "position:absolute;inset:0;background:rgba(2,3,8,0.92);display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:16px;padding:20px;text-align:center;" });
+    overlay.appendChild(el("div", { style: "font-size:46px;margin-bottom:6px;" }, isRecord ? "🏆" : "🔓"));
+    overlay.appendChild(el("div", { style: "font-size:15px;font-weight:700;color:var(--text);margin-bottom:2px;" }, isRecord ? "Новый рекорд!" : "Замок взломан"));
+    overlay.appendChild(el("div", { style: "font-size:32px;font-weight:900;font-family:'JetBrains Mono',monospace;color:var(--gold);margin:12px 0 4px;" }, state.score.toLocaleString()));
+    overlay.appendChild(el("div", { class: "dim", style: "font-size:10.5px;margin-bottom:16px;" }, "Попаданий: " + state.hitCount + " · Промахов: " + state.missCount + " · Комбо: x" + state.maxCombo));
 
     var btnRow = el("div", { style: "display:flex;gap:8px;" });
     var retryBtn = UI.btn("🔄 Ещё раз");
@@ -470,7 +479,7 @@ function renderLockpick() {
 }
 
 /* ═══════════════════════════════════════
-   ИГРА 2: АТАКА АВТОМАТОНОВ (улучшенная)
+   ИГРА 2: АТАКА АВТОМАТОНОВ
    ═══════════════════════════════════════ */
 function renderAutomaton() {
   var card = UI.card("⌨️ Атака автоматонов");
@@ -498,14 +507,14 @@ function renderAutomaton() {
   hud.appendChild(scoreH.box); hud.appendChild(timeH.box); hud.appendChild(livesH.box); hud.appendChild(multiH.box);
   card.appendChild(hud);
 
-  var field = el("div", { style: "position:relative;height:340px;border-radius:16px;background:linear-gradient(180deg,#0c0e14 0%,#151824 100%);border:1px solid var(--border);overflow:hidden;" });
+  var field = el("div", { style: "position:relative;height:300px;border-radius:16px;background:linear-gradient(180deg,#0c0e14 0%,#151824 100%);border:1px solid var(--border);overflow:hidden;" });
   var wordsLayer = el("div", { style: "position:absolute;inset:0;pointer-events:none;overflow:hidden;" });
   field.appendChild(wordsLayer);
 
   var botWrap = el("div", { style: "position:absolute;left:50%;bottom:12px;transform:translateX(-50%);text-align:center;z-index:5;" });
-  var botEmoji = el("div", { style: "font-size:54px;line-height:1;filter:drop-shadow(0 0 12px rgba(34,211,238,0.5));transition:transform 0.15s ease;" }, "🤖");
+  var botEmoji = el("div", { style: "font-size:48px;line-height:1;filter:drop-shadow(0 0 12px rgba(34,211,238,0.5));transition:transform 0.15s ease;" }, "🤖");
   botWrap.appendChild(botEmoji);
-  var hpBar = el("div", { style: "width:120px;height:6px;background:rgba(239,68,68,0.2);border-radius:3px;overflow:hidden;margin:8px auto 0;" });
+  var hpBar = el("div", { style: "width:100px;height:6px;background:rgba(239,68,68,0.2);border-radius:3px;overflow:hidden;margin:6px auto 0;" });
   var hpFill = el("div", { style: "height:100%;width:100%;background:linear-gradient(90deg,var(--green),var(--cyan));border-radius:3px;transition:width 0.3s ease;" });
   hpBar.appendChild(hpFill);
   botWrap.appendChild(hpBar);
@@ -531,9 +540,9 @@ function renderAutomaton() {
   card.appendChild(statusEl);
 
   var st = {
-    score: 0, timeLeft: 60, multiplier: 1, hits: 0,
+    score: 0, timeLeft: 45, multiplier: 1, hits: 0,
     running: false, words: [], lastFrame: 0, spawnTimer: 0,
-    lives: 3, maxLives: 3
+    lives: 2, maxLives: 2
   };
   var rafId = null;
 
@@ -566,7 +575,8 @@ function renderAutomaton() {
     el_.style.left = x + "px";
     el_.style.top = "-40px";
     wordsLayer.appendChild(el_);
-    var speed = 42 + Math.random() * 22 + (60 - st.timeLeft) * 0.4;
+    /* Быстрее с каждой секундой */
+    var speed = 55 + Math.random() * 30 + (45 - st.timeLeft) * 0.6;
     st.words.push({ el: el_, word: word, y: -40, speed: speed });
   }
 
@@ -576,7 +586,7 @@ function renderAutomaton() {
       var w = st.words[i];
       w.y += w.speed * dt;
       w.el.style.top = w.y + "px";
-      if (w.y > fieldH - 90) {
+      if (w.y > fieldH - 80) {
         if (w.el.parentNode) w.el.parentNode.removeChild(w.el);
         st.words.splice(i, 1);
         st.multiplier = 1;
@@ -641,8 +651,9 @@ function renderAutomaton() {
     st.spawnTimer -= dt;
     if (st.spawnTimer <= 0) {
       spawnWord();
-      var baseRate = 1.6 - (st.hits * 0.02) - ((60 - st.timeLeft) * 0.005);
-      st.spawnTimer = Math.max(0.55, baseRate + Math.random() * 0.4);
+      /* Быстрее спавн */
+      var baseRate = 1.3 - (st.hits * 0.02) - ((45 - st.timeLeft) * 0.008);
+      st.spawnTimer = Math.max(0.45, baseRate + Math.random() * 0.35);
     }
 
     updateWords(dt);
@@ -655,13 +666,13 @@ function renderAutomaton() {
   function start() {
     stopAutomaton();
     st.score = 0;
-    st.timeLeft = 60;
+    st.timeLeft = 45;
     st.multiplier = 1;
     st.hits = 0;
-    st.lives = 3;
+    st.lives = 2;
     st.running = true;
     st.words = [];
-    st.spawnTimer = 0.5;
+    st.spawnTimer = 0.4;
     st.lastFrame = performance.now();
     wordsLayer.innerHTML = "";
     hpFill.style.width = "100%";
@@ -692,12 +703,12 @@ function renderAutomaton() {
       try { window.submitGameScore("automaton", st.score); } catch (e) {}
     }
 
-    var overlay = el("div", { style: "position:absolute;inset:0;background:rgba(2,3,8,0.92);display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:16px;padding:24px;text-align:center;z-index:20;" });
+    var overlay = el("div", { style: "position:absolute;inset:0;background:rgba(2,3,8,0.92);display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:16px;padding:20px;text-align:center;z-index:20;" });
     var title = st.lives <= 0 ? "Прохвостка пала" : "Время вышло";
-    overlay.appendChild(el("div", { style: "font-size:52px;margin-bottom:6px;" }, isRecord ? "🏆" : (st.lives <= 0 ? "💀" : "⏱")));
-    overlay.appendChild(el("div", { style: "font-size:16px;font-weight:700;color:var(--text);margin-bottom:2px;" }, isRecord ? "Новый рекорд!" : title));
-    overlay.appendChild(el("div", { style: "font-size:38px;font-weight:900;font-family:'JetBrains Mono',monospace;color:var(--gold);margin:14px 0 6px;" }, st.score.toLocaleString()));
-    overlay.appendChild(el("div", { class: "dim", style: "font-size:11px;margin-bottom:20px;" }, "Слов сбито: " + st.hits + " · Жизней осталось: " + Math.max(0, st.lives) + "/3"));
+    overlay.appendChild(el("div", { style: "font-size:46px;margin-bottom:6px;" }, isRecord ? "🏆" : (st.lives <= 0 ? "💀" : "⏱")));
+    overlay.appendChild(el("div", { style: "font-size:15px;font-weight:700;color:var(--text);margin-bottom:2px;" }, isRecord ? "Новый рекорд!" : title));
+    overlay.appendChild(el("div", { style: "font-size:32px;font-weight:900;font-family:'JetBrains Mono',monospace;color:var(--gold);margin:12px 0 4px;" }, st.score.toLocaleString()));
+    overlay.appendChild(el("div", { class: "dim", style: "font-size:10.5px;margin-bottom:16px;" }, "Слов сбито: " + st.hits + " · Жизней осталось: " + Math.max(0, st.lives) + "/2"));
 
     var btnRow = el("div", { style: "display:flex;gap:8px;" });
     var retryBtn = UI.btn("🔄 Ещё раз");
@@ -723,13 +734,13 @@ function renderAutomaton() {
 }
 
 /* ═══════════════════════════════════════
-   ИГРА 3: ВИКТОРИНА
+   ИГРА 3: ВИКТОРИНА (без рейтинга)
    ═══════════════════════════════════════ */
 function renderQuiz() {
   var card = UI.card("🧠 Викторина");
 
   var topRow = el("div", { style: "display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;" });
-  topRow.appendChild(el("div", { class: "dim", style: "font-size:11px;text-transform:uppercase;letter-spacing:0.08em;" }, "Викторина"));
+  topRow.appendChild(el("div", { class: "dim", style: "font-size:11px;text-transform:uppercase;letter-spacing:0.08em;" }, "Викторина · без рейтинга"));
   var menuBtn = UI.btn("← В меню", { variant: "ghost" });
   menuBtn.style.cssText = "font-size:11px;padding:6px 12px;";
   menuBtn.addEventListener("click", function () { showIntro("quiz"); });
@@ -776,9 +787,7 @@ function renderQuiz() {
 
       var b = Store.get("quizbest", 0) || 0;
       if (score > b) Store.set("quizbest", score);
-      if (typeof window.submitGameScore === "function") {
-        try { window.submitGameScore("quiz", score * 100); } catch (e) {}
-      }
+      /* Викторина не даёт MMR и не отправляется в лидерборд */
       if (typeof Achievements !== "undefined") Achievements.check();
       return;
     }

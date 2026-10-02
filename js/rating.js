@@ -1,5 +1,7 @@
-/* DOTA JETCH — RATING v3.0
-   - SVG-иконки медалей (не зависят от CDN) */
+/* DOTA JETCH — RATING v4.0
+   - Викторина НЕ даёт рейтинг (только викторина без MMR)
+   - Медленнее рост MMR (сложнее апнуть)
+   - SVG-иконки медалей */
 
 var RATING_TABLE = [
   { name: "Recruit",  ru: "Рекрут",    icon: "🪖", color: "#8b8b8b", rankIdx: 0, stars: [0, 150, 300, 460, 610] },
@@ -12,7 +14,6 @@ var RATING_TABLE = [
   { name: "Immortal", ru: "Титан",     icon: "🔥", color: "#e74c3c", rankIdx: 7, stars: [5620, 5800, 6000, 6200, 6500] }
 ];
 
-/* SVG-иконки медалей (собственные, не зависят от внешних CDN) */
 function buildMedalSVG(rankIdx, size, color) {
   size = size || 96;
   var svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
@@ -21,56 +22,35 @@ function buildMedalSVG(rankIdx, size, color) {
   svg.setAttribute("height", size);
   svg.style.cssText = "display:block;flex-shrink:0;filter:drop-shadow(0 0 12px " + color + "88);";
 
-  /* Внешний круг */
   var circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-  circle.setAttribute("cx", "50");
-  circle.setAttribute("cy", "50");
-  circle.setAttribute("r", "44");
-  circle.setAttribute("fill", "none");
-  circle.setAttribute("stroke", color);
-  circle.setAttribute("stroke-width", "3");
-  circle.setAttribute("opacity", "0.6");
+  circle.setAttribute("cx", "50"); circle.setAttribute("cy", "50"); circle.setAttribute("r", "44");
+  circle.setAttribute("fill", "none"); circle.setAttribute("stroke", color); circle.setAttribute("stroke-width", "3"); circle.setAttribute("opacity", "0.6");
   svg.appendChild(circle);
 
-  /* Внутренний круг */
   var circle2 = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-  circle2.setAttribute("cx", "50");
-  circle2.setAttribute("cy", "50");
-  circle2.setAttribute("r", "36");
-  circle2.setAttribute("fill", color);
-  circle2.setAttribute("opacity", "0.15");
+  circle2.setAttribute("cx", "50"); circle2.setAttribute("cy", "50"); circle2.setAttribute("r", "36");
+  circle2.setAttribute("fill", color); circle2.setAttribute("opacity", "0.15");
   svg.appendChild(circle2);
 
-  /* Символ ранга (по индексу) */
   var symbol = document.createElementNS("http://www.w3.org/2000/svg", "text");
-  symbol.setAttribute("x", "50");
-  symbol.setAttribute("y", "55");
-  symbol.setAttribute("text-anchor", "middle");
-  symbol.setAttribute("dominant-baseline", "middle");
-  symbol.setAttribute("font-size", "28");
-  symbol.setAttribute("fill", color);
-  symbol.setAttribute("font-family", "sans-serif");
+  symbol.setAttribute("x", "50"); symbol.setAttribute("y", "55");
+  symbol.setAttribute("text-anchor", "middle"); symbol.setAttribute("dominant-baseline", "middle");
+  symbol.setAttribute("font-size", "28"); symbol.setAttribute("fill", color); symbol.setAttribute("font-family", "sans-serif");
   var symbols = ["⚔️", "🛡️", "⚔️", "🏅", "🌟", "💎", "👑", "🔥"];
   symbol.textContent = symbols[rankIdx] || "⚔️";
   svg.appendChild(symbol);
 
-  /* Звёзды вокруг (5 маленьких звёзд) */
   for (var i = 0; i < 5; i++) {
     var angle = (i * 72 - 90) * Math.PI / 180;
     var x = 50 + Math.cos(angle) * 42;
     var y = 50 + Math.sin(angle) * 42;
     var star = document.createElementNS("http://www.w3.org/2000/svg", "text");
-    star.setAttribute("x", x);
-    star.setAttribute("y", y);
-    star.setAttribute("text-anchor", "middle");
-    star.setAttribute("dominant-baseline", "middle");
-    star.setAttribute("font-size", "8");
-    star.setAttribute("fill", color);
-    star.setAttribute("opacity", "0.5");
+    star.setAttribute("x", x); star.setAttribute("y", y);
+    star.setAttribute("text-anchor", "middle"); star.setAttribute("dominant-baseline", "middle");
+    star.setAttribute("font-size", "8"); star.setAttribute("fill", color); star.setAttribute("opacity", "0.5");
     star.textContent = "★";
     svg.appendChild(star);
   }
-
   return svg;
 }
 
@@ -88,13 +68,15 @@ function getMedalForMMR(mmr) {
   return { medal: RATING_TABLE[0], stars: 1, mmr: mmr };
 }
 
+/* ФИКС: медленнее рост MMR. Очков даём меньше. */
 function getMMRFromGame(game, rawScore) {
   var config = {
-    lockpick: { base: 15, perPoint: 0.004 },
-    automaton: { base: 12, perPoint: 0.005 },
-    quiz: { base: 20, perPoint: 0.15 }
+    lockpick: { base: 6, perPoint: 0.0012 },
+    automaton: { base: 5, perPoint: 0.0015 }
+    /* quiz НЕ даёт рейтинг — если случайно вызовется, вернём 0 */
   };
-  var c = config[game] || config.lockpick;
+  var c = config[game];
+  if (!c) return 0;
   return Math.round(c.base + rawScore * c.perPoint);
 }
 
@@ -114,6 +96,9 @@ window.getRatingData = function () {
 };
 
 window.submitGameScore = function (game, rawScore) {
+  /* Викторина не участвует в рейтинге */
+  if (game === "quiz") return { gained: 0, newMMR: Store.get("minigames_mmr", 0) || 0, medal: getMedalForMMR(Store.get("minigames_mmr", 0) || 0) };
+
   var data = window.getRatingData();
   var gained = getMMRFromGame(game, rawScore);
   data.gamesPlayed++;
@@ -129,7 +114,7 @@ window.submitGameScore = function (game, rawScore) {
       }
     }
   }
-  if (gained >= 25) data.wins++;
+  if (gained >= 15) data.wins++;
   Store.set("minigames_mmr", data.mmr);
   Store.set("minigames_games", data.gamesPlayed);
   Store.set("minigames_calibrated", data.calibrated);
@@ -203,11 +188,11 @@ window.renderRatingWidget = function () {
     card.appendChild(cal);
   }
 
-  var scores = el("div", { style: "display:grid;grid-template-columns:repeat(3,1fr);gap:8px;" });
+  /* Лучшие очки только для двух игр (викторина не в рейтинге) */
+  var scores = el("div", { style: "display:grid;grid-template-columns:repeat(2,1fr);gap:8px;" });
   var scoreDefs = [
     { icon: "🔓", name: "Взлом", val: data.bestScores.lockpick, color: "var(--gold)" },
-    { icon: "⌨️", name: "Автоматоны", val: data.bestScores.automaton, color: "var(--cyan)" },
-    { icon: "🧠", name: "Викторина", val: data.bestScores.quiz, color: "var(--green)" }
+    { icon: "⌨️", name: "Автоматоны", val: data.bestScores.automaton, color: "var(--cyan)" }
   ];
   for (var sd = 0; sd < scoreDefs.length; sd++) {
     var box = el("div", { style: "text-align:center;padding:10px 6px;background:var(--bg-elev);border:1px solid var(--border);border-radius:10px;" });
@@ -218,7 +203,10 @@ window.renderRatingWidget = function () {
   }
   card.appendChild(scores);
 
+  var note = el("div", { class: "dim", style: "font-size:10px;margin-top:12px;text-align:center;line-height:1.5;" }, "Викторина не влияет на рейтинг — это просто проверка знаний.");
+  card.appendChild(note);
+
   return card;
 };
 
-console.log("rating v3.0 ready (SVG medals)");
+console.log("rating v4.0 ready (slow MMR, no quiz rating)");

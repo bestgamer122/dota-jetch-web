@@ -1,5 +1,6 @@
-/* DOTA JETCH — LEADERBOARD v1.1
-   - Ленивое получение db/auth (нет гонки с auth.js) */
+/* DOTA JETCH — LEADERBOARD v1.2
+   - Убран таб «Викторина» (нет смысла в рейтинге)
+   - Ленивое получение db/auth */
 
 import { getDatabase, ref, get, update, query, orderByChild, limitToLast } from "https://www.gstatic.com/firebasejs/11.8.0/firebase-database.js";
 
@@ -17,6 +18,8 @@ function getCtx() {
 }
 
 window.submitToLeaderboard = async function (game, rawScore, mmr) {
+  /* Викторина не отправляется в лидерборд */
+  if (game === "quiz") return;
   var ctx = getCtx();
   if (!ctx) { console.warn("leaderboard: не готов (auth)"); return; }
   var user = ctx.auth.currentUser;
@@ -65,8 +68,7 @@ window.renderLeaderboard = async function (game) {
   var tabsRow = el("div", { style: "display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;" });
   var games = [
     { id: "lockpick", label: "🔓 Взлом" },
-    { id: "automaton", label: "⌨️ Автоматоны" },
-    { id: "quiz", label: "🧠 Викторина" }
+    { id: "automaton", label: "⌨️ Автоматоны" }
   ];
   var currentLbGame = game || "lockpick";
   var contentWrap = el("div", { id: "lbContent" });
@@ -134,8 +136,4 @@ window.renderLeaderboard = async function (game) {
     }
   }
 
-  setTimeout(function () { loadLb(currentLbGame); }, 50);
-  return card;
-};
-
-console.log("leaderboard v1.1 ready");
+  setTimeout(function () { loadLb(currentLbGame); }, 50
