@@ -1,8 +1,8 @@
-/* DOTA JETCH — APP v10.2
+/* DOTA JETCH — APP v10.3
    - Мини-игры + Лидерборд
-   - Убрана вкладка Друзья */
+   - Модалка профиля: ник, аватар, статистика, выход */
 
-var APP_VERSION = "10.2";
+var APP_VERSION = "10.3";
 
 var PAGES = {
   dashboard:    { title: "Главная",         render: renderDashboard },
@@ -481,4 +481,12 @@ function init() {
 if (document.readyState === "loading") window.addEventListener("DOMContentLoaded", init);
 else setTimeout(init, 0);
 
-window.addEventListener("hashchange",
+window.addEventListener("hashchange", function () {
+  var h = (location.hash || "#dashboard").slice(1);
+  if (h !== currentPage && PAGES[h]) switchPage(h);
+});
+```
+
+Замени **`js/app.js`** через Add file → Upload files, потом **Ctrl+Shift+Delete** → **Ctrl+F5**.
+
+Если после этого вылезут ещё ошибки — скинь скрин консоли.
