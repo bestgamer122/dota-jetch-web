@@ -1,7 +1,6 @@
-/* DOTA JETCH — LEADERBOARD v1.6
-   - Сохраняет ТОЛЬКО лучший результат
-   - Показывает всех, откалиброванных с рангом, неоткалиброванных с "?"
-   - Анимации появления */
+/* DOTA JETCH — LEADERBOARD v2.0
+   - Рядом со счётом показывается МИНИ-МЕДАЛЬ ранга
+   - Медаль статичная (animate=false) — чтобы не спамить */
 
 import { getDatabase, ref, get, update, query, orderByChild, limitToLast } from "https://www.gstatic.com/firebasejs/11.8.0/firebase-database.js";
 
@@ -34,6 +33,18 @@ function ensureLbStyle() {
     }
   `;
   document.head.appendChild(s);
+}
+
+function miniMedal(rankIdx, size) {
+  size = size || 36;
+  var wrap = el("div", { style: "flex-shrink:0;display:flex;align-items:center;justify-content:center;" });
+  if (typeof window.buildMedalSVG === "function") {
+    try {
+      wrap.appendChild(window.buildMedalSVG(rankIdx, size, false));
+      return wrap;
+    } catch (e) {}
+  }
+  return wrap;
 }
 
 window.submitToLeaderboard = async function (game, rawScore, mmr) {
@@ -209,25 +220,35 @@ window.renderLeaderboard = async function (game) {
         var info = el("div", { style: "flex:1;min-width:0;" });
         info.appendChild(el("div", { style: "font-size:13px;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" }, r.nickname || "Аноним"));
 
-        /* Ранг или "Калибровка" */
         var rankLabel = el("div", { style: "font-size:10px;margin-top:2px;" });
         if (r.calibrated && typeof window.getMedalForMMR === "function") {
           try {
             var md = window.getMedalForMMR(r.mmr);
             if (md) {
               rankLabel.textContent = md.medal.ru + " · " + md.stars + "★";
-              rankLabel.style.color = md.medal.accent;
+              rankLabel.style.color = md.medal.a;
             }
           } catch (e) {}
         } else {
-          rankLabel.textContent = "Калибровка · ?";
+          rankLabel.textContent = "Калибровка";
           rankLabel.style.color = "var(--text-dim)";
           rankLabel.style.fontStyle = "italic";
         }
         info.appendChild(rankLabel);
         row.appendChild(info);
 
-        var sc = el("div", { style: "font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:900;color:var(--gold);" });
+        if (r.calibrated && typeof window.getMedalForMMR === "function") {
+          try {
+            var md2 = window.getMedalForMMR(r.mmr);
+            if (md2) {
+              var medalBox = miniMedal(md2.medal.rankIdx, 36);
+              medalBox.style.marginRight = "2px";
+              row.appendChild(medalBox);
+            }
+          } catch (e) {}
+        }
+
+        var sc = el("div", { style: "font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:900;color:var(--gold);flex-shrink:0;" });
         sc.textContent = (r.score || 0).toLocaleString();
         row.appendChild(sc);
         contentWrap.appendChild(row);
@@ -258,17 +279,28 @@ window.renderLeaderboard = async function (game) {
         var rankLabel2 = el("div", { style: "font-size:10px;color:var(--text-muted);margin-top:2px;" });
         if (typeof window.getMedalForMMR === "function") {
           try {
-            var md2 = window.getMedalForMMR(r2.mmr);
-            if (md2) {
-              rankLabel2.textContent = md2.medal.ru + " · " + md2.stars + "★";
-              rankLabel2.style.color = md2.medal.accent;
+            var md3 = window.getMedalForMMR(r2.mmr);
+            if (md3) {
+              rankLabel2.textContent = md3.medal.ru + " · " + md3.stars + "★";
+              rankLabel2.style.color = md3.medal.a;
             }
           } catch (e) {}
         }
         info2.appendChild(rankLabel2);
         row2.appendChild(info2);
 
-        var mmrVal = el("div", { style: "font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:900;color:var(--gold);" });
+        if (typeof window.getMedalForMMR === "function") {
+          try {
+            var md4 = window.getMedalForMMR(r2.mmr);
+            if (md4) {
+              var medalBox2 = miniMedal(md4.medal.rankIdx, 36);
+              medalBox2.style.marginRight = "2px";
+              row2.appendChild(medalBox2);
+            }
+          } catch (e) {}
+        }
+
+        var mmrVal = el("div", { style: "font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:900;color:var(--gold);flex-shrink:0;" });
         mmrVal.textContent = r2.mmr.toLocaleString();
         row2.appendChild(mmrVal);
         contentWrap.appendChild(row2);
@@ -285,4 +317,4 @@ window.renderLeaderboard = async function (game) {
   return card;
 };
 
-console.log("leaderboard v1.6 ready");
+console.log("leaderboard v2.0 ready (medals near scores)");

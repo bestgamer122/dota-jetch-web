@@ -1,8 +1,8 @@
-/* DOTA JETCH — RATING v21.0
-   - Анимации: пульсация свечения, лёгкое парение, мерцающие искры (у высоких рангов)
-   - Попап "Новый ранг!" при апе ранга (по аналогии с калибровкой)
-   - Перья остались как в v20
-   - Титан внутри без изменений */
+/* DOTA JETCH — RATING v21.1
+   - Уменьшен glow (мерцание менее яркое)
+   - Искры стали мягче
+   - buildMedalSVG экспортирован в window с параметром animate
+   - Перья / символы без изменений */
 
 var RATING_TABLE = [
   { name: "Herald",    ru: "Рекрут",    rankIdx: 0,
@@ -46,20 +46,17 @@ function ensureRatingStyles() {
     ".rating-box-anim{animation:ratingBoxIn 0.45s cubic-bezier(0.34,1.56,0.64,1) both}" +
     "@keyframes ratingTileIn{from{opacity:0;transform:translateY(15px) scale(0.92)}to{opacity:1;transform:translateY(0) scale(1)}}" +
     ".rating-tile-anim{animation:ratingTileIn 0.4s cubic-bezier(0.34,1.56,0.64,1) both}" +
-    /* ─── АНИМАЦИИ МЕДАЛЕЙ ─── */
-    "@keyframes medalPulse{0%,100%{filter:drop-shadow(0 0 6px var(--mglow)) drop-shadow(0 0 12px var(--mglow))}50%{filter:drop-shadow(0 0 14px var(--mglow)) drop-shadow(0 0 24px var(--mglow))}}" +
+    "@keyframes medalPulse{0%,100%{filter:drop-shadow(0 0 3px var(--mglow))}50%{filter:drop-shadow(0 0 7px var(--mglow))}}" +
     "@keyframes medalFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-2px)}}" +
-    "@keyframes medalSparkle{0%,100%{opacity:0.25;transform:scale(0.7)}50%{opacity:1;transform:scale(1.25)}}" +
-    "@keyframes medalSpinSlow{from{transform:rotate(0)}to{transform:rotate(360deg)}}" +
-    ".medal-svg{animation:medalPulse 3s ease-in-out infinite;will-change:filter}" +
-    ".medal-svg.medal-float{animation:medalPulse 3s ease-in-out infinite, medalFloat 3.5s ease-in-out infinite}" +
-    ".medal-svg.medal-float-high{animation:medalPulse 2.2s ease-in-out infinite, medalFloat 3s ease-in-out infinite}" +
-    ".medal-svg .sparkle{animation:medalSparkle 2.2s ease-in-out infinite;transform-origin:center;transform-box:fill-box}" +
+    "@keyframes medalSparkle{0%,100%{opacity:0.15;transform:scale(0.7)}50%{opacity:0.6;transform:scale(1.05)}}" +
+    ".medal-svg{animation:medalPulse 3.4s ease-in-out infinite;will-change:filter}" +
+    ".medal-svg.medal-float{animation:medalPulse 3.4s ease-in-out infinite, medalFloat 4s ease-in-out infinite}" +
+    ".medal-svg.medal-float-high{animation:medalPulse 2.8s ease-in-out infinite, medalFloat 3.4s ease-in-out infinite}" +
+    ".medal-svg .sparkle{animation:medalSparkle 2.6s ease-in-out infinite;transform-origin:center;transform-box:fill-box}" +
     ".medal-svg .sparkle.d1{animation-delay:0s}" +
-    ".medal-svg .sparkle.d2{animation-delay:0.55s}" +
-    ".medal-svg .sparkle.d3{animation-delay:1.1s}" +
-    ".medal-svg .sparkle.d4{animation-delay:1.65s}" +
-    /* Анимация появления нового ранга в диалоге */
+    ".medal-svg .sparkle.d2{animation-delay:0.65s}" +
+    ".medal-svg .sparkle.d3{animation-delay:1.3s}" +
+    ".medal-svg .sparkle.d4{animation-delay:1.95s}" +
     "@keyframes rankArrowPulse{0%,100%{transform:translateX(0);opacity:0.7}50%{transform:translateX(4px);opacity:1}}" +
     "@keyframes rankNewPop{0%{transform:scale(0.6);opacity:0}60%{transform:scale(1.18);opacity:1}100%{transform:scale(1.15);opacity:1}}" +
     ".rank-arrow-anim{animation:rankArrowPulse 1.2s ease-in-out infinite}" +
@@ -67,7 +64,6 @@ function ensureRatingStyles() {
   document.head.appendChild(s);
 }
 
-/* ─── КРЫЛО: плотный блок толстых перьев (как в v20) ─── */
 function sideFeathers(rankIdx, cfg) {
   if (rankIdx < 2) return "";
   var a = cfg.a;
@@ -188,7 +184,6 @@ function innerOrnament(cfg) {
   return out;
 }
 
-/* Мерцающие искры вокруг ромба — только для высоких рангов */
 function sparklesAround(rankIdx, cfg) {
   if (rankIdx < 4) return "";
   var g = cfg.g || cfg.gold;
@@ -202,7 +197,7 @@ function sparklesAround(rankIdx, cfg) {
   var limit = rankIdx >= 6 ? 8 : (rankIdx >= 5 ? 6 : 4);
   for (var i = 0; i < limit && i < positions.length; i++) {
     var p = positions[i];
-    var r = rankIdx >= 6 ? 2.4 : 1.8;
+    var r = rankIdx >= 6 ? 2 : 1.6;
     out += '<circle class="sparkle ' + p.d + '" cx="' + p.x + '" cy="' + p.y + '" r="' + r + '" fill="' + g + '"/>';
   }
   out += '</g>';
@@ -311,7 +306,6 @@ function rankSymbol(rankIdx, cfg) {
       '<path d="M100 140 L105 148 L100 156 L95 148 Z" fill="' + g + '" stroke="' + a + '" stroke-width="0.9"/>' +
       '<path d="M100 143 L102.5 148 L100 153 L97.5 148 Z" fill="#fff" opacity="0.8"/>';
   }
-  /* Титан */
   var goldStroke = gold || g;
   var goldGlow = goldLight || g;
   var marble = cfg.marble || "#f0e8d8";
@@ -353,9 +347,10 @@ function rankSymbol(rankIdx, cfg) {
     '<circle cx="120" cy="126" r="2" fill="' + goldGlow + '" stroke="' + goldStroke + '" stroke-width="0.5"/>';
 }
 
-function buildMedalSVG(rankIdx, size) {
+function buildMedalSVG(rankIdx, size, animate) {
   var cfg = RATING_TABLE[rankIdx] || RATING_TABLE[0];
   size = size || 96;
+  if (animate === undefined) animate = true;
   var ns = "http://www.w3.org/2000/svg";
   var svg = document.createElementNS(ns, "svg");
   svg.setAttribute("viewBox", "-30 -30 260 260");
@@ -364,16 +359,18 @@ function buildMedalSVG(rankIdx, size) {
   var glowColor = cfg.gold || cfg.g;
   svg.style.cssText = "display:block;flex-shrink:0;";
   svg.style.setProperty("--mglow", glowColor);
-  /* Класс анимации зависит от ранга */
-  if (rankIdx >= 6) svg.classList.add("medal-svg", "medal-float-high");
-  else if (rankIdx >= 3) svg.classList.add("medal-svg", "medal-float");
-  else svg.classList.add("medal-svg");
+  if (animate) {
+    if (rankIdx >= 6) svg.classList.add("medal-svg", "medal-float-high");
+    else if (rankIdx >= 3) svg.classList.add("medal-svg", "medal-float");
+    else svg.classList.add("medal-svg");
+  }
 
-  var gid = "g" + rankIdx;
-  var gidIn = "gi" + rankIdx;
-  var gidShine = "gs" + rankIdx;
-  var gidRad = "gr" + rankIdx;
-  var gidEdge = "ge" + rankIdx;
+  var uid = Math.random().toString(36).slice(2, 8);
+  var gid = "g" + rankIdx + "_" + uid;
+  var gidIn = "gi" + rankIdx + "_" + uid;
+  var gidShine = "gs" + rankIdx + "_" + uid;
+  var gidRad = "gr" + rankIdx + "_" + uid;
+  var gidEdge = "ge" + rankIdx + "_" + uid;
   var strokeOuter = cfg.gold || cfg.g;
   var strokeInner = cfg.goldLight || cfg.g;
 
@@ -400,7 +397,7 @@ function buildMedalSVG(rankIdx, size) {
         '<feDropShadow dx="0" dy="0" stdDeviation="0.8" flood-color="' + cfg.d + '" flood-opacity="1"/>' +
       '</filter>' +
     '</defs>' +
-    sparklesAround(rankIdx, cfg) +
+    (animate ? sparklesAround(rankIdx, cfg) : "") +
     sideFeathers(rankIdx, cfg) +
     cornerSpikes(cfg) +
     '<path d="M100 38 L162 100 L100 162 L38 100 Z" fill="url(#' + gid + ')" stroke="' + strokeOuter + '" stroke-width="2" filter="url(#' + gidEdge + ')"/>' +
@@ -417,6 +414,7 @@ function buildMedalSVG(rankIdx, size) {
   while (parsed.firstChild) svg.appendChild(parsed.firstChild);
   return svg;
 }
+window.buildMedalSVG = buildMedalSVG;
 
 function buildQuestionMedalSVG(size) {
   size = size || 96;
@@ -494,7 +492,6 @@ window.submitGameScore = function (game, rawScore) {
   if (game === "quiz") return { gained: 0, newMMR: Store.get("minigames_mmr", 0) || 0 };
   var data = window.getRatingData();
 
-  /* Запоминаем ранг ДО начисления MMR */
   var oldRankIdx = getMedalForMMR(data.mmr).medal.rankIdx;
 
   var gained = getMMRFromGame(game, rawScore);
@@ -521,7 +518,6 @@ window.submitGameScore = function (game, rawScore) {
   Store.set("minigames_calibration_games", data.calibrationGames);
   Store.set("minigames_wins", data.wins);
 
-  /* Новый ранг ПОСЛЕ начисления */
   var newMedalForRank = getMedalForMMR(data.mmr);
   var newRankIdx = newMedalForRank.medal.rankIdx;
 
@@ -532,13 +528,11 @@ window.submitGameScore = function (game, rawScore) {
     try { window.submitToLeaderboard(game, rawScore, data.mmr); } catch (e) {}
   }
 
-  /* Диалог калибровки (первый раз после 10 игр) */
   if (wasJustCalibrated && finalMedal) {
     setTimeout(function () {
       showCalibrationCompleteDialog(finalMedal.medal, finalMedal.stars, data.mmr);
     }, 500);
   }
-  /* Диалог апа ранга (не при калибровке) */
   else if (newRankIdx > oldRankIdx) {
     setTimeout(function () {
       showRankUpDialog(oldRankIdx, newMedalForRank.medal, newMedalForRank.stars, data.mmr);
@@ -548,7 +542,6 @@ window.submitGameScore = function (game, rawScore) {
   return { gained: gained, newMMR: data.mmr, medal: finalMedal };
 };
 
-/* ─── Диалог калибровки ─── */
 function showCalibrationCompleteDialog(medal, stars, mmr) {
   ensureRatingStyles();
   var ov = document.createElement("div");
@@ -605,7 +598,6 @@ function showCalibrationCompleteDialog(medal, stars, mmr) {
   document.body.appendChild(ov);
 }
 
-/* ─── Диалог "Новый ранг!" ─── */
 function showRankUpDialog(oldRankIdx, newMedal, stars, mmr) {
   ensureRatingStyles();
   var ov = document.createElement("div");
@@ -629,20 +621,17 @@ function showRankUpDialog(oldRankIdx, newMedal, stars, mmr) {
   var transRow = document.createElement("div");
   transRow.style.cssText = "display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:20px;min-height:130px;";
 
-  /* Старый ранг — маленький, приглушённый */
   var oldWrap = document.createElement("div");
   oldWrap.style.cssText = "opacity:0.4;filter:grayscale(0.5);";
-  oldWrap.appendChild(buildMedalSVG(oldRankIdx, 76));
+  oldWrap.appendChild(buildMedalSVG(oldRankIdx, 76, false));
   transRow.appendChild(oldWrap);
 
-  /* Стрелка с пульсацией */
   var arrow = document.createElement("div");
   arrow.className = "rank-arrow-anim";
   arrow.style.cssText = "font-size:30px;color:" + newMedal.a + ";font-weight:900;line-height:1;";
   arrow.textContent = "→";
   transRow.appendChild(arrow);
 
-  /* Новый ранг — большой, с pop-анимацией */
   var newWrap = document.createElement("div");
   newWrap.className = "rank-new-pop";
   newWrap.appendChild(buildMedalSVG(newMedal.rankIdx, 120));
@@ -870,4 +859,4 @@ window.renderRatingWidget = function () {
   return card;
 };
 
-console.log("rating v21.0 ready (medal animations + rank-up dialog)");
+console.log("rating v21.1 ready (softer glow, medal export for leaderboard)");
