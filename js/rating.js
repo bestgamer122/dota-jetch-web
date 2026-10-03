@@ -1,8 +1,9 @@
-/* DOTA JETCH — RATING v18.0
-   - Крылья МАСШТАБИРУЮТСЯ: Рыцарь маленькие → Титан огромные
-   - Форма веера из угла ромба (как в v17)
-   - Титан: золотые крылья + внутренний символ не тронут
-   - viewBox расширен (-25 -25 250 250), чтобы большие крылья влезали */
+/* DOTA JETCH — RATING v19.0
+   - Перья идут ВДОЛЬ всей боковой грани ромба (обволакивают слева и справа)
+   - Количество перьев РАСТЁТ с рангом: Рыцарь=5 → Титан=13
+   - Каждое перо смотрит НАРУЖУ от центра ромба (перпендикулярно грани)
+   - Титан: золотые перья, внутренний символ без изменений
+   - viewBox расширен */
 
 var RATING_TABLE = [
   { name: "Herald",    ru: "Рекрут",    rankIdx: 0,
@@ -49,78 +50,105 @@ function ensureRatingStyles() {
   document.head.appendChild(s);
 }
 
-/* ─── Боковые перья: ВЕЕРОМ из угла ромба, МАСШТАБ по рангу ─── */
+/* ─── КРЫЛЬЯ: перья вдоль всей боковой грани ромба ─── */
 function sideFeathers(rankIdx, cfg) {
   if (rankIdx < 2) return ""; /* Рыцарь и выше */
   var a = cfg.a;
   var l = cfg.l;
   var g = cfg.g;
-  /* У Титана крылья ЗОЛОТЫЕ */
+  /* У Титана перья ЗОЛОТЫЕ */
   var fill1 = cfg.gold || a;
   var fill2 = cfg.goldLight || l;
-  var opacity = Math.min(1, 0.72 + rankIdx * 0.04);
+  var opacity = Math.min(1, 0.75 + rankIdx * 0.035);
 
-  /* ─────── КЛЮЧЕВОЕ: масштаб от ранга ─────── */
-  /* Рыцарь(2)=30, Герой(3)=36, Легенда(4)=42, Властелин(5)=48, Божество(6)=54, Титан(7)=60 */
-  var baseLen = 18 + rankIdx * 6;
-  /* Толщина пера: Рыцарь(2)=3.8, Титан(7)=5.8 */
-  var baseW = 3 + rankIdx * 0.4;
-  /* Количество перьев: 3..5 */
-  var levels = Math.min(3 + (rankIdx - 2), 5);
+  /* КОЛИЧЕСТВО перьев вдоль каждой боковой стороны */
+  /* Рыцарь(2)=5, Герой(3)=7, Легенда(4)=9, Властелин(5)=11, Божество(6)=12, Титан(7)=13 */
+  var count = Math.min(5 + (rankIdx - 2) * 2, 13);
+  /* Длина пера — чуть растёт */
+  var featherLen = 18 + rankIdx * 1.6;
+  /* Ширина у основания */
+  var baseW = 3.6 + rankIdx * 0.15;
 
-  /* Базовая точка = ЛЕВЫЙ / ПРАВЫЙ угол ромба */
-  var baseX = 39;
-  var baseY = 100;
-  var baseX2 = 161;
+  /* Точка на ЛЕВОЙ грани ромба. t=0 → верхний угол (100,38), t=0.5 → левый угол (38,100), t=1 → нижний (100,162) */
+  function leftPoint(t) {
+    if (t <= 0.5) {
+      var u = t * 2;
+      return { x: 100 - 62 * u, y: 38 + 62 * u };
+    }
+    var u = (t - 0.5) * 2;
+    return { x: 38 + 62 * u, y: 100 + 62 * u };
+  }
+  /* Точка на ПРАВОЙ грани ромба */
+  function rightPoint(t) {
+    if (t <= 0.5) {
+      var u = t * 2;
+      return { x: 100 + 62 * u, y: 38 + 62 * u };
+    }
+    var u = (t - 0.5) * 2;
+    return { x: 162 - 62 * u, y: 100 + 62 * u };
+  }
+
+  /* Рисуем одно перо: p — точка на грани, длина L, направление наружу от центра */
+  function drawFeather(p, L, color, side, idx) {
+    var dx = p.x - 100, dy = p.y - 100;
+    var dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist < 1) return "";
+    var ux = dx / dist, uy = dy / dist;
+    /* Перпендикуляр */
+    var px = -uy * baseW / 2;
+    var py = ux * baseW / 2;
+
+    /* Кончик */
+    var tipX = p.x + ux * L;
+    var tipY = p.y + uy * L;
+    /* Середина */
+    var midX = (p.x + tipX) / 2;
+    var midY = (p.y + tipY) / 2;
+    /* Основание A и B */
+    var bAx = p.x - px, bAy = p.y - py;
+    var bBx = p.x + px, bBy = p.y + py;
+
+    var out = "";
+    /* Тело пера — заострённый изогнутый лист */
+    out += '<path d="M ' + bAx.toFixed(1) + ' ' + bAy.toFixed(1) +
+      ' Q ' + (midX - px * 0.7).toFixed(1) + ' ' + (midY - py * 0.7).toFixed(1) + ' ' + tipX.toFixed(1) + ' ' + tipY.toFixed(1) +
+      ' Q ' + (midX + px * 0.7).toFixed(1) + ' ' + (midY + py * 0.7).toFixed(1) + ' ' + bBx.toFixed(1) + ' ' + bBy.toFixed(1) +
+      ' Z" fill="' + color + '" stroke="' + g + '" stroke-width="0.5" stroke-opacity="0.85"/>';
+    /* Прожилка вдоль пера */
+    out += '<line x1="' + p.x.toFixed(1) + '" y1="' + p.y.toFixed(1) +
+      '" x2="' + (tipX - ux * 2.5).toFixed(1) + '" y2="' + (tipY - uy * 2.5).toFixed(1) +
+      '" stroke="' + g + '" stroke-width="0.6" opacity="0.85"/>';
+    /* Точка-искра на кончике */
+    out += '<circle cx="' + tipX.toFixed(1) + '" cy="' + tipY.toFixed(1) +
+      '" r="' + (0.9 + rankIdx * 0.12).toFixed(2) + '" fill="' + g + '"/>';
+    return out;
+  }
 
   var out = "";
 
-  /* ─── ЛЕВОЕ КРЫЛО ─── */
+  /* ─── ЛЕВОЕ КРЫЛО (обволакивает всю левую грань ромба) ─── */
   out += '<g opacity="' + opacity.toFixed(2) + '">';
-  for (var i = 0; i < levels; i++) {
-    var t = levels > 1 ? (i / (levels - 1)) * 2 - 1 : 0;
-    var angle = t * 35;
-    var rad = angle * Math.PI / 180;
-    /* Крайние перья короче (форма крыла) */
-    var len = baseLen - Math.abs(t) * 8;
-    var xE = baseX - len * Math.cos(rad);
-    var yE = baseY + len * Math.sin(rad);
-    var xM = baseX - len * 0.55;
-    var yM = baseY + (yE - baseY) * 0.4 - t * 4;
-    var w = baseW;
-
-    out += '<path d="M ' + baseX + ' ' + (baseY - w) +
-      ' Q ' + xM + ' ' + (yM - w * 0.6) + ' ' + xE + ' ' + yE +
-      ' Q ' + xM + ' ' + (yM + w * 0.6) + ' ' + baseX + ' ' + (baseY + w) +
-      ' Z" fill="' + (i % 2 === 0 ? fill1 : fill2) + '" stroke="' + g + '" stroke-width="0.6" stroke-opacity="0.9"/>';
-    out += '<path d="M ' + (baseX - w * 0.8) + ' ' + baseY +
-      ' Q ' + (xM + 2) + ' ' + yM + ' ' + (xE + w * 0.8) + ' ' + yE +
-      '" stroke="' + g + '" stroke-width="0.8" fill="none" opacity="0.9"/>';
-    out += '<circle cx="' + xE + '" cy="' + yE + '" r="' + (1 + w * 0.1).toFixed(1) + '" fill="' + g + '"/>';
+  for (var i = 0; i < count; i++) {
+    /* t от 0.05 до 0.95, чтобы не точно в углах */
+    var t = count === 1 ? 0.5 : 0.05 + (i / (count - 1)) * 0.9;
+    var p = leftPoint(t);
+    /* Длина — самая большая на боку (t=0.5), меньше к углам */
+    var lenFactor = 0.55 + Math.sin(t * Math.PI) * 0.65;
+    var L = featherLen * lenFactor;
+    var color = i % 2 === 0 ? fill1 : fill2;
+    out += drawFeather(p, L, color, "left", i);
   }
   out += '</g>';
 
-  /* ─── ПРАВОЕ КРЫЛО ─── */
+  /* ─── ПРАВОЕ КРЫЛО (обволакивает всю правую грань ромба) ─── */
   out += '<g opacity="' + opacity.toFixed(2) + '">';
-  for (var j = 0; j < levels; j++) {
-    var t2 = levels > 1 ? (j / (levels - 1)) * 2 - 1 : 0;
-    var angle2 = t2 * 35;
-    var rad2 = angle2 * Math.PI / 180;
-    var len2 = baseLen - Math.abs(t2) * 8;
-    var xE2 = baseX2 + len2 * Math.cos(rad2);
-    var yE2 = baseY + len2 * Math.sin(rad2);
-    var xM2 = baseX2 + len2 * 0.55;
-    var yM2 = baseY + (yE2 - baseY) * 0.4 - t2 * 4;
-    var w2 = baseW;
-
-    out += '<path d="M ' + baseX2 + ' ' + (baseY - w2) +
-      ' Q ' + xM2 + ' ' + (yM2 - w2 * 0.6) + ' ' + xE2 + ' ' + yE2 +
-      ' Q ' + xM2 + ' ' + (yM2 + w2 * 0.6) + ' ' + baseX2 + ' ' + (baseY + w2) +
-      ' Z" fill="' + (j % 2 === 0 ? fill1 : fill2) + '" stroke="' + g + '" stroke-width="0.6" stroke-opacity="0.9"/>';
-    out += '<path d="M ' + (baseX2 + w2 * 0.8) + ' ' + baseY +
-      ' Q ' + (xM2 - 2) + ' ' + yM2 + ' ' + (xE2 - w2 * 0.8) + ' ' + yE2 +
-      '" stroke="' + g + '" stroke-width="0.8" fill="none" opacity="0.9"/>';
-    out += '<circle cx="' + xE2 + '" cy="' + yE2 + '" r="' + (1 + w2 * 0.1).toFixed(1) + '" fill="' + g + '"/>';
+  for (var j = 0; j < count; j++) {
+    var t2 = count === 1 ? 0.5 : 0.05 + (j / (count - 1)) * 0.9;
+    var p2 = rightPoint(t2);
+    var lenFactor2 = 0.55 + Math.sin(t2 * Math.PI) * 0.65;
+    var L2 = featherLen * lenFactor2;
+    var color2 = j % 2 === 0 ? fill1 : fill2;
+    out += drawFeather(p2, L2, color2, "right", j);
   }
   out += '</g>';
 
@@ -174,7 +202,7 @@ function innerOrnament(cfg) {
   return out;
 }
 
-/* ─── Символы предметов (Титан не тронут — нравится) ─── */
+/* ─── Символы предметов (Титан без изменений) ─── */
 function rankSymbol(rankIdx, cfg) {
   var a = cfg.a;
   var g = cfg.g;
@@ -277,7 +305,7 @@ function rankSymbol(rankIdx, cfg) {
       '<path d="M100 140 L105 148 L100 156 L95 148 Z" fill="' + g + '" stroke="' + a + '" stroke-width="0.9"/>' +
       '<path d="M100 143 L102.5 148 L100 153 L97.5 148 Z" fill="#fff" opacity="0.8"/>';
   }
-  /* 7 — Титан: Aegis (НЕ ТРОГАЕМ — пользователю нравится) */
+  /* 7 — Титан: Aegis (не трогаем) */
   var goldStroke = gold || g;
   var goldGlow = goldLight || g;
   var marble = cfg.marble || "#f0e8d8";
@@ -324,8 +352,7 @@ function buildMedalSVG(rankIdx, size) {
   size = size || 96;
   var ns = "http://www.w3.org/2000/svg";
   var svg = document.createElementNS(ns, "svg");
-  /* Расширенный viewBox: крылья Титана могут уходить за -25..225 */
-  svg.setAttribute("viewBox", "-25 -25 250 250");
+  svg.setAttribute("viewBox", "-35 -35 270 270");
   svg.setAttribute("width", size);
   svg.setAttribute("height", size);
   var glowColor = cfg.gold || cfg.g;
@@ -373,7 +400,7 @@ function buildMedalSVG(rankIdx, size) {
     innerOrnament(cfg) +
     rankSymbol(rankIdx, cfg);
 
-  var doc = new DOMParser().parseFromString('<svg xmlns="' + ns + '" viewBox="-25 -25 250 250">' + svgStr + '</svg>', "image/svg+xml");
+  var doc = new DOMParser().parseFromString('<svg xmlns="' + ns + '" viewBox="-35 -35 270 270">' + svgStr + '</svg>', "image/svg+xml");
   var parsed = doc.documentElement;
   while (parsed.firstChild) svg.appendChild(parsed.firstChild);
   return svg;
@@ -383,7 +410,7 @@ function buildQuestionMedalSVG(size) {
   size = size || 96;
   var ns = "http://www.w3.org/2000/svg";
   var svg = document.createElementNS(ns, "svg");
-  svg.setAttribute("viewBox", "-25 -25 250 250");
+  svg.setAttribute("viewBox", "-35 -35 270 270");
   svg.setAttribute("width", size);
   svg.setAttribute("height", size);
   svg.style.cssText = "display:block;filter:drop-shadow(0 0 10px rgba(139,92,246,0.7));";
@@ -403,7 +430,7 @@ function buildQuestionMedalSVG(size) {
     '<path d="M100 62 L142 100 L100 138 L58 100 Z" fill="url(#qai)" stroke="#8b5cf6" stroke-width="1.3"/>' +
     '<text x="100" y="122" text-anchor="middle" font-size="64" font-weight="900" fill="#a78bfa" font-family="sans-serif">?</text>';
 
-  var doc = new DOMParser().parseFromString('<svg xmlns="' + ns + '" viewBox="-25 -25 250 250">' + svgStr + '</svg>', "image/svg+xml");
+  var doc = new DOMParser().parseFromString('<svg xmlns="' + ns + '" viewBox="-35 -35 270 270">' + svgStr + '</svg>', "image/svg+xml");
   var parsed = doc.documentElement;
   while (parsed.firstChild) svg.appendChild(parsed.firstChild);
   return svg;
@@ -731,4 +758,4 @@ window.renderRatingWidget = function () {
   return card;
 };
 
-console.log("rating v18.0 ready (scaling feathers by rank)");
+console.log("rating v19.0 ready (feathers along diamond edges, count scales with rank)");
