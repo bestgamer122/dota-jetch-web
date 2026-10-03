@@ -1,6 +1,7 @@
-/* DOTA JETCH — LEADERBOARD v2.0
-   - Рядом со счётом показывается МИНИ-МЕДАЛЬ ранга
-   - Медаль статичная (animate=false) — чтобы не спамить */
+/* DOTA JETCH — LEADERBOARD v2.1
+   - Batch-запрос publicProfiles вместо N+1
+   - Мини-медаль у счёта
+   - Fallback на пустую медаль */
 
 import { getDatabase, ref, get, update, query, orderByChild, limitToLast } from "https://www.gstatic.com/firebasejs/11.8.0/firebase-database.js";
 
@@ -11,10 +12,7 @@ function getCtx() {
       auth: window.__fbAuth,
       db: getDatabase(window.__fbAuth.app)
     };
-  } catch (e) {
-    console.warn("leaderboard getCtx:", e);
-    return null;
-  }
+  } catch (e) { return null; }
 }
 
 function ensureLbStyle() {
@@ -22,15 +20,9 @@ function ensureLbStyle() {
   var s = document.createElement("style");
   s.id = "lbAnimStyle";
   s.textContent = `
-    @keyframes lbFadeIn {
-      from { opacity: 0; transform: translateY(14px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
+    @keyframes lbFadeIn { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
     .lb-card-anim { animation: lbFadeIn 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
-    @keyframes lbRowIn {
-      from { opacity: 0; transform: translateX(-10px); }
-      to { opacity: 1; transform: translateX(0); }
-    }
+    @keyframes lbRowIn { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: translateX(0); } }
   `;
   document.head.appendChild(s);
 }
@@ -39,10 +31,8 @@ function miniMedal(rankIdx, size) {
   size = size || 36;
   var wrap = el("div", { style: "flex-shrink:0;display:flex;align-items:center;justify-content:center;" });
   if (typeof window.buildMedalSVG === "function") {
-    try {
-      wrap.appendChild(window.buildMedalSVG(rankIdx, size, false));
-      return wrap;
-    } catch (e) {}
+    try { wrap.appendChild(window.buildMedalSVG(rankIdx, size, false)); return wrap; }
+    catch (e) {}
   }
   return wrap;
 }
@@ -62,12 +52,7 @@ window.submitToLeaderboard = async function (game, rawScore, mmr) {
       await update(ref1, { mmr: mmr, nickname: nick, ts: Date.now() });
       return;
     }
-    await update(ref1, {
-      nickname: nick,
-      score: rawScore,
-      mmr: mmr,
-      ts: Date.now()
-    });
+    await update(ref1, { nickname: nick, score: rawScore, mmr: mmr, ts: Date.now() });
   } catch (e) { console.warn("submitToLeaderboard:", e); }
 };
 
@@ -82,34 +67,24 @@ window.fetchLeaderboard = async function (game, limit) {
     var list = [];
     for (var uid in data) {
       if (Object.prototype.hasOwnProperty.call(data, uid)) {
-        list.push({
-          uid: uid,
-          nickname: data[uid].nickname,
-          score: data[uid].score,
-          mmr: data[uid].mmr
-        });
+        list.push({ uid: uid, nickname: data[uid].nickname, score: data[uid].score, mmr: data[uid].mmr });
       }
     }
+    /* Один batch-запрос ко всем publicProfiles */
+    var profilesSnap = await get(ref(ctx.db, "publicProfiles"));
+    var profiles = profilesSnap.val() || {};
     for (var i = 0; i < list.length; i++) {
-      try {
-        var prof = await get(ref(ctx.db, "publicProfiles/" + list[i].uid));
-        if (prof.exists()) {
-          var pv = prof.val();
-          if (pv.avatar && typeof pv.avatar === "string" && pv.avatar.indexOf("data:image") === 0) {
-            list[i].avatar = pv.avatar;
-          }
-          if (typeof pv.mmr === "number") list[i].mmr = pv.mmr;
-          if (pv.nickname) list[i].nickname = pv.nickname;
-          list[i].calibrated = pv.calibrated === true;
-        }
-      } catch (e) {}
+      var pv = profiles[list[i].uid];
+      if (pv) {
+        if (pv.avatar && typeof pv.avatar === "string" && pv.avatar.indexOf("data:image") === 0) list[i].avatar = pv.avatar;
+        if (typeof pv.mmr === "number") list[i].mmr = pv.mmr;
+        if (pv.nickname) list[i].nickname = pv.nickname;
+        list[i].calibrated = pv.calibrated === true;
+      }
     }
     list.sort(function (a, b) { return b.score - a.score; });
     return list;
-  } catch (e) {
-    console.warn("fetchLeaderboard:", e);
-    return [];
-  }
+  } catch (e) { console.warn("fetchLeaderboard:", e); return []; }
 };
 
 window.fetchTopByMMR = async function (limit) {
@@ -123,27 +98,16 @@ window.fetchTopByMMR = async function (limit) {
     for (var uid in data) {
       if (!Object.prototype.hasOwnProperty.call(data, uid)) continue;
       var p = data[uid] || {};
-      if (p.calibrated !== true) continue;
-      if (typeof p.mmr !== "number") continue;
-      list.push({
-        uid: uid,
-        nickname: p.nickname || "Anon",
-        mmr: p.mmr,
-        avatar: p.avatar || null,
-        calibrated: true
-      });
+      if (p.calibrated !== true || typeof p.mmr !== "number") continue;
+      list.push({ uid: uid, nickname: p.nickname || "Anon", mmr: p.mmr, avatar: p.avatar || null, calibrated: true });
     }
     list.sort(function (a, b) { return b.mmr - a.mmr; });
     return list.slice(0, limit);
-  } catch (e) {
-    console.warn("fetchTopByMMR:", e);
-    return [];
-  }
+  } catch (e) { console.warn("fetchTopByMMR:", e); return []; }
 };
 
 window.renderLeaderboard = async function (game) {
   ensureLbStyle();
-
   var card = UI.card("🏅 Лидерборд");
   card.classList.add("lb-card-anim");
 
@@ -164,12 +128,8 @@ window.renderLeaderboard = async function (game) {
       b.addEventListener("click", function () {
         currentTab = tab.id;
         var allBtns = tabsRow.querySelectorAll("button");
-        for (var k = 0; k < allBtns.length; k++) {
-          allBtns[k].classList.remove("active");
-          allBtns[k].classList.add("btn-ghost");
-        }
-        b.classList.add("active");
-        b.classList.remove("btn-ghost");
+        for (var k = 0; k < allBtns.length; k++) { allBtns[k].classList.remove("active"); allBtns[k].classList.add("btn-ghost"); }
+        b.classList.add("active"); b.classList.remove("btn-ghost");
         loadTab(tab);
       });
       tabsRow.appendChild(b);
@@ -181,13 +141,53 @@ window.renderLeaderboard = async function (game) {
   function buildAvatar(profile, size) {
     size = size || 32;
     var av = el("div", { style: "width:" + size + "px;height:" + size + "px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--cyan));display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:900;color:#fff;font-family:monospace;flex-shrink:0;background-size:cover;background-position:center;" });
-    if (profile && profile.avatar) {
-      av.style.backgroundImage = "url(" + profile.avatar + ")";
-      av.textContent = "";
-    } else {
-      av.textContent = String((profile && profile.nickname) || "?").charAt(0).toUpperCase() || "?";
-    }
+    if (profile && profile.avatar) { av.style.backgroundImage = "url(" + profile.avatar + ")"; av.textContent = ""; }
+    else { av.textContent = String((profile && profile.nickname) || "?").charAt(0).toUpperCase() || "?"; }
     return av;
+  }
+
+  function addRow(container, rank, data, isMMR) {
+    var row = el("div", { style: "display:flex;align-items:center;gap:12px;padding:10px 4px;border-bottom:1px solid var(--border);" });
+    row.style.animation = "lbRowIn 0.3s ease both";
+    row.style.animationDelay = (rank * 30) + "ms";
+
+    var place = el("div", { style: "width:30px;text-align:center;font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:900;flex-shrink:0;" });
+    if (rank === 0) { place.textContent = "🥇"; place.style.fontSize = "20px"; }
+    else if (rank === 1) { place.textContent = "🥈"; place.style.fontSize = "20px"; }
+    else if (rank === 2) { place.textContent = "🥉"; place.style.fontSize = "20px"; }
+    else { place.textContent = "#" + (rank + 1); place.style.color = "var(--text-dim)"; }
+    row.appendChild(place);
+    row.appendChild(buildAvatar(data, 32));
+
+    var info = el("div", { style: "flex:1;min-width:0;" });
+    info.appendChild(el("div", { style: "font-size:13px;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" }, data.nickname || "Аноним"));
+
+    var rankLabel = el("div", { style: "font-size:10px;margin-top:2px;" });
+    var md = null;
+    if (data.calibrated && typeof window.getMedalForMMR === "function") {
+      try { md = window.getMedalForMMR(data.mmr); } catch (e) {}
+    }
+    if (md) {
+      rankLabel.textContent = md.medal.ru + " · " + md.stars + "★";
+      rankLabel.style.color = md.medal.a;
+    } else {
+      rankLabel.textContent = "Калибровка";
+      rankLabel.style.color = "var(--text-dim)";
+      rankLabel.style.fontStyle = "italic";
+    }
+    info.appendChild(rankLabel);
+    row.appendChild(info);
+
+    if (md) {
+      var medalBox = miniMedal(md.medal.rankIdx, 36);
+      medalBox.style.marginRight = "2px";
+      row.appendChild(medalBox);
+    }
+
+    var val = el("div", { style: "font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:900;color:var(--gold);flex-shrink:0;" });
+    val.textContent = isMMR ? data.mmr.toLocaleString() : (data.score || 0).toLocaleString();
+    row.appendChild(val);
+    container.appendChild(row);
   }
 
   async function loadTab(tab) {
@@ -197,114 +197,13 @@ window.renderLeaderboard = async function (game) {
     if (tab.type === "game") {
       var list = await window.fetchLeaderboard(tab.id, 20);
       contentWrap.innerHTML = "";
-
-      if (list.length === 0) {
-        contentWrap.appendChild(el("div", { class: "dim", style: "font-size:12px;padding:8px 0;" }, "Пока пусто. Будь первым!"));
-        return;
-      }
-
-      for (var i = 0; i < list.length; i++) {
-        var r = list[i];
-        var row = el("div", { style: "display:flex;align-items:center;gap:12px;padding:10px 4px;border-bottom:1px solid var(--border);" });
-        row.style.animation = "lbRowIn 0.3s ease both";
-        row.style.animationDelay = (i * 30) + "ms";
-
-        var place = el("div", { style: "width:30px;text-align:center;font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:900;flex-shrink:0;" });
-        if (i === 0) { place.textContent = "🥇"; place.style.fontSize = "20px"; }
-        else if (i === 1) { place.textContent = "🥈"; place.style.fontSize = "20px"; }
-        else if (i === 2) { place.textContent = "🥉"; place.style.fontSize = "20px"; }
-        else { place.textContent = "#" + (i + 1); place.style.color = "var(--text-dim)"; }
-        row.appendChild(place);
-        row.appendChild(buildAvatar(r, 32));
-
-        var info = el("div", { style: "flex:1;min-width:0;" });
-        info.appendChild(el("div", { style: "font-size:13px;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" }, r.nickname || "Аноним"));
-
-        var rankLabel = el("div", { style: "font-size:10px;margin-top:2px;" });
-        if (r.calibrated && typeof window.getMedalForMMR === "function") {
-          try {
-            var md = window.getMedalForMMR(r.mmr);
-            if (md) {
-              rankLabel.textContent = md.medal.ru + " · " + md.stars + "★";
-              rankLabel.style.color = md.medal.a;
-            }
-          } catch (e) {}
-        } else {
-          rankLabel.textContent = "Калибровка";
-          rankLabel.style.color = "var(--text-dim)";
-          rankLabel.style.fontStyle = "italic";
-        }
-        info.appendChild(rankLabel);
-        row.appendChild(info);
-
-        if (r.calibrated && typeof window.getMedalForMMR === "function") {
-          try {
-            var md2 = window.getMedalForMMR(r.mmr);
-            if (md2) {
-              var medalBox = miniMedal(md2.medal.rankIdx, 36);
-              medalBox.style.marginRight = "2px";
-              row.appendChild(medalBox);
-            }
-          } catch (e) {}
-        }
-
-        var sc = el("div", { style: "font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:900;color:var(--gold);flex-shrink:0;" });
-        sc.textContent = (r.score || 0).toLocaleString();
-        row.appendChild(sc);
-        contentWrap.appendChild(row);
-      }
+      if (list.length === 0) { contentWrap.appendChild(el("div", { class: "dim", style: "font-size:12px;padding:8px 0;" }, "Пока пусто. Будь первым!")); return; }
+      for (var i = 0; i < list.length; i++) addRow(contentWrap, i, list[i], false);
     } else {
       var topList = await window.fetchTopByMMR(30);
       contentWrap.innerHTML = "";
-      if (topList.length === 0) {
-        contentWrap.appendChild(el("div", { class: "dim", style: "font-size:12px;padding:8px 0;" }, "Пока никого нет. Сыграй 10 игр, чтобы попасть сюда."));
-        return;
-      }
-      for (var j = 0; j < topList.length; j++) {
-        var r2 = topList[j];
-        var row2 = el("div", { style: "display:flex;align-items:center;gap:12px;padding:10px 4px;border-bottom:1px solid var(--border);" });
-        row2.style.animation = "lbRowIn 0.3s ease both";
-        row2.style.animationDelay = (j * 30) + "ms";
-
-        var place2 = el("div", { style: "width:30px;text-align:center;font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:900;flex-shrink:0;" });
-        if (j === 0) { place2.textContent = "🥇"; place2.style.fontSize = "20px"; }
-        else if (j === 1) { place2.textContent = "🥈"; place2.style.fontSize = "20px"; }
-        else if (j === 2) { place2.textContent = "🥉"; place2.style.fontSize = "20px"; }
-        else { place2.textContent = "#" + (j + 1); place2.style.color = "var(--text-dim)"; }
-        row2.appendChild(place2);
-        row2.appendChild(buildAvatar(r2, 32));
-
-        var info2 = el("div", { style: "flex:1;min-width:0;" });
-        info2.appendChild(el("div", { style: "font-size:13px;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" }, r2.nickname || "Аноним"));
-        var rankLabel2 = el("div", { style: "font-size:10px;color:var(--text-muted);margin-top:2px;" });
-        if (typeof window.getMedalForMMR === "function") {
-          try {
-            var md3 = window.getMedalForMMR(r2.mmr);
-            if (md3) {
-              rankLabel2.textContent = md3.medal.ru + " · " + md3.stars + "★";
-              rankLabel2.style.color = md3.medal.a;
-            }
-          } catch (e) {}
-        }
-        info2.appendChild(rankLabel2);
-        row2.appendChild(info2);
-
-        if (typeof window.getMedalForMMR === "function") {
-          try {
-            var md4 = window.getMedalForMMR(r2.mmr);
-            if (md4) {
-              var medalBox2 = miniMedal(md4.medal.rankIdx, 36);
-              medalBox2.style.marginRight = "2px";
-              row2.appendChild(medalBox2);
-            }
-          } catch (e) {}
-        }
-
-        var mmrVal = el("div", { style: "font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:900;color:var(--gold);flex-shrink:0;" });
-        mmrVal.textContent = r2.mmr.toLocaleString();
-        row2.appendChild(mmrVal);
-        contentWrap.appendChild(row2);
-      }
+      if (topList.length === 0) { contentWrap.appendChild(el("div", { class: "dim", style: "font-size:12px;padding:8px 0;" }, "Пока никого нет. Сыграй 10 игр, чтобы попасть сюда.")); return; }
+      for (var j = 0; j < topList.length; j++) addRow(contentWrap, j, topList[j], true);
     }
   }
 
@@ -317,4 +216,4 @@ window.renderLeaderboard = async function (game) {
   return card;
 };
 
-console.log("leaderboard v2.0 ready (medals near scores)");
+console.log("leaderboard v2.1 ready (batch profiles, mini-medals)");

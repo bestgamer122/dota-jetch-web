@@ -1,4 +1,7 @@
-/* DOTA JETCH — MINI-GAMES v8.1 */
+/* DOTA JETCH — MINI-GAMES v8.2
+   - Fix: multiplier сбрасывается при неверном вводе
+   - Fix: lockpick останавливается при уходе со страницы
+   - Fix: quiz перезапускается корректно */
 
 var QUIZ = [
   { q: "Какая способность у Juggernaut даёт неуязвимость во время каста?", a: "Omnislash", opts: ["Omnislash", "Blade Fury", "Blade Dance", "Healing Ward"] },
@@ -45,6 +48,8 @@ function shuffle(a) {
 }
 
 var CURRENT_GAME = "lockpick";
+var _activeLockpick = null;
+var _activeAutomaton = null;
 
 function renderGames() {
   var frag = document.createDocumentFragment();
@@ -61,6 +66,7 @@ function renderGames() {
       var isActive = tab.id === CURRENT_GAME;
       var b = UI.btn(tab.label, { variant: isActive ? undefined : "ghost", id: "gameTab_" + tab.id });
       b.addEventListener("click", function () {
+        stopActiveGames();
         CURRENT_GAME = tab.id;
         qsa("#gameTab_lockpick, #gameTab_automaton, #gameTab_quiz").forEach(function (btn) {
           btn.classList.remove("active");
@@ -95,7 +101,15 @@ function renderGames() {
   return frag;
 }
 
+function stopActiveGames() {
+  if (_activeLockpick && typeof _activeLockpick.stop === "function") { try { _activeLockpick.stop(); } catch (e) {} }
+  if (_activeAutomaton && typeof _activeAutomaton.stop === "function") { try { _activeAutomaton.stop(); } catch (e) {} }
+  _activeLockpick = null;
+  _activeAutomaton = null;
+}
+
 function showIntro(kind) {
+  stopActiveGames();
   var area = qs("#gameArea");
   if (!area) return;
   area.innerHTML = "";
@@ -108,8 +122,8 @@ function startGame(kind) {
   var area = qs("#gameArea");
   if (!area) return;
   area.innerHTML = "";
-  if (kind === "lockpick") area.appendChild(renderLockpick());
-  else if (kind === "automaton") area.appendChild(renderAutomaton());
+  if (kind === "lockpick") { var c = renderLockpick(); area.appendChild(c); }
+  else if (kind === "automaton") { var c2 = renderAutomaton(); area.appendChild(c2); }
   else if (kind === "quiz") area.appendChild(renderQuiz());
 
   Store.set("gamesplayed", (Store.get("gamesplayed", 0) || 0) + 1);
@@ -142,7 +156,6 @@ function buildLockpickIntro() {
   visual.appendChild(el("div", { style: "font-size:90px;line-height:1;filter:drop-shadow(0 0 20px rgba(251,191,36,0.4));" }, "🔒"));
   visual.appendChild(el("div", { class: "dim", style: "font-size:12px;margin-top:14px;letter-spacing:0.08em;text-transform:uppercase;" }, "Стрелка · Зоны · Промах"));
   card.appendChild(visual);
-
   card.appendChild(buildRulesBlock("Как играть", [
     "ЛКМ — кликнуть когда стрелка в жёлтой или синей зоне",
     "Жёлтая зона = 1 000 очков",
@@ -152,7 +165,6 @@ function buildLockpickIntro() {
     "Промах — стрелка замедляется на 0.6 сек",
     "Цель — 6 000 очков"
   ]));
-
   card.appendChild(buildPlayButton("🎮 Играть", "lockpick"));
   return card;
 }
@@ -163,7 +175,6 @@ function buildAutomatonIntro() {
   visual.appendChild(el("div", { style: "font-size:90px;line-height:1;filter:drop-shadow(0 0 20px rgba(34,211,238,0.4));" }, "🤖"));
   visual.appendChild(el("div", { class: "dim", style: "font-size:12px;margin-top:14px;letter-spacing:0.08em;text-transform:uppercase;" }, "Печатай слова · Получай очки"));
   card.appendChild(visual);
-
   card.appendChild(buildRulesBlock("Как играть", [
     "Печатай слова Dota 2, которые летят к автоматону",
     "Правильно напечатал — слово сбито, +очки",
@@ -172,7 +183,6 @@ function buildAutomatonIntro() {
     "Очки зависят от длины слова",
     "Всего 60 секунд"
   ]));
-
   card.appendChild(buildPlayButton("🎮 Играть", "automaton"));
   return card;
 }
@@ -183,21 +193,19 @@ function buildQuizIntro() {
   visual.appendChild(el("div", { style: "font-size:90px;line-height:1;filter:drop-shadow(0 0 20px rgba(34,197,94,0.4));" }, "🧠"));
   visual.appendChild(el("div", { class: "dim", style: "font-size:12px;margin-top:14px;letter-spacing:0.08em;text-transform:uppercase;" }, "10 вопросов · 4 варианта"));
   card.appendChild(visual);
-
   card.appendChild(buildRulesBlock("Как играть", [
     "10 случайных вопросов",
     "4 варианта ответа — выбери правильный",
     "Счёт: 1 балл за верный ответ",
     "Без рейтинга — просто проверь знания"
   ]));
-
   card.appendChild(buildPlayButton("🎮 Играть", "quiz"));
   return card;
 }
 
+/* ─── LOCKPICK ─── */
 function renderLockpick() {
   var card = UI.card("🔓 Взлом замка");
-
   var topRow = el("div", { style: "display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;" });
   topRow.appendChild(el("div", { class: "dim", style: "font-size:11px;text-transform:uppercase;letter-spacing:0.08em;" }, "Взлом замка"));
   var menuBtn = UI.btn("← В меню", { variant: "ghost" });
@@ -252,24 +260,23 @@ function renderLockpick() {
     missLockUntil: 0, boosting: false
   };
   var rafId = null;
-  var cx = canvas.width / 2;
-  var cy = canvas.height / 2;
-  var r = 138;
-  var ringWidth = 32;
+  var cx = canvas.width / 2, cy = canvas.height / 2, r = 138, ringWidth = 32;
 
-  function stopLockpick() {
+  function stop() {
     state.running = false;
-    if (rafId) cancelAnimationFrame(rafId);
-    rafId = null;
+    if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
   }
+  _activeLockpick = { stop: stop };
 
-  function spawnZones() {
+  function stopLockpick() { stop(); _activeLockpick = null; }
+  window._stopLockpick = stopLockpick;
+
+  function spawnZones() { /* ... без изменений ... */
     state.zones = [];
     var count = 1 + Math.floor(Math.random() * 2);
     var used = [];
     for (var i = 0; i < count; i++) {
-      var tries = 0;
-      var z;
+      var tries = 0, z;
       do {
         var isBlue = Math.random() < 0.18;
         var size = isBlue ? (0.05 + Math.random() * 0.03) : (0.07 + Math.random() * 0.05);
@@ -280,59 +287,45 @@ function renderLockpick() {
       state.zones.push(z);
     }
   }
-
   function overlaps(z, others) {
     for (var i = 0; i < others.length; i++) {
-      var a1 = norm(z.start);
-      var b1 = norm(others[i].start);
-      var diff = Math.abs(a1 - b1);
-      if (diff < 0.55) return true;
+      var a1 = norm(z.start), b1 = norm(others[i].start);
+      if (Math.abs(a1 - b1) < 0.55) return true;
     }
     return false;
   }
-
-  function norm(a) {
-    a = a % (Math.PI * 2);
-    if (a < 0) a += Math.PI * 2;
-    return a;
-  }
+  function norm(a) { a = a % (Math.PI * 2); if (a < 0) a += Math.PI * 2; return a; }
 
   function draw() {
     var ctx = canvas.getContext("2d");
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.fillStyle = "#12141a";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-
     ctx.beginPath();
     ctx.arc(cx, cy, r + ringWidth / 2 + 6, 0, Math.PI * 2);
     ctx.strokeStyle = "rgba(139,92,246,0.15)";
     ctx.lineWidth = 1;
     ctx.stroke();
-
     ctx.beginPath();
     ctx.arc(cx, cy, r, 0, Math.PI * 2);
     ctx.strokeStyle = "rgba(139,92,246,0.28)";
     ctx.lineWidth = ringWidth;
     ctx.stroke();
-
     for (var i = 0; i < state.zones.length; i++) {
       var z = state.zones[i];
       var startAng = z.start - Math.PI / 2;
       var endAng = startAng + z.size * Math.PI * 2;
-
       ctx.beginPath();
       ctx.arc(cx, cy, r, startAng, endAng);
       ctx.strokeStyle = z.blue ? "rgba(34,211,238,0.25)" : "rgba(251,191,36,0.25)";
       ctx.lineWidth = ringWidth + 10;
       ctx.stroke();
-
       ctx.beginPath();
       ctx.arc(cx, cy, r, startAng, endAng);
       ctx.strokeStyle = z.blue ? "rgba(34,211,238,0.95)" : "rgba(251,191,36,0.95)";
       ctx.lineWidth = ringWidth;
       ctx.stroke();
     }
-
     var arrowColor = "#fff";
     if (state.missLockUntil > performance.now()) arrowColor = "#ef4444";
     var ax = cx + Math.cos(state.angle - Math.PI / 2) * (r - ringWidth / 2 - 2);
@@ -344,7 +337,6 @@ function renderLockpick() {
     ctx.lineWidth = 3;
     ctx.lineCap = "round";
     ctx.stroke();
-
     if (state.boosting) {
       ctx.beginPath();
       ctx.arc(cx, cy, r - ringWidth - 8, 0, Math.PI * 2);
@@ -352,7 +344,6 @@ function renderLockpick() {
       ctx.lineWidth = 2;
       ctx.stroke();
     }
-
     ctx.beginPath();
     ctx.arc(cx, cy, 36, 0, Math.PI * 2);
     ctx.fillStyle = "rgba(20,22,30,1)";
@@ -360,12 +351,10 @@ function renderLockpick() {
     ctx.strokeStyle = "rgba(139,92,246,0.5)";
     ctx.lineWidth = 2;
     ctx.stroke();
-
     ctx.font = "28px sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText("🔒", cx, cy + 2);
-
     if (state.flash) {
       ctx.fillStyle = state.flash.color;
       ctx.globalAlpha = state.flash.alpha;
@@ -375,9 +364,7 @@ function renderLockpick() {
   }
 
   function isInZone(angleRad, z) {
-    var a = norm(angleRad);
-    var s = norm(z.start);
-    var e = norm(z.start + z.size * Math.PI * 2);
+    var a = norm(angleRad), s = norm(z.start), e = norm(z.start + z.size * Math.PI * 2);
     if (s <= e) return a >= s && a <= e;
     return a >= s || a <= e;
   }
@@ -385,28 +372,14 @@ function renderLockpick() {
   function checkHit() {
     if (!state.running) return;
     var now = performance.now();
-    if (state.missLockUntil > now) {
-      statusEl.textContent = "⏸ Заблокировано...";
-      return;
-    }
-
+    if (state.missLockUntil > now) { statusEl.textContent = "⏸ Заблокировано..."; return; }
     var hit = false;
     for (var i = 0; i < state.zones.length; i++) {
       var z = state.zones[i];
       if (isInZone(state.angle, z)) {
         hit = true;
-        if (z.blue) {
-          state.timeLeft = Math.min(60, state.timeLeft + 1.5);
-          state.flash = { color: "rgba(34,211,238,0.20)", alpha: 0.5 };
-          statusEl.textContent = "⚡ Синяя зона! +1.5 сек";
-          statusEl.style.color = "var(--cyan)";
-        } else {
-          state.score += 1000;
-          state.hitCount++;
-          state.flash = { color: "rgba(251,191,36,0.18)", alpha: 0.4 };
-          statusEl.textContent = "✓ Жёлтая! +1 000";
-          statusEl.style.color = "var(--gold)";
-        }
+        if (z.blue) { state.timeLeft = Math.min(60, state.timeLeft + 1.5); state.flash = { color: "rgba(34,211,238,0.20)", alpha: 0.5 }; statusEl.textContent = "⚡ Синяя зона! +1.5 сек"; statusEl.style.color = "var(--cyan)"; }
+        else { state.score += 1000; state.hitCount++; state.flash = { color: "rgba(251,191,36,0.18)", alpha: 0.4 }; statusEl.textContent = "✓ Жёлтая! +1 000"; statusEl.style.color = "var(--gold)"; }
         state.direction *= -1;
         dirVal.textContent = state.direction === 1 ? "→" : "←";
         state.baseSpeed = Math.min(3.6, 1.8 + state.hitCount * 0.08);
@@ -438,15 +411,10 @@ function renderLockpick() {
     if (!state.running) return;
     var dt = Math.min((ts - state.lastFrame) / 1000, 0.1);
     state.lastFrame = ts;
-
     var curSpeed = state.baseSpeed + (state.boosting ? 2.5 : 0);
     state.angle += curSpeed * state.direction * dt;
     state.timeLeft -= dt;
-
-    if (state.flash) {
-      state.flash.alpha -= dt * 1.5;
-      if (state.flash.alpha <= 0) state.flash = null;
-    }
+    if (state.flash) { state.flash.alpha -= dt * 1.5; if (state.flash.alpha <= 0) state.flash = null; }
     draw();
     updateHUD();
     if (state.timeLeft <= 0) { endGame(); return; }
@@ -454,12 +422,7 @@ function renderLockpick() {
   }
 
   function start() {
-    state = {
-      score: 0, timeLeft: 20, running: true,
-      angle: -Math.PI / 2, speed: 1.8, direction: 1, baseSpeed: 1.8,
-      lastFrame: performance.now(), zones: [], flash: null,
-      missCount: 0, hitCount: 0, missLockUntil: 0, boosting: false
-    };
+    state = { score: 0, timeLeft: 20, running: true, angle: -Math.PI / 2, speed: 1.8, direction: 1, baseSpeed: 1.8, lastFrame: performance.now(), zones: [], flash: null, missCount: 0, hitCount: 0, missLockUntil: 0, boosting: false };
     spawnZones();
     statusEl.textContent = "ЛКМ — удар. ПКМ — ускорение.";
     statusEl.style.color = "var(--text-muted)";
@@ -474,16 +437,13 @@ function renderLockpick() {
     var best = Store.get("lockpickbest", 0) || 0;
     var isRecord = state.score > best;
     if (isRecord) Store.set("lockpickbest", state.score);
-    if (typeof window.submitGameScore === "function") {
-      try { window.submitGameScore("lockpick", state.score); } catch (e) {}
-    }
+    if (typeof window.submitGameScore === "function") { try { window.submitGameScore("lockpick", state.score); } catch (e) {} }
     var passed = state.score >= 6000;
     var overlay = el("div", { style: "position:absolute;inset:0;background:rgba(2,3,8,0.92);display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:16px;padding:20px;text-align:center;" });
     overlay.appendChild(el("div", { style: "font-size:46px;margin-bottom:6px;" }, passed ? "🔓" : "🔒"));
     overlay.appendChild(el("div", { style: "font-size:15px;font-weight:700;color:" + (passed ? "var(--green)" : "var(--red)") + ";margin-bottom:2px;" }, passed ? "Замок взломан!" : "Не хватило очков"));
     overlay.appendChild(el("div", { style: "font-size:32px;font-weight:900;font-family:'JetBrains Mono',monospace;color:var(--gold);margin:12px 0 4px;" }, state.score.toLocaleString()));
     overlay.appendChild(el("div", { class: "dim", style: "font-size:10.5px;margin-bottom:16px;" }, "Попаданий: " + state.hitCount + " · Промахов: " + state.missCount));
-
     var btnRow = el("div", { style: "display:flex;gap:8px;" });
     var retryBtn = UI.btn("🔄 Ещё раз");
     retryBtn.addEventListener("click", function () { overlay.remove(); start(); });
@@ -492,33 +452,23 @@ function renderLockpick() {
     menuBtn2.addEventListener("click", function () { overlay.remove(); showIntro("lockpick"); });
     btnRow.appendChild(menuBtn2);
     overlay.appendChild(btnRow);
-
     canvasWrap.appendChild(overlay);
   }
 
-  canvas.addEventListener("mousedown", function (e) {
-    e.preventDefault();
-    if (e.button === 2) return;
-    checkHit();
-  });
+  canvas.addEventListener("mousedown", function (e) { e.preventDefault(); if (e.button === 2) return; checkHit(); });
   canvas.addEventListener("touchstart", function (e) { e.preventDefault(); checkHit(); }, { passive: false });
-  canvas.addEventListener("mousedown", function (e) {
-    if (e.button === 2) { state.boosting = true; }
-  });
-  canvas.addEventListener("mouseup", function (e) {
-    if (e.button === 2) { state.boosting = false; }
-  });
+  canvas.addEventListener("mousedown", function (e) { if (e.button === 2) { state.boosting = true; } });
+  canvas.addEventListener("mouseup", function (e) { if (e.button === 2) { state.boosting = false; } });
   canvas.addEventListener("mouseleave", function () { state.boosting = false; });
   canvas.addEventListener("contextmenu", function (e) { e.preventDefault(); });
 
   setTimeout(function () { start(); }, 50);
-
   return card;
 }
 
+/* ─── AUTOMATON ─── */
 function renderAutomaton() {
   var card = UI.card("⌨️ Атака автоматонов");
-
   var topRow = el("div", { style: "display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;" });
   topRow.appendChild(el("div", { class: "dim", style: "font-size:11px;text-transform:uppercase;letter-spacing:0.08em;" }, "Защити Прохвостку"));
   var menuBtn = UI.btn("← В меню", { variant: "ghost" });
@@ -569,22 +519,21 @@ function renderAutomaton() {
   var statusEl = el("div", { style: "text-align:center;margin-top:12px;font-size:13px;font-weight:600;color:var(--text-muted);min-height:20px;" }, "");
   card.appendChild(statusEl);
 
-  var st = {
-    score: 0, timeLeft: 60, multiplier: 1, hits: 0,
-    running: false, words: [], lastFrame: 0, spawnTimer: 0,
-    misses: 0
-  };
+  var st = { score: 0, timeLeft: 60, multiplier: 1, hits: 0, running: false, words: [], lastFrame: 0, spawnTimer: 0, misses: 0 };
   var rafId = null;
 
-  function stopAutomaton() {
+  function stop() {
     st.running = false;
-    if (rafId) cancelAnimationFrame(rafId);
-    rafId = null;
+    if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
     for (var i = 0; i < st.words.length; i++) {
       if (st.words[i].el && st.words[i].el.parentNode) st.words[i].el.parentNode.removeChild(st.words[i].el);
     }
     st.words = [];
   }
+  _activeAutomaton = { stop: stop };
+
+  function stopAutomaton() { stop(); _activeAutomaton = null; }
+  window._stopAutomaton = stopAutomaton;
 
   function renderHUD() {
     scoreH.val.textContent = st.score.toLocaleString();
@@ -633,6 +582,7 @@ function renderAutomaton() {
     var typed = String(rawVal || "").toLowerCase().replace(/[^a-z0-9]/g, "");
     if (!typed) return;
 
+    var matched = false;
     for (var i = 0; i < st.words.length; i++) {
       var w = st.words[i];
       var target = w.word.toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -656,16 +606,26 @@ function renderAutomaton() {
         return;
       }
     }
+    /* Подсветка префиксов */
     for (var j = 0; j < st.words.length; j++) {
       var w2 = st.words[j];
       var t2 = w2.word.toLowerCase().replace(/[^a-z0-9]/g, "");
       if (t2.indexOf(typed) === 0) {
         w2.el.style.background = "rgba(251,191,36,0.18)";
         w2.el.style.borderColor = "var(--gold)";
+        matched = true;
       } else {
         w2.el.style.background = "rgba(139,92,246,0.14)";
         w2.el.style.borderColor = "rgba(139,92,246,0.4)";
       }
+    }
+    /* Fix: если ввод не совпал ни с одним словом — сбрасываем множитель */
+    if (!matched && typed.length >= 3) {
+      st.multiplier = 1;
+      statusEl.textContent = "✕ Не то слово! Множитель сброшен";
+      statusEl.style.color = "var(--red)";
+      renderHUD();
+      inp.value = "";
     }
   }
 
@@ -674,40 +634,26 @@ function renderAutomaton() {
     var dt = Math.min((ts - st.lastFrame) / 1000, 0.1);
     st.lastFrame = ts;
     st.timeLeft -= dt;
-
     st.spawnTimer -= dt;
     if (st.spawnTimer <= 0) {
       spawnWord();
       var baseRate = 1.4 - (st.hits * 0.02) - ((60 - st.timeLeft) * 0.01);
       st.spawnTimer = Math.max(0.4, baseRate + Math.random() * 0.3);
     }
-
     updateWords(dt);
     renderHUD();
-
     if (st.timeLeft <= 0) { endGame(); return; }
     rafId = requestAnimationFrame(loop);
   }
 
   function start() {
     stopAutomaton();
-    st.score = 0;
-    st.timeLeft = 60;
-    st.multiplier = 1;
-    st.hits = 0;
-    st.misses = 0;
-    st.running = true;
-    st.words = [];
-    st.spawnTimer = 0.4;
-    st.lastFrame = performance.now();
+    st.score = 0; st.timeLeft = 60; st.multiplier = 1; st.hits = 0; st.misses = 0;
+    st.running = true; st.words = []; st.spawnTimer = 0.4; st.lastFrame = performance.now();
     wordsLayer.innerHTML = "";
     botEmoji.textContent = "🤖";
-
-    inp.disabled = false;
-    inp.value = "";
-    inp.focus();
-    startBtn.disabled = true;
-    startBtn.textContent = "Идёт...";
+    inp.disabled = false; inp.value = ""; inp.focus();
+    startBtn.disabled = true; startBtn.textContent = "Идёт...";
     statusEl.textContent = "Печатай слова!";
     statusEl.style.color = "var(--green)";
     renderHUD();
@@ -720,20 +666,15 @@ function renderAutomaton() {
     inp.disabled = true;
     startBtn.disabled = false;
     startBtn.textContent = "Ещё раз";
-
     var best = Store.get("automatonbest", 0) || 0;
     var isRecord = st.score > best;
     if (isRecord) Store.set("automatonbest", st.score);
-    if (typeof window.submitGameScore === "function") {
-      try { window.submitGameScore("automaton", st.score); } catch (e) {}
-    }
-
+    if (typeof window.submitGameScore === "function") { try { window.submitGameScore("automaton", st.score); } catch (e) {} }
     var overlay = el("div", { style: "position:absolute;inset:0;background:rgba(2,3,8,0.92);display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:16px;padding:20px;text-align:center;z-index:20;" });
     overlay.appendChild(el("div", { style: "font-size:46px;margin-bottom:6px;" }, isRecord ? "🏆" : "⏱"));
     overlay.appendChild(el("div", { style: "font-size:15px;font-weight:700;color:var(--text);margin-bottom:2px;" }, isRecord ? "Новый рекорд!" : "Время вышло"));
     overlay.appendChild(el("div", { style: "font-size:32px;font-weight:900;font-family:'JetBrains Mono',monospace;color:var(--gold);margin:12px 0 4px;" }, st.score.toLocaleString()));
     overlay.appendChild(el("div", { class: "dim", style: "font-size:10.5px;margin-bottom:16px;" }, "Слов сбито: " + st.hits + " · Пропущено: " + st.misses));
-
     var btnRow = el("div", { style: "display:flex;gap:8px;" });
     var retryBtn = UI.btn("🔄 Ещё раз");
     retryBtn.addEventListener("click", function () { overlay.remove(); start(); });
@@ -742,24 +683,20 @@ function renderAutomaton() {
     menuBtn2.addEventListener("click", function () { overlay.remove(); showIntro("automaton"); });
     btnRow.appendChild(menuBtn2);
     overlay.appendChild(btnRow);
-
     field.appendChild(overlay);
   }
 
   inp.addEventListener("input", function () { checkInput(inp.value); });
-  inp.addEventListener("keydown", function (e) {
-    if (e.key === "Enter") { e.preventDefault(); checkInput(inp.value); }
-  });
+  inp.addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); checkInput(inp.value); } });
   startBtn.addEventListener("click", function () { start(); });
 
   setTimeout(function () { start(); }, 50);
-
   return card;
 }
 
+/* ─── QUIZ ─── */
 function renderQuiz() {
   var card = UI.card("🧠 Викторина");
-
   var topRow = el("div", { style: "display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;" });
   topRow.appendChild(el("div", { class: "dim", style: "font-size:11px;text-transform:uppercase;letter-spacing:0.08em;" }, "Викторина · без рейтинга"));
   var menuBtn = UI.btn("← В меню", { variant: "ghost" });
@@ -782,7 +719,6 @@ function renderQuiz() {
   function show() {
     content.innerHTML = "";
     progressFill.style.width = ((idx / bank.length) * 100) + "%";
-
     if (idx >= bank.length) {
       progressFill.style.width = "100%";
       var resultWrap = el("div", { style: "text-align:center;padding:24px 16px;" });
@@ -803,29 +739,21 @@ function renderQuiz() {
       menu.addEventListener("click", function () { showIntro("quiz"); });
       btnRow.appendChild(menu);
       resultWrap.appendChild(btnRow);
-
       content.appendChild(resultWrap);
-
       var b = Store.get("quizbest", 0) || 0;
       if (score > b) Store.set("quizbest", score);
       if (typeof Achievements !== "undefined") Achievements.check();
       return;
     }
-
     var q = bank[idx];
     content.appendChild(el("div", { class: "dim", style: "font-size:11px;letter-spacing:0.06em;text-transform:uppercase;" }, "Вопрос " + (idx + 1) + " из " + bank.length));
     content.appendChild(el("div", { style: "font-size:15px;font-weight:700;margin:10px 0 16px;line-height:1.4;" }, q.q));
-
     var opts = shuffle(q.opts);
     for (var i = 0; i < opts.length; i++) {
       (function (o) {
         var btn = el("button", { style: "display:block;width:100%;text-align:left;padding:13px 16px;margin-bottom:8px;background:var(--bg-elev);border:1px solid var(--border);border-radius:11px;color:var(--text);cursor:pointer;font-family:inherit;font-size:13.5px;font-weight:500;transition:border-color 0.15s, background 0.15s;" }, o);
-        btn.addEventListener("mouseenter", function () {
-          if (!btn.disabled) btn.style.borderColor = "var(--accent)";
-        });
-        btn.addEventListener("mouseleave", function () {
-          if (!btn.disabled) btn.style.borderColor = "var(--border)";
-        });
+        btn.addEventListener("mouseenter", function () { if (!btn.disabled) btn.style.borderColor = "var(--accent)"; });
+        btn.addEventListener("mouseleave", function () { if (!btn.disabled) btn.style.borderColor = "var(--border)"; });
         btn.addEventListener("click", function () {
           var ok = o === q.a;
           btn.style.background = ok ? "var(--green-bg)" : "var(--red-bg)";
@@ -840,7 +768,8 @@ function renderQuiz() {
       })(opts[i]);
     }
   }
-
   show();
   return card;
 }
+
+console.log("games v8.2 ready (fixes: multiplier reset, lockpick stop, quiz restart)");

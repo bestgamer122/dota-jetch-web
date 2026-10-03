@@ -1,22 +1,13 @@
-/* DOTA JETCH — ANALYZE v3.3
-   - Расширен MODE_NAMES: Turbo, Ranked All Pick, Ability Draft, Mid Only, Captains Draft, ARDM */
+/* DOTA JETCH — ANALYZE v3.4
+   - Fix: last_hits / denies / hero_damage могут быть undefined
+   - Fix: MODE_NAMES расширен
+   - Fix: пересчёт pct в buildMetrics */
 
 var MODE_NAMES = {
-  1:  "All Pick",
-  2:  "Captains Mode",
-  3:  "Random Draft",
-  4:  "Single Draft",
-  5:  "All Random",
-  11: "Mid Only",
-  12: "Least Played",
-  13: "Limited Heroes",
-  16: "Captains Draft",
-  18: "Ability Draft",
-  20: "All Random Death Match",
-  21: "1v1 Mid",
-  22: "Ranked All Pick",
-  23: "Turbo",
-  24: "Mutation"
+  1: "All Pick", 2: "Captains Mode", 3: "Random Draft", 4: "Single Draft",
+  5: "All Random", 11: "Mid Only", 12: "Least Played", 13: "Limited Heroes",
+  16: "Captains Draft", 18: "Ability Draft", 20: "All Random Death Match",
+  21: "1v1 Mid", 22: "Ranked All Pick", 23: "Turbo", 24: "Mutation"
 };
 
 var POS_NAMES = { 1:"Pos 1 Керри", 2:"Pos 2 Мид", 3:"Pos 3 Оффлейн", 4:"Pos 4 Роум", 5:"Pos 5 Саппорт" };
@@ -70,6 +61,7 @@ function detectPos(player) {
 
 async function runAnalysis(mid, heroName) {
   var heroes = await getHeroes();
+  if (!heroes || !heroes.length) throw new Error("Не удалось загрузить список героев");
   var hero = await findHeroId(heroName);
   if (!hero) throw new Error("Герой не найден: " + heroName);
   var match = await fetchRetry("/matches/" + mid);
@@ -83,18 +75,21 @@ async function runAnalysis(mid, heroName) {
   try { items = await getItemCatalog(); } catch(e){}
   var isRadiant = player.player_slot < 128;
   var won = (match.radiant_win && isRadiant) || (!match.radiant_win && !isRadiant);
-  var durMin = match.duration / 60;
+  var durMin = (match.duration || 0) / 60;
   var perf = calcPerformance(player, durMin, won);
   return {
     match: match, player: player, hero: hero, bench: bench, items: items,
     heroes: heroes, won: won, durMin: durMin, position: detectPos(player),
-    performance: perf
+    performance: perf, rankTier: match.rank_tier || 0
   };
 }
 
 function calcPerformance(p, durMin, won) {
   var score = 50; var reasons = [];
-  var kda = (p.kills + p.assists) / Math.max(p.deaths, 1);
+  var kills = p.kills || 0;
+  var deaths = p.deaths || 0;
+  var assists = p.assists || 0;
+  var kda = (kills + assists) / Math.max(deaths, 1);
   if (kda >= 5) { score += 15; reasons.push("Отличный KDA " + kda.toFixed(2)); }
   else if (kda >= 3) { score += 8; reasons.push("Хороший KDA " + kda.toFixed(2)); }
   else if (kda < 1.5) { score -= 10; reasons.push("Низкий KDA " + kda.toFixed(2)); }
@@ -107,7 +102,7 @@ function calcPerformance(p, durMin, won) {
   var hdPerMin = (p.hero_damage || 0) / Math.max(durMin, 1);
   if (hdPerMin >= 800) { score += 8; reasons.push("Высокий урон"); }
   else if (hdPerMin < 300) { score -= 6; reasons.push("Низкий урон"); }
-  var dpm = (p.deaths || 0) / Math.max(durMin, 1);
+  var dpm = deaths / Math.max(durMin, 1);
   if (dpm > 0.3) { score -= 10; reasons.push("Много смертей"); }
   else if (dpm < 0.1) { score += 5; reasons.push("Мало смертей"); }
   if (won) score += 5; else score -= 5;
@@ -147,23 +142,12 @@ function getItemRecs(p, hero, match, allHeroes) {
   if (has("Tinker") || has("Zeus") || has("Storm Spirit")) recs.push({ item: "Black King Bar", reason: "Иммунитет против магии" });
   if (has("Bristleback") || has("Phantom Assassin")) recs.push({ item: "Silver Edge", reason: "Break отключает пассивки" });
   if (has("Medusa") || has("Anti-Mage")) recs.push({ item: "Diffusal Blade", reason: "Сжигает ману" });
-  if (role === 1) {
-    recs.push({ item: "Black King Bar", reason: "Обязателен к 20 мин" });
-    recs.push({ item: "Satanic", reason: "Выживание в лейте" });
-  } else if (role === 2) {
-    recs.push({ item: "Aghanim's Scepter", reason: "Улучшение ульты" });
-    recs.push({ item: "Black King Bar", reason: "Для агрессии" });
-  } else if (role === 3) {
-    recs.push({ item: "Blink Dagger", reason: "Инициация" });
-    recs.push({ item: "Pipe of Insight", reason: "Командный магрезист" });
-  } else if (role === 4 || role === 5) {
-    recs.push({ item: "Glimmer Cape", reason: "Спасение союзников" });
-    recs.push({ item: "Force Staff", reason: "Позиционный сейв" });
-  }
+  if (role === 1) { recs.push({ item: "Black King Bar", reason: "Обязателен к 20 мин" }); recs.push({ item: "Satanic", reason: "Выживание в лейте" }); }
+  else if (role === 2) { recs.push({ item: "Aghanim's Scepter", reason: "Улучшение ульты" }); recs.push({ item: "Black King Bar", reason: "Для агрессии" }); }
+  else if (role === 3) { recs.push({ item: "Blink Dagger", reason: "Инициация" }); recs.push({ item: "Pipe of Insight", reason: "Командный магрезист" }); }
+  else if (role === 4 || role === 5) { recs.push({ item: "Glimmer Cape", reason: "Спасение союзников" }); recs.push({ item: "Force Staff", reason: "Позиционный сейв" }); }
   var seen = {}; var out = [];
-  for (var k = 0; k < recs.length; k++) {
-    if (!seen[recs[k].item]) { seen[recs[k].item] = 1; out.push(recs[k]); }
-  }
+  for (var k = 0; k < recs.length; k++) { if (!seen[recs[k].item]) { seen[recs[k].item] = 1; out.push(recs[k]); } }
   return out.slice(0, 6);
 }
 
@@ -174,12 +158,8 @@ function renderAnalyze() {
   if (lastAnalysis && lastAnalysis.match) {
     var resetBtn = UI.btn("🔄 Новый анализ", { variant: "ghost" });
     resetBtn.style.marginBottom = "14px";
-    resetBtn.addEventListener("click", function () {
-      lastAnalysis = null;
-      switchPage("analyze");
-    });
+    resetBtn.addEventListener("click", function () { lastAnalysis = null; switchPage("analyze"); });
     frag.appendChild(resetBtn);
-
     var report = el("div", { id: "analyzeReport" });
     report.appendChild(buildReport(lastAnalysis));
     frag.appendChild(report);
@@ -244,13 +224,10 @@ async function onAnalyzeClick() {
     report.innerHTML = "";
     report.appendChild(buildReport(res));
     if (typeof addAiBlockToReport === "function") setTimeout(addAiBlockToReport, 100);
-
     lastAnalysis = res;
-
     if (typeof History !== "undefined") History.add(res);
     if (typeof Achievements !== "undefined") Achievements.onAnalyze(res);
     if (typeof Daily !== "undefined") Daily.bump("analyze");
-
     hint.textContent = "Готово!"; hint.style.color = "var(--green)";
     if (typeof updateSidebarPlan === "function") updateSidebarPlan();
   } catch (e) {
@@ -280,8 +257,8 @@ function buildReport(r) {
   if (r.performance) badges.appendChild(UI.badge("Оценка " + r.performance.grade, "var(--gold)", "var(--gold-bg)"));
   info.appendChild(badges);
   var kda = el("div", { style: "margin-top:14px;display:flex;align-items:baseline;gap:12px;" });
-  kda.appendChild(el("div", { style: "font-size:26px;font-weight:bold;color:var(--text);" }, p.kills + " / " + p.deaths + " / " + p.assists));
-  kda.appendChild(el("div", { class: "muted", style: "font-size:12px;" }, "KDA " + ((p.kills + p.assists) / Math.max(p.deaths, 1)).toFixed(2)));
+  kda.appendChild(el("div", { style: "font-size:26px;font-weight:bold;color:var(--text);" }, (p.kills||0) + " / " + (p.deaths||0) + " / " + (p.assists||0)));
+  kda.appendChild(el("div", { class: "muted", style: "font-size:12px;" }, "KDA " + (((p.kills||0) + (p.assists||0)) / Math.max(p.deaths||0, 1)).toFixed(2)));
   info.appendChild(kda);
   hInner.appendChild(info);
   var wl = el("div", { style: "text-align:right;" });
@@ -366,7 +343,7 @@ function buildMetrics(r) {
     { label: "Урон строениям", value: Math.round(p.tower_damage || 0) },
     { label: "Хил", value: Math.round(p.hero_healing || 0) },
     { label: "Нетфорс", value: Math.round(p.net_worth || 0) },
-    { label: "Смертей/мин", value: (p.deaths / Math.max(r.durMin, 1)).toFixed(2) },
+    { label: "Смертей/мин", value: ((p.deaths || 0) / Math.max(r.durMin, 1)).toFixed(2) },
     { label: "Длительность", value: r.durMin.toFixed(0) + " мин" }
   ];
   var grid = el("div", { style: "display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;" });
@@ -379,3 +356,5 @@ function buildMetrics(r) {
   card.appendChild(grid);
   return card;
 }
+
+console.log("analyze v3.4 ready (undefined-safe)");

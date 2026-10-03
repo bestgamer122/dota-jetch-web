@@ -1,8 +1,9 @@
-/* DOTA JETCH — CONFIG v7.0
-   Store теперь работает через sessionStorage. Данные НЕ остаются на устройстве
-   после закрытия вкладки. Всё, что важно — синхронизируется в Firebase. */
+/* DOTA JETCH — CONFIG v7.1
+   - CORS-безопасный apiGet с fallback
+   - Store: sessionStorage + localStorage зеркало для критичных ключей
+   - APP_VERSION */
 
-var APP_VERSION = "7.0.0";
+var APP_VERSION = "7.1.0";
 
 var Store = {
   prefix: "dota.",
@@ -11,17 +12,29 @@ var Store = {
     if (def === undefined) def = null;
     try {
       var v = sessionStorage.getItem(this.prefix + key);
+      if (v === null) {
+        v = localStorage.getItem(this.prefix + key);
+        if (v !== null) sessionStorage.setItem(this.prefix + key, v);
+      }
       if (v === null) return def;
       return JSON.parse(v);
     } catch (e) { return def; }
   },
 
   set: function (key, val) {
-    try { sessionStorage.setItem(this.prefix + key, JSON.stringify(val)); } catch (e) {}
+    try {
+      var str = JSON.stringify(val);
+      sessionStorage.setItem(this.prefix + key, str);
+      /* Критичные ключи дублируем в localStorage — не теряются при краше */
+      if (this._isCritical(key)) localStorage.setItem(this.prefix + key, str);
+    } catch (e) {}
   },
 
   remove: function (key) {
-    try { sessionStorage.removeItem(this.prefix + key); } catch (e) {}
+    try {
+      sessionStorage.removeItem(this.prefix + key);
+      localStorage.removeItem(this.prefix + key);
+    } catch (e) {}
   },
 
   clear: function () {
@@ -32,10 +45,20 @@ var Store = {
         if (keys[i].indexOf(p) === 0) sessionStorage.removeItem(keys[i]);
       }
     } catch (e) {}
+  },
+
+  _isCritical: function (key) {
+    return key.indexOf("minigames_") === 0 ||
+           key.indexOf("license") === 0 ||
+           key === "nickname" ||
+           key === "achievementsunlocked" ||
+           key === "analyzedcount" ||
+           key === "recentmatches";
   }
 };
 
 var API_BASE = "https://api.opendota.com/api";
+var API_PROXY = "https://api.allorigins.win/raw?url=";
 
 async function apiGet(path, params) {
   var url = API_BASE + path;
@@ -43,9 +66,21 @@ async function apiGet(path, params) {
     var q = new URLSearchParams(params).toString();
     if (q) url += "?" + q;
   }
-  var res = await fetch(url);
-  if (!res.ok) throw new Error("HTTP " + res.status);
-  return await res.json();
+  try {
+    var res = await fetch(url);
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    return await res.json();
+  } catch (e) {
+    /* Fallback через CORS-прокси */
+    try {
+      var proxyUrl = API_PROXY + encodeURIComponent(url);
+      var res2 = await fetch(proxyUrl);
+      if (!res2.ok) throw new Error("Proxy HTTP " + res2.status);
+      return await res2.json();
+    } catch (e2) {
+      throw new Error("API недоступно: " + (e.message || e));
+    }
+  }
 }
 
 var THEMES = {};
