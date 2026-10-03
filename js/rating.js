@@ -1,223 +1,161 @@
-/* DOTA JETCH — RATING v6.0
-   - Уникальные медали (у каждой свой символ)
+/* DOTA JETCH — RATING v6.1
+   - Иконки рангов в стиле Dota 2: ромб + крылья + уникальный символ
+   - Уникальные цвета у каждого ранга
    - Анимация модалок
    - Курсор поверх окон */
 
 var RATING_TABLE = [
-  { name: "Herald",    ru: "Рекрут",    rankIdx: 0, bg: "#4a4a4a", accent: "#9ca3af", stars: [0, 150, 300, 460, 610] },
-  { name: "Guardian",  ru: "Страж",     rankIdx: 1, bg: "#4a5a5a", accent: "#a5b4c4", stars: [770, 920, 1080, 1230, 1400] },
-  { name: "Crusader",  ru: "Рыцарь",    rankIdx: 2, bg: "#6a3a10", accent: "#cd7f32", stars: [1540, 1700, 1850, 2000, 2150] },
-  { name: "Archon",    ru: "Герой",     rankIdx: 3, bg: "#1e3a6a", accent: "#3b82f6", stars: [2310, 2450, 2610, 2770, 2930] },
-  { name: "Legend",    ru: "Легенда",   rankIdx: 4, bg: "#3a1a5a", accent: "#8b5cf6", stars: [3080, 3230, 3390, 3540, 3700] },
-  { name: "Ancient",   ru: "Властелин", rankIdx: 5, bg: "#0a3a2a", accent: "#10b981", stars: [3850, 4000, 4150, 4300, 4460] },
-  { name: "Divine",    ru: "Божество",  rankIdx: 6, bg: "#5a4a10", accent: "#fbbf24", stars: [4620, 4820, 5020, 5220, 5420] },
-  { name: "Immortal",  ru: "Титан",     rankIdx: 7, bg: "#5a0a0a", accent: "#dc2626", stars: [5620, 5800, 6000, 6200, 6500] }
+  { name: "Herald",    ru: "Рекрут",    rankIdx: 0, c1: "#1a3a10", c2: "#3a7a25", accent: "#7ab85a", stars: [0, 150, 300, 460, 610] },
+  { name: "Guardian",  ru: "Страж",     rankIdx: 1, c1: "#3a3a42", c2: "#6a6a78", accent: "#b8b8c0", stars: [770, 920, 1080, 1230, 1400] },
+  { name: "Crusader",  ru: "Рыцарь",    rankIdx: 2, c1: "#0a3a4a", c2: "#1a7a8a", accent: "#4ac8e0", stars: [1540, 1700, 1850, 2000, 2150] },
+  { name: "Archon",    ru: "Герой",     rankIdx: 3, c1: "#1a5a2a", c2: "#4a9a3a", accent: "#9ad050", stars: [2310, 2450, 2610, 2770, 2930] },
+  { name: "Legend",    ru: "Легенда",   rankIdx: 4, c1: "#5a0a2a", c2: "#9a1a4a", accent: "#e05a80", stars: [3080, 3230, 3390, 3540, 3700] },
+  { name: "Ancient",   ru: "Властелин", rankIdx: 5, c1: "#1a0a5a", c2: "#4a1a9a", accent: "#9a6ae0", stars: [3850, 4000, 4150, 4300, 4460] },
+  { name: "Divine",    ru: "Божество",  rankIdx: 6, c1: "#0a2a6a", c2: "#1a4aa0", accent: "#5a8ae0", stars: [4620, 4820, 5020, 5220, 5420] },
+  { name: "Immortal",  ru: "Титан",     rankIdx: 7, c1: "#4a0505", c2: "#8a1515", accent: "#e04040", stars: [5620, 5800, 6000, 6200, 6500] }
 ];
 
 var CALIBRATION_GAMES = 10;
 
-/* Уникальные медали — каждая со своим символом */
+/* Стили модалок + курсор поверх */
+function ensureRatingStyles() {
+  if (document.getElementById("ratingStyles")) return;
+  var s = document.createElement("style");
+  s.id = "ratingStyles";
+  s.textContent = `
+    .cursor-dot, .cursor-ring { z-index: 99999999 !important; }
+    @keyframes ratingOvIn { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes ratingBoxIn {
+      0% { opacity: 0; transform: scale(0.85) translateY(30px); }
+      60% { opacity: 1; transform: scale(1.02) translateY(-4px); }
+      100% { opacity: 1; transform: scale(1) translateY(0); }
+    }
+    .rating-overlay-anim { animation: ratingOvIn 0.25s ease both; }
+    .rating-box-anim { animation: ratingBoxIn 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+    @keyframes ratingTileIn {
+      from { opacity: 0; transform: translateY(15px) scale(0.92); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    .rating-tile-anim { animation: ratingTileIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+  `;
+  document.head.appendChild(s);
+}
+
+/* Уникальные SVG в стиле Dota 2 для каждой медали */
 function buildMedalSVG(rankIdx, size) {
   var cfg = RATING_TABLE[rankIdx] || RATING_TABLE[0];
   size = size || 96;
-  var ns = "http://www.w3.org/2000/svg";
-  var svg = document.createElementNS(ns, "svg");
-  svg.setAttribute("viewBox", "0 0 100 100");
-  svg.setAttribute("width", size);
-  svg.setAttribute("height", size);
-  svg.style.cssText = "display:block;flex-shrink:0;filter:drop-shadow(0 0 10px " + cfg.accent + "99);";
+  var id = "m" + rankIdx;
 
-  var shield = document.createElementNS(ns, "path");
-  shield.setAttribute("d", "M50 6 L88 20 L88 52 Q88 78 50 94 Q12 78 12 52 L12 20 Z");
-  shield.setAttribute("fill", cfg.bg);
-  shield.setAttribute("stroke", cfg.accent);
-  shield.setAttribute("stroke-width", "3");
-  svg.appendChild(shield);
-
-  var inner = document.createElementNS(ns, "path");
-  inner.setAttribute("d", "M50 14 L80 26 L80 52 Q80 72 50 86 Q20 72 20 52 L20 26 Z");
-  inner.setAttribute("fill", "rgba(0,0,0,0.35)");
-  svg.appendChild(inner);
-
-  var g = document.createElementNS(ns, "g");
-  g.setAttribute("fill", cfg.accent);
-  g.setAttribute("stroke", cfg.accent);
-  g.setAttribute("stroke-width", "1.8");
-  g.setAttribute("stroke-linejoin", "round");
-  g.setAttribute("stroke-linecap", "round");
-
+  /* Символ в центре ромба */
+  var sym = "";
   if (rankIdx === 0) {
-    /* Recruit: пустой круг */
-    var c = document.createElementNS(ns, "circle");
-    c.setAttribute("cx", "50"); c.setAttribute("cy", "50"); c.setAttribute("r", "10");
-    c.setAttribute("fill", "none");
-    c.setAttribute("stroke-width", "2.5");
-    g.appendChild(c);
-    var dot = document.createElementNS(ns, "circle");
-    dot.setAttribute("cx", "50"); dot.setAttribute("cy", "50"); dot.setAttribute("r", "2.5");
-    g.appendChild(dot);
-
+    /* Рекрут: точка с кольцом */
+    sym = '<circle cx="100" cy="105" r="14" fill="none" stroke="#ffffff" stroke-width="4" opacity="0.85"/>' +
+          '<circle cx="100" cy="105" r="5" fill="#ffffff" opacity="0.9"/>';
   } else if (rankIdx === 1) {
-    /* Guardian: крест */
-    var p1 = document.createElementNS(ns, "path");
-    p1.setAttribute("d", "M50 30 L50 70 M30 50 L70 50");
-    p1.setAttribute("stroke-width", "6");
-    g.appendChild(p1);
-
+    /* Страж: крест */
+    sym = '<path d="M100 80 L100 130 M75 105 L125 105" stroke="#ffffff" stroke-width="9" stroke-linecap="round" opacity="0.85"/>';
   } else if (rankIdx === 2) {
-    /* Crusader: меч */
-    var p2 = document.createElementNS(ns, "path");
-    p2.setAttribute("d", "M50 26 L54 32 L54 62 L58 64 L58 68 L42 68 L42 64 L46 62 L46 32 Z");
-    g.appendChild(p2);
-
+    /* Рыцарь: меч-крест */
+    sym = '<path d="M100 78 L100 128 M82 96 L100 78 L118 96 M85 118 L115 118" stroke="#ffffff" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" fill="none" opacity="0.9"/>';
   } else if (rankIdx === 3) {
-    /* Archon: два скрещённых меча */
-    var p3a = document.createElementNS(ns, "path");
-    p3a.setAttribute("d", "M30 30 L70 70");
-    p3a.setAttribute("stroke-width", "5");
-    g.appendChild(p3a);
-    var p3b = document.createElementNS(ns, "path");
-    p3b.setAttribute("d", "M70 30 L30 70");
-    p3b.setAttribute("stroke-width", "5");
-    g.appendChild(p3b);
-    var ring = document.createElementNS(ns, "circle");
-    ring.setAttribute("cx", "50"); ring.setAttribute("cy", "50"); ring.setAttribute("r", "6");
-    ring.setAttribute("fill", cfg.bg);
-    ring.setAttribute("stroke-width", "2.5");
-    g.appendChild(ring);
-
+    /* Герой: скрещённые мечи */
+    sym = '<path d="M75 80 L125 130" stroke="#ffffff" stroke-width="8" stroke-linecap="round" opacity="0.9"/>' +
+          '<path d="M125 80 L75 130" stroke="#ffffff" stroke-width="8" stroke-linecap="round" opacity="0.9"/>' +
+          '<circle cx="70" cy="75" r="6" fill="#ffffff" opacity="0.9"/>' +
+          '<circle cx="130" cy="75" r="6" fill="#ffffff" opacity="0.9"/>';
   } else if (rankIdx === 4) {
-    /* Legend: корона */
-    var p4 = document.createElementNS(ns, "path");
-    p4.setAttribute("d", "M32 62 L32 40 L42 52 L50 34 L58 52 L68 40 L68 62 Z");
-    g.appendChild(p4);
-    var base = document.createElementNS(ns, "path");
-    base.setAttribute("d", "M32 62 L68 62");
-    base.setAttribute("stroke-width", "2.5");
-    g.appendChild(base);
-    /* Точки на зубцах */
-    for (var gi = 0; gi < 3; gi++) {
-      var gx = 32 + gi * 18;
-      var d = document.createElementNS(ns, "circle");
-      d.setAttribute("cx", gx); d.setAttribute("cy", "34"); d.setAttribute("r", "2.5");
-      if (gi === 1) { d.setAttribute("cy", "30"); }
-      g.appendChild(d);
-    }
-
+    /* Легенда: пятиконечная звезда */
+    sym = '<path d="M100 78 L108 98 L130 100 L113 114 L118 136 L100 124 L82 136 L87 114 L70 100 L92 98 Z" fill="#ffffff" opacity="0.9"/>';
   } else if (rankIdx === 5) {
-    /* Ancient: лавровый венок */
-    var w1 = document.createElementNS(ns, "path");
-    w1.setAttribute("d", "M42 34 Q30 50 42 68");
-    w1.setAttribute("fill", "none");
-    w1.setAttribute("stroke-width", "2.5");
-    g.appendChild(w1);
-    var w2 = document.createElementNS(ns, "path");
-    w2.setAttribute("d", "M58 34 Q70 50 58 68");
-    w2.setAttribute("fill", "none");
-    w2.setAttribute("stroke-width", "2.5");
-    g.appendChild(w2);
-    /* Листья */
-    for (var li = 0; li < 4; li++) {
-      var ly = 38 + li * 8;
-      var leaf1 = document.createElementNS(ns, "ellipse");
-      leaf1.setAttribute("cx", "36"); leaf1.setAttribute("cy", ly);
-      leaf1.setAttribute("rx", "3"); leaf1.setAttribute("ry", "1.8");
-      g.appendChild(leaf1);
-      var leaf2 = document.createElementNS(ns, "ellipse");
-      leaf2.setAttribute("cx", "64"); leaf2.setAttribute("cy", ly);
-      leaf2.setAttribute("rx", "3"); leaf2.setAttribute("ry", "1.8");
-      g.appendChild(leaf2);
-    }
-    var top = document.createElementNS(ns, "circle");
-    top.setAttribute("cx", "50"); top.setAttribute("cy", "32"); top.setAttribute("r", "3");
-    g.appendChild(top);
-
+    /* Властелин: большая звезда с лучами */
+    sym = '<path d="M100 72 L107 95 L130 96 L112 112 L118 135 L100 121 L82 135 L88 112 L70 96 L93 95 Z" fill="#ffffff" opacity="0.9"/>' +
+          '<path d="M100 60 L100 68 M100 142 L100 150 M62 105 L70 105 M130 105 L138 105" stroke="#ffffff" stroke-width="4" stroke-linecap="round" opacity="0.8"/>';
   } else if (rankIdx === 6) {
-    /* Divine: солнце с лучами */
-    var sun = document.createElementNS(ns, "circle");
-    sun.setAttribute("cx", "50"); sun.setAttribute("cy", "50"); sun.setAttribute("r", "9");
-    g.appendChild(sun);
-    for (var ri = 0; ri < 8; ri++) {
-      var a = ri * 45 * Math.PI / 180;
-      var x1 = 50 + Math.cos(a) * 13;
-      var y1 = 50 + Math.sin(a) * 13;
-      var x2 = 50 + Math.cos(a) * 20;
-      var y2 = 50 + Math.sin(a) * 20;
-      var ray = document.createElementNS(ns, "line");
-      ray.setAttribute("x1", x1); ray.setAttribute("y1", y1);
-      ray.setAttribute("x2", x2); ray.setAttribute("y2", y2);
-      ray.setAttribute("stroke-width", "2.5");
-      g.appendChild(ray);
-    }
-
-  } else if (rankIdx === 7) {
-    /* Immortal: череп */
-    var skull = document.createElementNS(ns, "path");
-    skull.setAttribute("d", "M36 40 Q36 26 50 26 Q64 26 64 40 L64 54 Q64 60 58 60 L56 60 L56 64 L44 64 L44 60 L42 60 Q36 60 36 54 Z");
-    g.appendChild(skull);
-    /* Глаза */
-    var eye1 = document.createElementNS(ns, "circle");
-    eye1.setAttribute("cx", "43"); eye1.setAttribute("cy", "44"); eye1.setAttribute("r", "3.5");
-    eye1.setAttribute("fill", cfg.bg);
-    eye1.setAttribute("stroke", "none");
-    g.appendChild(eye1);
-    var eye2 = document.createElementNS(ns, "circle");
-    eye2.setAttribute("cx", "57"); eye2.setAttribute("cy", "44"); eye2.setAttribute("r", "3.5");
-    eye2.setAttribute("fill", cfg.bg);
-    eye2.setAttribute("stroke", "none");
-    g.appendChild(eye2);
-    /* Нос */
-    var nose = document.createElementNS(ns, "path");
-    nose.setAttribute("d", "M50 50 L48 55 L52 55 Z");
-    nose.setAttribute("fill", cfg.bg);
-    nose.setAttribute("stroke", "none");
-    g.appendChild(nose);
+    /* Божество: солнце с лучами */
+    sym = '<circle cx="100" cy="105" r="16" fill="#ffffff" opacity="0.9"/>' +
+          '<path d="M100 78 L100 90 M100 120 L100 132 M73 105 L85 105 M115 105 L127 105 M80 85 L88 93 M112 117 L120 125 M120 85 L112 93 M88 117 L80 125" stroke="#ffffff" stroke-width="4" stroke-linecap="round" opacity="0.85"/>';
+  } else {
+    /* Титан: череп с рогами */
+    sym = '<path d="M78 88 Q100 68 122 88 L122 118 Q100 138 78 118 Z" fill="#ffffff" opacity="0.9"/>' +
+          '<circle cx="90" cy="103" r="5" fill="' + cfg.c2 + '"/>' +
+          '<circle cx="110" cy="103" r="5" fill="' + cfg.c2 + '"/>' +
+          '<path d="M96 116 L100 122 L104 116 Z" fill="' + cfg.c2 + '"/>' +
+          '<path d="M70 78 Q78 72 84 76 M130 78 Q122 72 116 76" stroke="#ffffff" stroke-width="3" fill="none" opacity="0.85"/>';
   }
 
-  svg.appendChild(g);
+  /* Боковые крылья (усиливаются с рангом) */
+  var wings = "";
+  if (rankIdx >= 2) {
+    /* Маленькие боковые "плечи" */
+    wings += '<path d="M40 105 L15 90 L20 105 L15 120 Z" fill="' + cfg.accent + '" opacity="0.7"/>';
+    wings += '<path d="M160 105 L185 90 L180 105 L185 120 Z" fill="' + cfg.accent + '" opacity="0.7"/>';
+  }
+  if (rankIdx >= 4) {
+    /* Средние крылья */
+    wings += '<path d="M45 100 Q20 80 10 85 Q15 95 25 100 Q15 105 10 115 Q20 120 45 100" fill="' + cfg.accent + '" opacity="0.6"/>';
+    wings += '<path d="M155 100 Q180 80 190 85 Q185 95 175 100 Q185 105 190 115 Q180 120 155 100" fill="' + cfg.accent + '" opacity="0.6"/>';
+  }
+  if (rankIdx >= 6) {
+    /* Большие внешние крылья */
+    wings += '<path d="M35 95 Q5 60 0 75 Q5 90 15 100 Q5 110 0 125 Q5 140 35 105" fill="' + cfg.accent + '" opacity="0.45"/>';
+    wings += '<path d="M165 95 Q195 60 200 75 Q195 90 185 100 Q195 110 200 125 Q195 140 165 105" fill="' + cfg.accent + '" opacity="0.45"/>';
+  }
 
-  var rankLetters = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII"];
-  var letter = document.createElementNS(ns, "text");
-  letter.setAttribute("x", "50"); letter.setAttribute("y", "88");
-  letter.setAttribute("text-anchor", "middle");
-  letter.setAttribute("font-size", "6");
-  letter.setAttribute("fill", cfg.accent);
-  letter.setAttribute("font-weight", "700");
-  letter.textContent = rankLetters[rankIdx] || "?";
-  svg.appendChild(letter);
+  /* Основание снизу (для высоких рангов) */
+  var base = "";
+  if (rankIdx >= 5) {
+    base += '<path d="M85 172 L100 188 L115 172 L100 178 Z" fill="' + cfg.accent + '" opacity="0.8"/>';
+  }
+  if (rankIdx >= 6) {
+    base += '<circle cx="100" cy="192" r="3" fill="' + cfg.accent + '" opacity="0.9"/>';
+  }
 
-  return svg;
+  var svgStr = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="' + size + '" height="' + size + '">' +
+    '<defs>' +
+      '<linearGradient id="g1' + id + '" x1="0%" y1="0%" x2="0%" y2="100%">' +
+        '<stop offset="0%" stop-color="' + cfg.c2 + '"/>' +
+        '<stop offset="100%" stop-color="' + cfg.c1 + '"/>' +
+      '</linearGradient>' +
+      '<linearGradient id="g2' + id + '" x1="0%" y1="0%" x2="0%" y2="100%">' +
+        '<stop offset="0%" stop-color="#000000" stop-opacity="0.5"/>' +
+        '<stop offset="100%" stop-color="#000000" stop-opacity="0.85"/>' +
+      '</linearGradient>' +
+    '</defs>' +
+    wings +
+    /* Внешний ромб с градиентом */
+    '<path d="M100 15 L185 100 L100 185 L15 100 Z" fill="url(#g1' + id + ')" stroke="' + cfg.accent + '" stroke-width="3"/>' +
+    /* Внутренний ромб с обводкой */
+    '<path d="M100 35 L165 100 L100 165 L35 100 Z" fill="url(#g2' + id + ')" stroke="' + cfg.accent + '" stroke-width="2" opacity="0.95"/>' +
+    /* Дополнительные декоративные углы */
+    '<path d="M100 20 L108 35 L92 35 Z" fill="' + cfg.accent + '" opacity="0.9"/>' +
+    '<path d="M100 180 L108 165 L92 165 Z" fill="' + cfg.accent + '" opacity="0.9"/>' +
+    '<path d="M180 100 L165 92 L165 108 Z" fill="' + cfg.accent + '" opacity="0.9"/>' +
+    '<path d="M20 100 L35 92 L35 108 Z" fill="' + cfg.accent + '" opacity="0.9"/>' +
+    /* Символ в центре */
+    sym +
+    /* Основание */
+    base +
+  '</svg>';
+
+  var doc = new DOMParser().parseFromString(svgStr, "image/svg+xml");
+  var node = doc.documentElement;
+  node.style.cssText = "display:block;flex-shrink:0;filter:drop-shadow(0 0 10px " + cfg.accent + "88);";
+  return node;
 }
 
 function buildQuestionMedalSVG(size) {
   size = size || 96;
-  var ns = "http://www.w3.org/2000/svg";
-  var svg = document.createElementNS(ns, "svg");
-  svg.setAttribute("viewBox", "0 0 100 100");
-  svg.setAttribute("width", size);
-  svg.setAttribute("height", size);
-  svg.style.cssText = "display:block;flex-shrink:0;filter:drop-shadow(0 0 10px rgba(139,92,246,0.7));";
-
-  var shield = document.createElementNS(ns, "path");
-  shield.setAttribute("d", "M50 6 L88 20 L88 52 Q88 78 50 94 Q12 78 12 52 L12 20 Z");
-  shield.setAttribute("fill", "#2a2d36");
-  shield.setAttribute("stroke", "#8b5cf6");
-  shield.setAttribute("stroke-width", "3");
-  shield.setAttribute("stroke-dasharray", "4 3");
-  svg.appendChild(shield);
-
-  var q = document.createElementNS(ns, "text");
-  q.setAttribute("x", "50"); q.setAttribute("y", "58");
-  q.setAttribute("text-anchor", "middle");
-  q.setAttribute("dominant-baseline", "middle");
-  q.setAttribute("font-size", "42");
-  q.setAttribute("font-weight", "900");
-  q.setAttribute("fill", "#8b5cf6");
-  q.setAttribute("font-family", "sans-serif");
-  q.textContent = "?";
-  svg.appendChild(q);
-
-  return svg;
+  var svgStr = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="' + size + '" height="' + size + '">' +
+    '<path d="M100 15 L185 100 L100 185 L15 100 Z" fill="#1e2129" stroke="#8b5cf6" stroke-width="3" stroke-dasharray="6 5"/>' +
+    '<path d="M100 35 L165 100 L100 165 L35 100 Z" fill="#0b0c10" stroke="#8b5cf6" stroke-width="2" opacity="0.7"/>' +
+    '<text x="100" y="120" text-anchor="middle" font-size="72" font-weight="900" fill="#8b5cf6" font-family="sans-serif">?</text>' +
+  '</svg>';
+  var doc = new DOMParser().parseFromString(svgStr, "image/svg+xml");
+  var node = doc.documentElement;
+  node.style.cssText = "display:block;flex-shrink:0;filter:drop-shadow(0 0 10px rgba(139,92,246,0.7));";
+  return node;
 }
 
 function getMedalForMMR(mmr) {
@@ -243,33 +181,6 @@ function getMMRFromGame(game, rawScore) {
   var c = config[game];
   if (!c) return 0;
   return Math.round(c.base + rawScore * c.perPoint);
-}
-
-/* Стили модалок + поднять курсор */
-function ensureRatingStyles() {
-  if (document.getElementById("ratingStyles")) return;
-  var s = document.createElement("style");
-  s.id = "ratingStyles";
-  s.textContent = `
-    .cursor-dot, .cursor-ring { z-index: 99999999 !important; }
-    @keyframes ratingOvIn {
-      from { opacity: 0; }
-      to { opacity: 1; }
-    }
-    @keyframes ratingBoxIn {
-      0% { opacity: 0; transform: scale(0.85) translateY(30px); }
-      60% { opacity: 1; transform: scale(1.02) translateY(-4px); }
-      100% { opacity: 1; transform: scale(1) translateY(0); }
-    }
-    .rating-overlay-anim { animation: ratingOvIn 0.25s ease both; }
-    .rating-box-anim { animation: ratingBoxIn 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
-    @keyframes ratingTileIn {
-      from { opacity: 0; transform: translateY(15px) scale(0.92); }
-      to { opacity: 1; transform: translateY(0) scale(1); }
-    }
-    .rating-tile-anim { animation: ratingTileIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
-  `;
-  document.head.appendChild(s);
 }
 
 window.getRatingData = function () {
@@ -344,7 +255,10 @@ function showCalibrationCompleteDialog(medal, stars, mmr) {
   head.textContent = "Калибровка завершена";
   box.appendChild(head);
 
-  box.appendChild(buildMedalSVG(medal.rankIdx, 110));
+  var medalWrap = document.createElement("div");
+  medalWrap.style.cssText = "display:flex;justify-content:center;";
+  medalWrap.appendChild(buildMedalSVG(medal.rankIdx, 130));
+  box.appendChild(medalWrap);
 
   var starsRow = document.createElement("div");
   starsRow.style.cssText = "display:flex;gap:4px;justify-content:center;margin-top:12px;";
@@ -389,7 +303,7 @@ function showAllRanksDialog() {
   ov.classList.add("rating-overlay-anim");
 
   var box = document.createElement("div");
-  box.style.cssText = "max-width:720px;width:100%;background:var(--bg-card);border:1px solid var(--accent);border-radius:18px;padding:26px 22px;box-shadow:0 20px 60px rgba(0,0,0,0.7),0 0 60px -20px var(--accent);max-height:88vh;overflow-y:auto;position:relative;";
+  box.style.cssText = "max-width:760px;width:100%;background:var(--bg-card);border:1px solid var(--accent);border-radius:18px;padding:26px 22px;box-shadow:0 20px 60px rgba(0,0,0,0.7),0 0 60px -20px var(--accent);max-height:88vh;overflow-y:auto;position:relative;";
   box.classList.add("rating-box-anim");
 
   var close = document.createElement("button");
@@ -422,7 +336,7 @@ function showAllRanksDialog() {
 
       var medalWrap = document.createElement("div");
       medalWrap.style.cssText = "display:flex;justify-content:center;";
-      medalWrap.appendChild(buildMedalSVG(idx, 72));
+      medalWrap.appendChild(buildMedalSVG(idx, 100));
       tile.appendChild(medalWrap);
 
       var name = document.createElement("div");
@@ -471,9 +385,9 @@ window.renderRatingWidget = function () {
 
   var medalBox = el("div", { style: "text-align:center;flex-shrink:0;" });
   if (calibrated) {
-    medalBox.appendChild(buildMedalSVG(medal.medal.rankIdx, 96));
+    medalBox.appendChild(buildMedalSVG(medal.medal.rankIdx, 110));
   } else {
-    medalBox.appendChild(buildQuestionMedalSVG(96));
+    medalBox.appendChild(buildQuestionMedalSVG(110));
   }
   main.appendChild(medalBox);
 
@@ -568,4 +482,3 @@ window.renderRatingWidget = function () {
   return card;
 };
 
-console.log("rating v6.0 ready (unique medals)");
