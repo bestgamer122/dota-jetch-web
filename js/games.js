@@ -161,7 +161,7 @@ function buildAutomatonIntro() {
   var card = UI.card("⌨️ Атака автоматонов");
   var visual = el("div", { style: "text-align:center;padding:24px 0 8px;" });
   visual.appendChild(el("div", { style: "font-size:90px;line-height:1;filter:drop-shadow(0 0 20px rgba(34,211,238,0.4));" }, "🤖"));
-  visual.appendChild(el("div", { class: "dim", style: "font-size:12px;margin-top:14px;letter-spacing:0.08em;text-transform:uppercase;" }, "Печатай слова · Защити Прохвостку"));
+  visual.appendChild(el("div", { class: "dim", style: "font-size:12px;margin-top:14px;letter-spacing:0.08em;text-transform:uppercase;" }, "Печатай слова · Получай очки"));
   card.appendChild(visual);
 
   card.appendChild(buildRulesBlock("Как играть", [
