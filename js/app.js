@@ -1,6 +1,6 @@
-/* DOTA JETCH — APP v10.6 */
+/* DOTA JETCH — APP v10.7 */
 
-var APP_VERSION = "10.6";
+var APP_VERSION = "10.7";
 
 var PAGES = {
   dashboard:    { title: "Главная",         render: renderDashboard },
@@ -13,7 +13,7 @@ var PAGES = {
   leaderboard:  { title: "Лидерборд",       render: renderLeaderboardPage },
   achievements: { title: "Достижения",      render: renderAchievements },
   settings:     { title: "Настройки",       render: renderSettings },
-  about:        { title: "О программе",     render: renderAbout }
+  about:        { title: "О сайте",         render: renderAbout }
 };
 
 var NAV = [
@@ -27,7 +27,7 @@ var NAV = [
   { page: "leaderboard",  label: "Лидерборд",     icon: "M19 5h-2V3H7v2H5c-1.1 0-2 .9-2 2v1c0 2.55 1.92 4.63 4.39 4.94.63 1.5 1.98 2.63 3.61 2.96V19H7v2h10v-2h-4v-3.1c1.63-.33 2.98-1.46 3.61-2.96C19.08 12.63 21 10.55 21 8V7c0-1.1-.9-2-2-2zM5 8V7h2v3.82C5.84 10.4 5 9.3 5 8zm14 0c0 1.3-.84 2.4-2 2.82V7h2v1z" },
   { page: "achievements", label: "Достижения",    icon: "M12 9m-6 0a6 6 0 1 0 12 0a6 6 0 1 0 -12 0" },
   { page: "settings",     label: "Настройки",     icon: "M12 12m-3 0a3 3 0 1 0 6 0a3 3 0 1 0 -6 0" },
-  { page: "about",        label: "О программе",   icon: "M12 12m-10 0a10 10 0 1 0 20 0a10 10 0 1 0 -20 0" }
+  { page: "about",        label: "О сайте",       icon: "M12 12m-10 0a10 10 0 1 0 20 0a10 10 0 1 0 -20 0" }
 ];
 
 var currentPage = "dashboard";

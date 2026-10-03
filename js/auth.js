@@ -1,5 +1,6 @@
-/* DOTA JETCH — FIREBASE AUTH v11.0
-   - Добавлена синхронизация publicProfiles (ник + ава для лидерборда) */
+/* DOTA JETCH — FIREBASE AUTH v11.1
+   - syncPublicProfileMMR: сохраняет MMR в publicProfiles для лидерборда
+   - publicProfiles также хранит nickname, avatar, calibrated */
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.8.0/firebase-app.js";
 import {
@@ -43,12 +44,20 @@ function decodeKey(k) {
                   .replace(/__LB__/g, "[").replace(/__RB__/g, "]");
 }
 
-/* ─── Синхронизация публичного профиля (для лидерборда) ─── */
+/* ─── Публичный профиль (для лидерборда) ─── */
 async function syncPublicProfile() {
   if (!currentUser) return;
   var nick = getCurrentNickname() || "";
   var avatar = Store.get("avatar", null);
-  var data = { nickname: nick, ts: Date.now() };
+  var mmr = Store.get("minigames_mmr", 0) || 0;
+  var calibrated = Store.get("minigames_calibrated", false) === true;
+
+  var data = {
+    nickname: nick,
+    mmr: mmr,
+    calibrated: calibrated,
+    ts: Date.now()
+  };
   if (avatar && typeof avatar === "string" && avatar.indexOf("data:image") === 0) {
     data.avatar = avatar;
   }
@@ -57,9 +66,20 @@ async function syncPublicProfile() {
     if (!data.avatar) {
       try { await remove(ref(db, "publicProfiles/" + currentUser.uid + "/avatar")); } catch (e) {}
     }
-    console.log("📇 publicProfiles: " + nick);
+    console.log("📇 publicProfiles: " + nick + " · " + mmr + " MMR");
   } catch (e) { console.warn("syncPublicProfile:", e); }
 }
+
+/* Вызывается из rating.js после каждого изменения MMR */
+window.syncPublicProfileMMR = function (mmr) {
+  if (!currentUser) return;
+  var calibrated = Store.get("minigames_calibrated", false) === true;
+  update(ref(db, "publicProfiles/" + currentUser.uid), {
+    mmr: mmr,
+    calibrated: calibrated,
+    ts: Date.now()
+  }).catch(function (e) { console.warn("syncPublicProfileMMR:", e); });
+};
 
 async function isNicknameTaken(nick) {
   const lower = String(nick).toLowerCase();
@@ -350,7 +370,12 @@ function bindRegisterHandlers() {
       Store.set("nickname", nick);
       try {
         await update(ref(db, "users/" + uid), { nickname: nick });
-        await update(ref(db, "publicProfiles/" + uid), { nickname: nick, ts: Date.now() });
+        await update(ref(db, "publicProfiles/" + uid), {
+          nickname: nick,
+          mmr: 0,
+          calibrated: false,
+          ts: Date.now()
+        });
       } catch (e) { console.warn("save nickname error:", e); }
       await sendEmailVerification(cred.user);
     } catch (e) {
@@ -446,7 +471,7 @@ async function loadUserData(uid) {
         try { strVal = JSON.stringify(val); } catch (e) { skipped++; continue; }
         try { sessionStorage.setItem(STORE_PREFIX + realKey, strVal); loaded++; } catch (e) {}
       }
-      console.log("✅ Загружено из Firebase: " + loaded + " ключей");
+      console.log("✅ Загружено: " + loaded + " ключей");
     } else {
       console.log("⚠ Новый аккаунт");
     }

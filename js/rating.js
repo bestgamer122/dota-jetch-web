@@ -1,7 +1,7 @@
-/* DOTA JETCH — RATING v5.0
-   - SVG-иконки медалей (не зависят от CDN, гарантированно работают)
-   - Викторина НЕ даёт рейтинг
-   - Медленный рост MMR */
+/* DOTA JETCH — RATING v5.1
+   - До калибровки: MMR скрыт, медаль = "?"
+   - После 10 игр: диалог с рангом и MMR
+   - Викторина не даёт рейтинг */
 
 var RATING_TABLE = [
   { name: "Herald",    ru: "Рекрут",    rankIdx: 0, bg: "#4a4a4a", accent: "#8b8b8b", stars: [0, 150, 300, 460, 610] },
@@ -14,7 +14,8 @@ var RATING_TABLE = [
   { name: "Immortal",  ru: "Титан",     rankIdx: 7, bg: "#7a1a1a", accent: "#e74c3c", stars: [5620, 5800, 6000, 6200, 6500] }
 ];
 
-/* Собственные SVG-иконки рангов (гарантированно работают без CDN) */
+var CALIBRATION_GAMES = 10;
+
 function buildMedalSVG(rankIdx, size) {
   var cfg = RATING_TABLE[rankIdx] || RATING_TABLE[0];
   size = size || 96;
@@ -25,7 +26,6 @@ function buildMedalSVG(rankIdx, size) {
   svg.setAttribute("height", size);
   svg.style.cssText = "display:block;flex-shrink:0;filter:drop-shadow(0 0 10px " + cfg.accent + "99);";
 
-  /* Щит (внешний контур) */
   var shield = document.createElementNS(ns, "path");
   shield.setAttribute("d", "M50 6 L88 20 L88 52 Q88 78 50 94 Q12 78 12 52 L12 20 Z");
   shield.setAttribute("fill", cfg.bg);
@@ -33,20 +33,17 @@ function buildMedalSVG(rankIdx, size) {
   shield.setAttribute("stroke-width", "3");
   svg.appendChild(shield);
 
-  /* Внутренний щит */
   var inner = document.createElementNS(ns, "path");
   inner.setAttribute("d", "M50 14 L80 26 L80 52 Q80 72 50 86 Q20 72 20 52 L20 26 Z");
   inner.setAttribute("fill", "rgba(0,0,0,0.35)");
   svg.appendChild(inner);
 
-  /* Центральный ромб */
   var diamond = document.createElementNS(ns, "path");
   diamond.setAttribute("d", "M50 30 L64 50 L50 70 L36 50 Z");
   diamond.setAttribute("fill", cfg.accent);
   diamond.setAttribute("opacity", "0.9");
   svg.appendChild(diamond);
 
-  /* Звёздочка в центре ромба */
   var star = document.createElementNS(ns, "text");
   star.setAttribute("x", "50");
   star.setAttribute("y", "55");
@@ -58,7 +55,6 @@ function buildMedalSVG(rankIdx, size) {
   star.textContent = "★";
   svg.appendChild(star);
 
-  /* Римские буквы на щите (декор) */
   var rankLetters = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII"];
   var letter = document.createElementNS(ns, "text");
   letter.setAttribute("x", "50");
@@ -70,6 +66,38 @@ function buildMedalSVG(rankIdx, size) {
   letter.setAttribute("letter-spacing", "1");
   letter.textContent = rankLetters[rankIdx] || "?";
   svg.appendChild(letter);
+
+  return svg;
+}
+
+function buildQuestionMedalSVG(size) {
+  size = size || 96;
+  var ns = "http://www.w3.org/2000/svg";
+  var svg = document.createElementNS(ns, "svg");
+  svg.setAttribute("viewBox", "0 0 100 100");
+  svg.setAttribute("width", size);
+  svg.setAttribute("height", size);
+  svg.style.cssText = "display:block;flex-shrink:0;filter:drop-shadow(0 0 10px rgba(139,92,246,0.7));";
+
+  var shield = document.createElementNS(ns, "path");
+  shield.setAttribute("d", "M50 6 L88 20 L88 52 Q88 78 50 94 Q12 78 12 52 L12 20 Z");
+  shield.setAttribute("fill", "#2a2d36");
+  shield.setAttribute("stroke", "#8b5cf6");
+  shield.setAttribute("stroke-width", "3");
+  shield.setAttribute("stroke-dasharray", "4 3");
+  svg.appendChild(shield);
+
+  var q = document.createElementNS(ns, "text");
+  q.setAttribute("x", "50");
+  q.setAttribute("y", "58");
+  q.setAttribute("text-anchor", "middle");
+  q.setAttribute("dominant-baseline", "middle");
+  q.setAttribute("font-size", "42");
+  q.setAttribute("font-weight", "900");
+  q.setAttribute("fill", "#8b5cf6");
+  q.setAttribute("font-family", "sans-serif");
+  q.textContent = "?";
+  svg.appendChild(q);
 
   return svg;
 }
@@ -120,84 +148,188 @@ window.submitGameScore = function (game, rawScore) {
   data.gamesPlayed++;
   data.mmr += gained;
   if (data.mmr < 0) data.mmr = 0;
+
+  var wasJustCalibrated = false;
+  var finalMedal = null;
+
   if (!data.calibrated) {
     data.calibrationGames++;
-    if (data.calibrationGames >= 10) {
+    if (data.calibrationGames >= CALIBRATION_GAMES) {
       data.calibrated = true;
-      if (typeof showDialog === "function") {
-        var medal = getMedalForMMR(data.mmr);
-        showDialog("🎉 Калибровка завершена!", "Твой стартовый ранг: " + medal.medal.ru + " (" + data.mmr + " MMR)", "success");
-      }
+      wasJustCalibrated = true;
+      finalMedal = getMedalForMMR(data.mmr);
     }
   }
+
   if (gained >= 10) data.wins++;
   Store.set("minigames_mmr", data.mmr);
   Store.set("minigames_games", data.gamesPlayed);
   Store.set("minigames_calibrated", data.calibrated);
   Store.set("minigames_calibration_games", data.calibrationGames);
   Store.set("minigames_wins", data.wins);
+
+  /* Синхронизировать MMR в publicProfiles */
+  if (typeof window.syncPublicProfileMMR === "function") {
+    try { window.syncPublicProfileMMR(data.mmr); } catch (e) {}
+  }
+
+  /* Отправка в лидерборд */
   if (typeof window.submitToLeaderboard === "function") {
     try { window.submitToLeaderboard(game, rawScore, data.mmr); } catch (e) {}
   }
-  return { gained: gained, newMMR: data.mmr, medal: getMedalForMMR(data.mmr) };
+
+  /* Диалог завершения калибровки */
+  if (wasJustCalibrated && finalMedal) {
+    setTimeout(function () {
+      showCalibrationCompleteDialog(finalMedal.medal, finalMedal.stars, data.mmr);
+    }, 500);
+  }
+
+  return { gained: gained, newMMR: data.mmr, medal: finalMedal };
 };
+
+function showCalibrationCompleteDialog(medal, stars, mmr) {
+  /* Кастомный диалог */
+  var ov = document.createElement("div");
+  ov.style.cssText = "position:fixed;inset:0;z-index:9999999;background:rgba(2,3,8,0.85);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);display:flex;align-items:center;justify-content:center;padding:20px;box-sizing:border-box;animation:profileFadeIn 0.22s ease;";
+
+  var box = document.createElement("div");
+  box.style.cssText = "max-width:380px;width:100%;background:var(--bg-card);border:1px solid " + medal.accent + ";border-radius:18px;padding:28px 24px 22px;box-shadow:0 20px 60px rgba(0,0,0,0.7),0 0 60px -20px " + medal.accent + ";text-align:center;";
+
+  var head = document.createElement("div");
+  head.style.cssText = "font-size:14px;font-weight:700;letter-spacing:0.12em;color:" + medal.accent + ";text-transform:uppercase;margin-bottom:18px;";
+  head.textContent = "Калибровка завершена";
+  box.appendChild(head);
+
+  /* Медаль */
+  box.appendChild(buildMedalSVG(medal.rankIdx, 110));
+
+  /* Звёзды */
+  var starsRow = document.createElement("div");
+  starsRow.style.cssText = "display:flex;gap:4px;justify-content:center;margin-top:12px;";
+  for (var s = 0; s < 5; s++) {
+    var star = document.createElement("span");
+    star.style.cssText = "font-size:16px;color:" + (s < stars ? medal.accent : "var(--border)") + ";text-shadow:" + (s < stars ? "0 0 8px " + medal.accent + "88" : "none") + ";";
+    star.textContent = "★";
+    starsRow.appendChild(star);
+  }
+  box.appendChild(starsRow);
+
+  /* Ранг */
+  var rankName = document.createElement("div");
+  rankName.style.cssText = "font-size:26px;font-weight:900;color:" + medal.accent + ";margin-top:16px;";
+  rankName.textContent = medal.ru;
+  box.appendChild(rankName);
+
+  /* MMR */
+  var mmrText = document.createElement("div");
+  mmrText.style.cssText = "font-size:15px;color:var(--text-muted);margin-top:6px;font-family:'JetBrains Mono', monospace;";
+  mmrText.textContent = mmr + " MMR";
+  box.appendChild(mmrText);
+
+  /* Субтекст */
+  var sub = document.createElement("div");
+  sub.style.cssText = "font-size:11px;color:var(--text-dim);margin-top:14px;line-height:1.5;";
+  sub.textContent = "Ты сыграл 10 игр. Теперь твой ранг отображается точно.";
+  box.appendChild(sub);
+
+  /* Кнопка */
+  var btn = document.createElement("button");
+  btn.type = "button";
+  btn.style.cssText = "margin-top:20px;padding:12px 24px;border-radius:10px;background:" + medal.accent + ";color:#0b0c10;border:none;font-size:14px;font-weight:800;cursor:pointer;font-family:inherit;letter-spacing:0.03em;";
+  btn.textContent = "Отлично!";
+  btn.addEventListener("click", function () { ov.remove(); });
+  box.appendChild(btn);
+
+  ov.appendChild(box);
+  document.body.appendChild(ov);
+}
 
 window.renderRatingWidget = function () {
   var data = window.getRatingData();
+  var calibrated = data.calibrated;
   var medal = getMedalForMMR(data.mmr);
   var card = UI.card("🏆 Рейтинг мини-игр");
 
   var main = el("div", { style: "display:flex;align-items:center;gap:20px;margin-bottom:16px;flex-wrap:wrap;" });
 
-  /* Своя SVG-медаль */
+  /* Медаль или "?" */
   var medalBox = el("div", { style: "text-align:center;flex-shrink:0;" });
-  medalBox.appendChild(buildMedalSVG(medal.medal.rankIdx, 96));
+  if (calibrated) {
+    medalBox.appendChild(buildMedalSVG(medal.medal.rankIdx, 96));
+  } else {
+    medalBox.appendChild(buildQuestionMedalSVG(96));
+  }
   main.appendChild(medalBox);
 
   var info = el("div", { style: "flex:1;min-width:180px;" });
-  var rankName = el("div", { style: "font-size:24px;font-weight:900;color:" + medal.medal.accent + ";" });
-  rankName.textContent = medal.medal.ru;
-  info.appendChild(rankName);
-  info.appendChild(el("div", { style: "font-size:12px;color:var(--text-muted);margin-top:4px;" },
-    medal.stars + " ★ · " + data.mmr + " MMR"));
-  info.appendChild(el("div", { style: "font-size:11px;color:var(--text-dim);margin-top:6px;" },
+  if (calibrated) {
+    var rankName = el("div", { style: "font-size:24px;font-weight:900;color:" + medal.medal.accent + ";" });
+    rankName.textContent = medal.medal.ru;
+    info.appendChild(rankName);
+
+    /* Звёзды */
+    var starsRow = el("div", { style: "display:flex;gap:3px;margin-top:6px;" });
+    for (var s = 0; s < 5; s++) {
+      var star = el("span", { style: "font-size:12px;color:" + (s < medal.stars ? medal.medal.accent : "var(--border)") + ";" }, "★");
+      starsRow.appendChild(star);
+    }
+    info.appendChild(starsRow);
+
+    info.appendChild(el("div", { style: "font-size:12px;color:var(--text-muted);margin-top:6px;font-family:'JetBrains Mono', monospace;" },
+      data.mmr + " MMR"));
+  } else {
+    var calName = el("div", { style: "font-size:22px;font-weight:900;color:var(--text);" });
+    calName.textContent = "Калибровка";
+    info.appendChild(calName);
+    info.appendChild(el("div", { style: "font-size:12px;color:var(--text-muted);margin-top:6px;" },
+      "Сыграно: " + data.calibrationGames + " / " + CALIBRATION_GAMES));
+    info.appendChild(el("div", { style: "font-size:11px;color:var(--text-dim);margin-top:6px;line-height:1.5;" },
+      "Пока неизвестно. Ранг откроется после 10 игр."));
+  }
+
+  info.appendChild(el("div", { style: "font-size:11px;color:var(--text-dim);margin-top:8px;" },
     "Игр: " + data.gamesPlayed + " · Побед: " + data.wins));
 
-  var nextStarMMR = null;
-  for (var i = 0; i < RATING_TABLE.length; i++) {
-    var m = RATING_TABLE[i];
-    for (var st = 0; st < 5; st++) {
-      if (m.stars[st] > data.mmr) { nextStarMMR = m.stars[st]; break; }
+  /* Прогресс до след. звезды (только если откалиброван) */
+  if (calibrated) {
+    var nextStarMMR = null;
+    for (var i = 0; i < RATING_TABLE.length; i++) {
+      var m = RATING_TABLE[i];
+      for (var st = 0; st < 5; st++) {
+        if (m.stars[st] > data.mmr) { nextStarMMR = m.stars[st]; break; }
+      }
+      if (nextStarMMR) break;
     }
-    if (nextStarMMR) break;
+    if (nextStarMMR) {
+      var currBase = medal.medal.stars[medal.stars - 1] || 0;
+      var pct = Math.max(0, Math.min(100, ((data.mmr - currBase) / (nextStarMMR - currBase)) * 100));
+      var barWrap = el("div", { style: "margin-top:10px;" });
+      barWrap.appendChild(el("div", { class: "dim", style: "font-size:10px;margin-bottom:4px;" }, "До следующей звезды: " + (nextStarMMR - data.mmr) + " MMR"));
+      var bar = el("div", { style: "height:6px;background:var(--bg-elev);border-radius:3px;overflow:hidden;" });
+      var fill = el("div", { style: "height:100%;width:" + pct + "%;background:linear-gradient(90deg," + medal.medal.accent + ",var(--cyan));border-radius:3px;transition:width 0.6s ease;" });
+      bar.appendChild(fill);
+      barWrap.appendChild(bar);
+      info.appendChild(barWrap);
+    } else {
+      info.appendChild(el("div", { style: "font-size:11px;color:var(--gold);margin-top:10px;font-weight:700;" }, "★ Максимальный ранг!"));
+    }
   }
 
-  if (nextStarMMR) {
-    var currBase = medal.medal.stars[medal.stars - 1] || 0;
-    var pct = Math.max(0, Math.min(100, ((data.mmr - currBase) / (nextStarMMR - currBase)) * 100));
-    var barWrap = el("div", { style: "margin-top:10px;" });
-    barWrap.appendChild(el("div", { class: "dim", style: "font-size:10px;margin-bottom:4px;" }, "До следующей звезды: " + (nextStarMMR - data.mmr) + " MMR"));
-    var bar = el("div", { style: "height:6px;background:var(--bg-elev);border-radius:3px;overflow:hidden;" });
-    var fill = el("div", { style: "height:100%;width:" + pct + "%;background:linear-gradient(90deg," + medal.medal.accent + ",var(--cyan));border-radius:3px;transition:width 0.6s ease;" });
-    bar.appendChild(fill);
-    barWrap.appendChild(bar);
-    info.appendChild(barWrap);
-  } else {
-    info.appendChild(el("div", { style: "font-size:11px;color:var(--gold);margin-top:10px;font-weight:700;" }, "★ Максимальный ранг!"));
+  /* Прогресс калибровки */
+  if (!calibrated) {
+    var calWrap = el("div", { style: "margin-top:12px;" });
+    var calBar = el("div", { style: "height:6px;background:var(--bg-elev);border-radius:3px;overflow:hidden;" });
+    var calFill = el("div", { style: "height:100%;width:" + ((data.calibrationGames / CALIBRATION_GAMES) * 100) + "%;background:linear-gradient(90deg,var(--accent),var(--cyan));border-radius:3px;transition:width 0.6s ease;" });
+    calBar.appendChild(calFill);
+    calWrap.appendChild(calBar);
+    info.appendChild(calWrap);
   }
+
   main.appendChild(info);
   card.appendChild(main);
 
-  if (!data.calibrated) {
-    var cal = el("div", { style: "background:var(--accent-bg);border:1px solid var(--accent);border-radius:12px;padding:12px 14px;margin-bottom:14px;" });
-    cal.appendChild(el("div", { style: "font-size:12px;font-weight:700;color:var(--accent-light);margin-bottom:4px;" }, "📊 Калибровка"));
-    cal.appendChild(el("div", { style: "font-size:11px;color:var(--text-muted);" }, "Сыграно: " + data.calibrationGames + " / 10 игр. После калибровки откроется точный ранг."));
-    var calBar = el("div", { style: "height:4px;background:var(--bg-elev);border-radius:2px;overflow:hidden;margin-top:8px;" });
-    calBar.appendChild(el("div", { style: "height:100%;width:" + (data.calibrationGames * 10) + "%;background:var(--accent);border-radius:2px;" }));
-    cal.appendChild(calBar);
-    card.appendChild(cal);
-  }
-
+  /* Лучшие очки */
   var scores = el("div", { style: "display:grid;grid-template-columns:repeat(2,1fr);gap:8px;" });
   var scoreDefs = [
     { icon: "🔓", name: "Взлом", val: data.bestScores.lockpick, color: "var(--gold)" },
@@ -212,10 +344,10 @@ window.renderRatingWidget = function () {
   }
   card.appendChild(scores);
 
-  var note = el("div", { class: "dim", style: "font-size:10px;margin-top:12px;text-align:center;line-height:1.5;" }, "Викторина не влияет на рейтинг — это просто проверка знаний.");
+  var note = el("div", { class: "dim", style: "font-size:10px;margin-top:12px;text-align:center;line-height:1.5;" }, "Викторина не влияет на рейтинг.");
   card.appendChild(note);
 
   return card;
 };
 
-console.log("rating v5.0 ready (own SVG medals)");
+console.log("rating v5.1 ready");
