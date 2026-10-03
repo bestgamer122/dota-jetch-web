@@ -1,6 +1,4 @@
-/* DOTA JETCH — MINI-GAMES v8.0
-   - Взлом замка: НАСТОЯЩАЯ механика Dota 2 (стрелка меняет направление после попадания, ПКМ ускоряет)
-   - Атака автоматонов: без смертей, только на время */
+/* DOTA JETCH — MINI-GAMES v8.1 */
 
 var QUIZ = [
   { q: "Какая способность у Juggernaut даёт неуязвимость во время каста?", a: "Omnislash", opts: ["Omnislash", "Blade Fury", "Blade Dance", "Healing Ward"] },
@@ -142,17 +140,17 @@ function buildLockpickIntro() {
   var card = UI.card("🔓 Взлом замка");
   var visual = el("div", { style: "text-align:center;padding:24px 0 8px;" });
   visual.appendChild(el("div", { style: "font-size:90px;line-height:1;filter:drop-shadow(0 0 20px rgba(251,191,36,0.4));" }, "🔒"));
-  visual.appendChild(el("div", { class: "dim", style: "font-size:12px;margin-top:14px;letter-spacing:0.08em;text-transform:uppercase;" }, "Как в Dota 2 Dark Carnival"));
+  visual.appendChild(el("div", { class: "dim", style: "font-size:12px;margin-top:14px;letter-spacing:0.08em;text-transform:uppercase;" }, "Стрелка · Зоны · Промах"));
   card.appendChild(visual);
 
   card.appendChild(buildRulesBlock("Как играть", [
     "ЛКМ — кликнуть когда стрелка в жёлтой или синей зоне",
     "Жёлтая зона = 1 000 очков",
     "Синяя зона = +1.5 секунды",
-    "ВАЖНО: после каждого попадания стрелка меняет направление",
+    "После каждого попадания стрелка меняет направление",
     "ПКМ (удерживай) — ускорить стрелку",
     "Промах — стрелка замедляется на 0.6 сек",
-    "Цель — 6 000 очков для прохождения"
+    "Цель — 6 000 очков"
   ]));
 
   card.appendChild(buildPlayButton("🎮 Играть", "lockpick"));
@@ -169,10 +167,10 @@ function buildAutomatonIntro() {
   card.appendChild(buildRulesBlock("Как играть", [
     "Печатай слова Dota 2, которые летят к автоматону",
     "Правильно напечатал — слово сбито, +очки",
-    "Пропустил слово — просто сброс множителя",
+    "Пропустил слово — сброс множителя",
     "Комбо-множитель до x5 за серию",
     "Очки зависят от длины слова",
-    "Всего 60 секунд — печатай быстро!"
+    "Всего 60 секунд"
   ]));
 
   card.appendChild(buildPlayButton("🎮 Играть", "automaton"));
@@ -187,7 +185,7 @@ function buildQuizIntro() {
   card.appendChild(visual);
 
   card.appendChild(buildRulesBlock("Как играть", [
-    "10 случайных вопросов про Dota 2",
+    "10 случайных вопросов",
     "4 варианта ответа — выбери правильный",
     "Счёт: 1 балл за верный ответ",
     "Без рейтинга — просто проверь знания"
@@ -197,9 +195,6 @@ function buildQuizIntro() {
   return card;
 }
 
-/* ═══════════════════════════════════════
-   ИГРА 1: ВЗЛОМ ЗАМКА (настоящая механика)
-   ═══════════════════════════════════════ */
 function renderLockpick() {
   var card = UI.card("🔓 Взлом замка");
 
@@ -219,9 +214,8 @@ function renderLockpick() {
   canvasWrap.appendChild(canvas);
   card.appendChild(canvasWrap);
 
-  /* Прогресс до 6000 */
   var progressWrap = el("div", { style: "max-width:360px;margin:12px auto 0;" });
-  progressWrap.appendChild(el("div", { class: "dim", style: "font-size:10px;margin-bottom:4px;text-align:right;" }, "Цель: 6 000 очков"));
+  progressWrap.appendChild(el("div", { class: "dim", style: "font-size:10px;margin-bottom:4px;text-align:right;" }, "Цель: 6 000"));
   var progressBar = el("div", { style: "height:4px;background:var(--bg-elev);border-radius:2px;overflow:hidden;" });
   var progressFill = el("div", { style: "height:100%;width:0%;background:linear-gradient(90deg,var(--gold),var(--cyan));border-radius:2px;transition:width 0.3s ease;" });
   progressBar.appendChild(progressFill);
@@ -339,7 +333,6 @@ function renderLockpick() {
       ctx.stroke();
     }
 
-    /* Стрелка */
     var arrowColor = "#fff";
     if (state.missLockUntil > performance.now()) arrowColor = "#ef4444";
     var ax = cx + Math.cos(state.angle - Math.PI / 2) * (r - ringWidth / 2 - 2);
@@ -352,7 +345,6 @@ function renderLockpick() {
     ctx.lineCap = "round";
     ctx.stroke();
 
-    /* ПКМ-ускорение — индикатор */
     if (state.boosting) {
       ctx.beginPath();
       ctx.arc(cx, cy, r - ringWidth - 8, 0, Math.PI * 2);
@@ -393,7 +385,6 @@ function renderLockpick() {
   function checkHit() {
     if (!state.running) return;
     var now = performance.now();
-    /* Промах-блок: если недавно промахнулся — игнор */
     if (state.missLockUntil > now) {
       statusEl.textContent = "⏸ Заблокировано...";
       return;
@@ -416,17 +407,14 @@ function renderLockpick() {
           statusEl.textContent = "✓ Жёлтая! +1 000";
           statusEl.style.color = "var(--gold)";
         }
-        /* ГЛАВНОЕ: смена направления после каждого попадания */
         state.direction *= -1;
         dirVal.textContent = state.direction === 1 ? "→" : "←";
-        /* Ускоряемся с каждым попаданием */
         state.baseSpeed = Math.min(3.6, 1.8 + state.hitCount * 0.08);
         spawnZones();
         break;
       }
     }
     if (!hit) {
-      /* Промах: −0.6 сек и блок на 0.6 сек */
       state.timeLeft -= 0.6;
       state.missLockUntil = now + 600;
       state.missCount++;
@@ -451,7 +439,6 @@ function renderLockpick() {
     var dt = Math.min((ts - state.lastFrame) / 1000, 0.1);
     state.lastFrame = ts;
 
-    /* Текущая скорость = базовая + буст от ПКМ */
     var curSpeed = state.baseSpeed + (state.boosting ? 2.5 : 0);
     state.angle += curSpeed * state.direction * dt;
     state.timeLeft -= dt;
@@ -509,15 +496,12 @@ function renderLockpick() {
     canvasWrap.appendChild(overlay);
   }
 
-  /* ЛКМ — удар */
   canvas.addEventListener("mousedown", function (e) {
     e.preventDefault();
-    if (e.button === 2) return; /* ПКМ — это буст */
+    if (e.button === 2) return;
     checkHit();
   });
   canvas.addEventListener("touchstart", function (e) { e.preventDefault(); checkHit(); }, { passive: false });
-
-  /* ПКМ — ускорение */
   canvas.addEventListener("mousedown", function (e) {
     if (e.button === 2) { state.boosting = true; }
   });
@@ -532,9 +516,6 @@ function renderLockpick() {
   return card;
 }
 
-/* ═══════════════════════════════════════
-   ИГРА 2: АТАКА АВТОМАТОНОВ (без смертей)
-   ═══════════════════════════════════════ */
 function renderAutomaton() {
   var card = UI.card("⌨️ Атака автоматонов");
 
@@ -776,9 +757,6 @@ function renderAutomaton() {
   return card;
 }
 
-/* ═══════════════════════════════════════
-   ИГРА 3: ВИКТОРИНА (без рейтинга)
-   ═══════════════════════════════════════ */
 function renderQuiz() {
   var card = UI.card("🧠 Викторина");
 

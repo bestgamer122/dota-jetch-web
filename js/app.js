@@ -1,6 +1,6 @@
-/* DOTA JETCH — APP v10.5 */
+/* DOTA JETCH — APP v10.6 */
 
-var APP_VERSION = "10.5";
+var APP_VERSION = "10.6";
 
 var PAGES = {
   dashboard:    { title: "Главная",         render: renderDashboard },
@@ -54,7 +54,7 @@ function safeRender(name) {
     if (!PAGES[name]) throw new Error("Страница не найдена: " + name);
     var node = PAGES[name].render();
     if (!node) throw new Error("Пустой результат рендера");
-    if (node instanceof Promise) throw new Error("Async render не поддерживается напрямую");
+    if (node instanceof Promise) throw new Error("Async render");
     return node;
   } catch (e) {
     console.error("Render error:", name, e);
@@ -165,13 +165,13 @@ function pluralAnalyses(n) {
 function renderLeaderboardPage() {
   var frag = document.createDocumentFragment();
   var placeholder = el("div", { id: "leaderboardPlaceholder" });
-  placeholder.appendChild(el("div", { class: "dim", style: "font-size:12px;padding:8px 0;" }, "Загрузка лидерборда..."));
+  placeholder.appendChild(el("div", { class: "dim", style: "font-size:12px;padding:8px 0;" }, "Загрузка..."));
   frag.appendChild(placeholder);
 
   setTimeout(function () {
     if (typeof window.renderLeaderboard !== "function") {
       placeholder.innerHTML = "";
-      placeholder.appendChild(el("div", { class: "dim", style: "font-size:12px;" }, "Модуль лидерборда не загрузился."));
+      placeholder.appendChild(el("div", { class: "dim", style: "font-size:12px;" }, "Модуль не загрузился."));
       return;
     }
     try {
@@ -259,10 +259,10 @@ function renderAbout() {
     "История и графики",
     "Дневник",
     "Мини-игры: Взлом замка, Атака автоматонов, Викторина",
-    "Рейтинг и медали (как в Dota 2)",
-    "Глобальный лидерборд",
+    "Рейтинг и медали",
+    "Лидерборд",
     "Достижения (24)",
-    "Ник + аватар + Firebase-синхронизация"
+    "Ник + аватар + облачная синхронизация"
   ];
   for (var i = 0; i < list.length; i++) {
     feat.appendChild(el("div", { style: "padding:4px 0;font-size:12px;color:var(--text-muted);" }, "• " + list[i]));
