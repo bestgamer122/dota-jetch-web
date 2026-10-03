@@ -1,35 +1,21 @@
-/* DOTA JETCH — RATING v7.2
-   - Исправлен URL иконок: rank_icon_1.png ... rank_icon_8.png (Valve CDN)
-   - Несколько прокси подряд + прямая ссылка
-   - Fallback SVG, если все не сработали */
+/* DOTA JETCH — RATING v7.3
+   - Полностью SVG-медали в стиле Dota 2 (без CDN)
+   - Уникальный дизайн: цвет, форма, символ у каждого ранга
+   - Боковые "крылья" усиливаются с рангом
+   - Анимация модалок, курсор поверх окон */
 
 var RATING_TABLE = [
-  { name: "Herald",    ru: "Рекрут",    rankIdx: 0, accent: "#7ab85a", stars: [0, 150, 300, 460, 610] },
-  { name: "Guardian",  ru: "Страж",     rankIdx: 1, accent: "#b8b8c0", stars: [770, 920, 1080, 1230, 1400] },
-  { name: "Crusader",  ru: "Рыцарь",    rankIdx: 2, accent: "#4ac8e0", stars: [1540, 1700, 1850, 2000, 2150] },
-  { name: "Archon",    ru: "Герой",     rankIdx: 3, accent: "#9ad050", stars: [2310, 2450, 2610, 2770, 2930] },
-  { name: "Legend",    ru: "Легенда",   rankIdx: 4, accent: "#e05a80", stars: [3080, 3230, 3390, 3540, 3700] },
-  { name: "Ancient",   ru: "Властелин", rankIdx: 5, accent: "#9a6ae0", stars: [3850, 4000, 4150, 4300, 4460] },
-  { name: "Divine",    ru: "Божество",  rankIdx: 6, accent: "#5a8ae0", stars: [4620, 4820, 5020, 5220, 5420] },
-  { name: "Immortal",  ru: "Титан",     rankIdx: 7, accent: "#e04040", stars: [5620, 5800, 6000, 6200, 6500] }
+  { name: "Herald",    ru: "Рекрут",    rankIdx: 0, dark: "#0f2a08", light: "#5a8a40", accent: "#7ab85a", stars: [0, 150, 300, 460, 610] },
+  { name: "Guardian",  ru: "Страж",     rankIdx: 1, dark: "#25252a", light: "#8a8a94", accent: "#b8b8c0", stars: [770, 920, 1080, 1230, 1400] },
+  { name: "Crusader",  ru: "Рыцарь",    rankIdx: 2, dark: "#082838", light: "#3a9eb0", accent: "#4ac8e0", stars: [1540, 1700, 1850, 2000, 2150] },
+  { name: "Archon",    ru: "Герой",     rankIdx: 3, dark: "#0a3a1a", light: "#5aa030", accent: "#9ad050", stars: [2310, 2450, 2610, 2770, 2930] },
+  { name: "Legend",    ru: "Легенда",   rankIdx: 4, dark: "#3a0518", light: "#b04868", accent: "#e05a80", stars: [3080, 3230, 3390, 3540, 3700] },
+  { name: "Ancient",   ru: "Властелин", rankIdx: 5, dark: "#220a4a", light: "#6a3aB0", accent: "#9a6ae0", stars: [3850, 4000, 4150, 4300, 4460] },
+  { name: "Divine",    ru: "Божество",  rankIdx: 6, dark: "#0a1a4a", light: "#3a6ab0", accent: "#5a8ae0", stars: [4620, 4820, 5020, 5220, 5420] },
+  { name: "Immortal",  ru: "Титан",     rankIdx: 7, dark: "#3a0202", light: "#a03030", accent: "#e04040", stars: [5620, 5800, 6000, 6200, 6500] }
 ];
 
 var CALIBRATION_GAMES = 10;
-
-/* Список URL для иконки ранга. rankIdx 0..7 → Valve rank_icon_1..8.png */
-function rankIconUrls(rankIdx) {
-  var num = rankIdx + 1; /* 1..8 */
-  var rawPath = "cdn.cloudflare.steamstatic.com/apps/dota2/images/dota_react/icons/ranks/rank_icon_" + num + ".png";
-  var enc = encodeURIComponent(rawPath);
-  return [
-    /* 1. wsrv.nl (бесплатный прокси) */
-    "https://wsrv.nl/?url=" + enc,
-    /* 2. images.weserv.nl (старый домен, тот же сервис) */
-    "https://images.weserv.nl/?url=" + enc,
-    /* 3. Прямая ссылка (вдруг у юзера Steam не заблочен) */
-    "https://" + rawPath
-  ];
-}
 
 function ensureRatingStyles() {
   if (document.getElementById("ratingStyles")) return;
@@ -41,12 +27,124 @@ function ensureRatingStyles() {
     ".rating-overlay-anim{animation:ratingOvIn 0.25s ease both}" +
     ".rating-box-anim{animation:ratingBoxIn 0.45s cubic-bezier(0.34,1.56,0.64,1) both}" +
     "@keyframes ratingTileIn{from{opacity:0;transform:translateY(15px) scale(0.92)}to{opacity:1;transform:translateY(0) scale(1)}}" +
-    ".rating-tile-anim{animation:ratingTileIn 0.4s cubic-bezier(0.34,1.56,0.64,1) both}";
+    ".rating-tile-anim{animation:ratingTileIn 0.4s cubic-bezier(0.34,1.56,0.64,1) both}" +
+    "@keyframes medalSpin{0%,100%{transform:rotate(0deg)}50%{transform:rotate(2deg)}}";
   document.head.appendChild(s);
 }
 
-/* Fallback SVG — если картинки не загрузились */
-function buildFallbackSVG(rankIdx, size) {
+/* Уникальный символ для каждого ранга */
+function rankSymbolSVG(rankIdx, cfg) {
+  var a = cfg.accent;
+  var d = cfg.dark;
+  var sym = "";
+
+  if (rankIdx === 0) {
+    /* Рекрут: маленький щит с крестом */
+    sym = '<path d="M0 -14 L11 -9 L11 4 Q11 12 0 17 Q-11 12 -11 4 L-11 -9 Z" fill="none" stroke="' + a + '" stroke-width="2.2"/>' +
+          '<path d="M0 -6 L0 8 M-5 1 L5 1" stroke="' + a + '" stroke-width="2.2" stroke-linecap="round"/>';
+  } else if (rankIdx === 1) {
+    /* Страж: молот */
+    sym = '<rect x="-3" y="-16" width="6" height="22" fill="' + a + '" rx="1"/>' +
+          '<rect x="-11" y="-18" width="22" height="9" fill="' + a + '" rx="2"/>' +
+          '<rect x="-11" y="6" width="22" height="4" fill="' + a + '" rx="1"/>';
+  } else if (rankIdx === 2) {
+    /* Рыцарь: меч вертикальный */
+    sym = '<path d="M0 -20 L3 -8 L3 12 L6 16 L6 20 L-6 20 L-6 16 L-3 12 L-3 -8 Z" fill="' + a + '"/>' +
+          '<rect x="-10" y="10" width="20" height="3" fill="' + a + '" rx="1"/>';
+  } else if (rankIdx === 3) {
+    /* Герой: два меча скрещённых */
+    sym = '<path d="M-15 -16 L15 16 M15 -16 L-15 16" stroke="' + a + '" stroke-width="3.5" stroke-linecap="round"/>' +
+          '<circle cx="-15" cy="-16" r="3.5" fill="' + a + '"/>' +
+          '<circle cx="15" cy="-16" r="3.5" fill="' + a + '"/>' +
+          '<circle cx="0" cy="0" r="4" fill="' + d + '" stroke="' + a + '" stroke-width="2"/>';
+  } else if (rankIdx === 4) {
+    /* Легенда: корона */
+    sym = '<path d="M-16 12 L-16 -6 L-8 2 L0 -12 L8 2 L16 -6 L16 12 Z" fill="' + a + '"/>' +
+          '<rect x="-16" y="12" width="32" height="4" fill="' + a + '" rx="1"/>' +
+          '<circle cx="-16" cy="-8" r="2.5" fill="' + a + '"/>' +
+          '<circle cx="0" cy="-14" r="2.5" fill="' + a + '"/>' +
+          '<circle cx="16" cy="-8" r="2.5" fill="' + a + '"/>';
+  } else if (rankIdx === 5) {
+    /* Властелин: корона с рубинами */
+    sym = '<path d="M-17 13 L-17 -8 L-9 1 L0 -13 L9 1 L17 -8 L17 13 Z" fill="' + a + '"/>' +
+          '<rect x="-17" y="13" width="34" height="4" fill="' + a + '" rx="1"/>' +
+          '<circle cx="-17" cy="-10" r="3" fill="#fff" opacity="0.9"/>' +
+          '<circle cx="0" cy="-15" r="3" fill="#fff" opacity="0.9"/>' +
+          '<circle cx="17" cy="-10" r="3" fill="#fff" opacity="0.9"/>' +
+          '<path d="M0 -3 L4 3 L0 9 L-4 3 Z" fill="#fff" opacity="0.7"/>';
+  } else if (rankIdx === 6) {
+    /* Божество: солнце */
+    sym = '<circle cx="0" cy="0" r="9" fill="' + a + '"/>' +
+          '<circle cx="0" cy="0" r="5" fill="#fff" opacity="0.5"/>';
+    for (var i = 0; i < 8; i++) {
+      var ang = i * 45 * Math.PI / 180;
+      var x1 = Math.cos(ang) * 13;
+      var y1 = Math.sin(ang) * 13;
+      var x2 = Math.cos(ang) * 20;
+      var y2 = Math.sin(ang) * 20;
+      sym += '<line x1="' + x1.toFixed(1) + '" y1="' + y1.toFixed(1) + '" x2="' + x2.toFixed(1) + '" y2="' + y2.toFixed(1) + '" stroke="' + a + '" stroke-width="3" stroke-linecap="round"/>';
+    }
+  } else if (rankIdx === 7) {
+    /* Титан: череп */
+    sym = '<path d="M-13 -6 Q-13 -18 0 -18 Q13 -18 13 -6 L13 6 Q13 11 8 11 L6 11 L6 15 L-6 15 L-6 11 L-8 11 Q-13 11 -13 6 Z" fill="' + a + '"/>' +
+          '<circle cx="-5" cy="-3" r="3.5" fill="' + d + '"/>' +
+          '<circle cx="5" cy="-3" r="3.5" fill="' + d + '"/>' +
+          '<path d="M-2 6 L0 9 L2 6 Z" fill="' + d + '"/>' +
+          '<path d="M-18 -14 L-14 -10 M18 -14 L14 -10" stroke="' + a + '" stroke-width="2.5" stroke-linecap="round"/>';
+  }
+
+  return '<g transform="translate(100 100)">' + sym + '</g>';
+}
+
+/* Крылья (боковые) в зависимости от ранга */
+function rankWingsSVG(rankIdx, cfg) {
+  if (rankIdx < 2) return "";
+  var a = cfg.accent;
+  var opacity = 0.5 + rankIdx * 0.06;
+  var wings = "";
+
+  /* Левое крыло */
+  wings += '<g opacity="' + opacity + '">';
+  wings += '<path d="M35 100 Q20 90 5 95 Q15 100 5 105 Q20 110 35 100 Z" fill="' + a + '"/>';
+  if (rankIdx >= 3) {
+    wings += '<path d="M35 100 Q15 82 0 88 Q12 94 0 100 Q12 106 0 112 Q15 118 35 100 Z" fill="' + a + '" opacity="0.85"/>';
+  }
+  if (rankIdx >= 5) {
+    wings += '<path d="M35 100 Q10 72 -5 78 Q8 88 -5 100 Q8 112 -5 122 Q10 128 35 100 Z" fill="' + a + '" opacity="0.7"/>';
+  }
+  if (rankIdx >= 7) {
+    wings += '<path d="M35 100 Q5 60 -15 68 Q0 84 -15 100 Q0 116 -15 132 Q5 140 35 100 Z" fill="' + a + '" opacity="0.55"/>';
+  }
+  wings += '</g>';
+
+  /* Правое крыло (зеркальное) */
+  wings += '<g opacity="' + opacity + '">';
+  wings += '<path d="M165 100 Q180 90 195 95 Q185 100 195 105 Q180 110 165 100 Z" fill="' + a + '"/>';
+  if (rankIdx >= 3) {
+    wings += '<path d="M165 100 Q185 82 200 88 Q188 94 200 100 Q188 106 200 112 Q185 118 165 100 Z" fill="' + a + '" opacity="0.85"/>';
+  }
+  if (rankIdx >= 5) {
+    wings += '<path d="M165 100 Q190 72 205 78 Q192 88 205 100 Q192 112 205 122 Q190 128 165 100 Z" fill="' + a + '" opacity="0.7"/>';
+  }
+  if (rankIdx >= 7) {
+    wings += '<path d="M165 100 Q195 60 215 68 Q200 84 215 100 Q200 116 215 132 Q195 140 165 100 Z" fill="' + a + '" opacity="0.55"/>';
+  }
+  wings += '</g>';
+
+  return wings;
+}
+
+/* Декоративные "пики" на углах ромба */
+function rankCornersSVG(rankIdx, cfg) {
+  var a = cfg.accent;
+  return '' +
+    '<path d="M100 22 L110 42 L90 42 Z" fill="' + a + '" opacity="0.9"/>' +
+    '<path d="M100 178 L110 158 L90 158 Z" fill="' + a + '" opacity="0.9"/>' +
+    '<path d="M178 100 L158 90 L158 110 Z" fill="' + a + '" opacity="0.9"/>' +
+    '<path d="M22 100 L42 90 L42 110 Z" fill="' + a + '" opacity="0.9"/>';
+}
+
+function buildMedalSVG(rankIdx, size) {
   var cfg = RATING_TABLE[rankIdx] || RATING_TABLE[0];
   size = size || 96;
   var ns = "http://www.w3.org/2000/svg";
@@ -54,72 +152,37 @@ function buildFallbackSVG(rankIdx, size) {
   svg.setAttribute("viewBox", "0 0 200 200");
   svg.setAttribute("width", size);
   svg.setAttribute("height", size);
-  svg.style.cssText = "display:block;";
+  svg.style.cssText = "display:block;flex-shrink:0;filter:drop-shadow(0 0 10px " + cfg.accent + "99);";
 
-  var outer = document.createElementNS(ns, "path");
-  outer.setAttribute("d", "M100 15 L185 100 L100 185 L15 100 Z");
-  outer.setAttribute("fill", "#1e2129");
-  outer.setAttribute("stroke", cfg.accent);
-  outer.setAttribute("stroke-width", "3");
-  svg.appendChild(outer);
+  var gid = "grad" + rankIdx;
+  var svgStr = '<defs>' +
+    '<linearGradient id="' + gid + '" x1="0%" y1="0%" x2="0%" y2="100%">' +
+      '<stop offset="0%" stop-color="' + cfg.light + '"/>' +
+      '<stop offset="55%" stop-color="' + cfg.accent + '"/>' +
+      '<stop offset="100%" stop-color="' + cfg.dark + '"/>' +
+    '</linearGradient>' +
+    '<linearGradient id="' + gid + 'i" x1="0%" y1="0%" x2="0%" y2="100%">' +
+      '<stop offset="0%" stop-color="#000" stop-opacity="0.2"/>' +
+      '<stop offset="100%" stop-color="#000" stop-opacity="0.75"/>' +
+    '</linearGradient>' +
+    '</defs>' +
+    rankWingsSVG(rankIdx, cfg) +
+    /* Внешний ромб с полным градиентом */
+    '<path d="M100 20 L180 100 L100 180 L20 100 Z" fill="url(#' + gid + ')" stroke="' + cfg.accent + '" stroke-width="2.5"/>' +
+    /* Внутренний ромб — тёмный фон под символом */
+    '<path d="M100 42 L158 100 L100 158 L42 100 Z" fill="url(#' + gid + 'i)" stroke="' + cfg.accent + '" stroke-width="2"/>' +
+    /* Тонкая внутренняя обводка */
+    '<path d="M100 52 L148 100 L100 148 L52 100 Z" fill="none" stroke="' + cfg.accent + '" stroke-width="0.8" opacity="0.5"/>' +
+    rankCornersSVG(rankIdx, cfg) +
+    rankSymbolSVG(rankIdx, cfg);
 
-  var inner = document.createElementNS(ns, "path");
-  inner.setAttribute("d", "M100 40 L160 100 L100 160 L40 100 Z");
-  inner.setAttribute("fill", "rgba(0,0,0,0.5)");
-  inner.setAttribute("stroke", cfg.accent);
-  inner.setAttribute("stroke-width", "1.5");
-  svg.appendChild(inner);
-
-  var sym = document.createElementNS(ns, "text");
-  sym.setAttribute("x", "100");
-  sym.setAttribute("y", "118");
-  sym.setAttribute("text-anchor", "middle");
-  sym.setAttribute("font-size", "60");
-  sym.setAttribute("font-weight", "900");
-  sym.setAttribute("fill", cfg.accent);
-  sym.setAttribute("font-family", "sans-serif");
-  sym.textContent = "★";
-  svg.appendChild(sym);
+  var doc = new DOMParser().parseFromString('<svg xmlns="' + ns + '" viewBox="0 0 200 200">' + svgStr + '</svg>', "image/svg+xml");
+  var parsed = doc.documentElement;
+  /* Копируем атрибуты и содержимое */
+  svg.setAttribute("viewBox", parsed.getAttribute("viewBox") || "0 0 200 200");
+  while (parsed.firstChild) svg.appendChild(parsed.firstChild);
 
   return svg;
-}
-
-/* Медаль: пробует URL по очереди, потом fallback */
-function buildMedalSVG(rankIdx, size) {
-  size = size || 96;
-  var wrap = document.createElement("div");
-  wrap.style.cssText = "position:relative;width:" + size + "px;height:" + size + "px;flex-shrink:0;display:flex;align-items:center;justify-content:center;";
-
-  var fb = buildFallbackSVG(rankIdx, size);
-  fb.style.position = "absolute";
-  fb.style.inset = "0";
-  wrap.appendChild(fb);
-
-  var urls = rankIconUrls(rankIdx);
-  var img = document.createElement("img");
-  img.alt = "";
-  img.loading = "lazy";
-  img.referrerPolicy = "no-referrer";
-  img.style.cssText = "position:relative;width:100%;height:100%;object-fit:contain;display:block;z-index:1;opacity:0;transition:opacity 0.3s ease;";
-
-  var idx = 0;
-  img.onload = function () {
-    img.style.opacity = "1";
-    fb.style.display = "none";
-  };
-  img.onerror = function () {
-    idx++;
-    if (idx < urls.length) {
-      img.src = urls[idx];
-    } else {
-      img.style.display = "none";
-      fb.style.display = "block";
-    }
-  };
-
-  img.src = urls[0];
-  wrap.appendChild(img);
-  return wrap;
 }
 
 function buildQuestionMedalSVG(size) {
@@ -129,35 +192,22 @@ function buildQuestionMedalSVG(size) {
   svg.setAttribute("viewBox", "0 0 200 200");
   svg.setAttribute("width", size);
   svg.setAttribute("height", size);
-  svg.style.cssText = "display:block;";
+  svg.style.cssText = "display:block;filter:drop-shadow(0 0 10px rgba(139,92,246,0.7));";
 
-  var outer = document.createElementNS(ns, "path");
-  outer.setAttribute("d", "M100 15 L185 100 L100 185 L15 100 Z");
-  outer.setAttribute("fill", "#1e2129");
-  outer.setAttribute("stroke", "#8b5cf6");
-  outer.setAttribute("stroke-width", "3");
-  outer.setAttribute("stroke-dasharray", "6 5");
-  svg.appendChild(outer);
+  var svgStr = '' +
+    '<defs>' +
+      '<linearGradient id="qg" x1="0%" y1="0%" x2="0%" y2="100%">' +
+        '<stop offset="0%" stop-color="#3a2f4a"/>' +
+        '<stop offset="100%" stop-color="#0f0a18"/>' +
+      '</linearGradient>' +
+    '</defs>' +
+    '<path d="M100 20 L180 100 L100 180 L20 100 Z" fill="url(#qg)" stroke="#8b5cf6" stroke-width="2.5" stroke-dasharray="6 4"/>' +
+    '<path d="M100 42 L158 100 L100 158 L42 100 Z" fill="#0b0c10" stroke="#8b5cf6" stroke-width="2" opacity="0.85"/>' +
+    '<text x="100" y="122" text-anchor="middle" font-size="70" font-weight="900" fill="#8b5cf6" font-family="sans-serif">?</text>';
 
-  var inner = document.createElementNS(ns, "path");
-  inner.setAttribute("d", "M100 40 L160 100 L100 160 L40 100 Z");
-  inner.setAttribute("fill", "#0b0c10");
-  inner.setAttribute("stroke", "#8b5cf6");
-  inner.setAttribute("stroke-width", "1.5");
-  inner.setAttribute("opacity", "0.7");
-  svg.appendChild(inner);
-
-  var q = document.createElementNS(ns, "text");
-  q.setAttribute("x", "100");
-  q.setAttribute("y", "125");
-  q.setAttribute("text-anchor", "middle");
-  q.setAttribute("font-size", "70");
-  q.setAttribute("font-weight", "900");
-  q.setAttribute("fill", "#8b5cf6");
-  q.setAttribute("font-family", "sans-serif");
-  q.textContent = "?";
-  svg.appendChild(q);
-
+  var doc = new DOMParser().parseFromString('<svg xmlns="' + ns + '" viewBox="0 0 200 200">' + svgStr + '</svg>', "image/svg+xml");
+  var parsed = doc.documentElement;
+  while (parsed.firstChild) svg.appendChild(parsed.firstChild);
   return svg;
 }
 
@@ -339,7 +389,7 @@ function showAllRanksDialog() {
 
       var medalWrap = document.createElement("div");
       medalWrap.style.cssText = "display:flex;justify-content:center;";
-      medalWrap.appendChild(buildMedalSVG(idx, 110));
+      medalWrap.appendChild(buildMedalSVG(idx, 120));
       tile.appendChild(medalWrap);
 
       var name = document.createElement("div");
@@ -388,9 +438,9 @@ window.renderRatingWidget = function () {
 
   var medalBox = el("div", { style: "text-align:center;flex-shrink:0;" });
   if (calibrated) {
-    medalBox.appendChild(buildMedalSVG(medal.medal.rankIdx, 120));
+    medalBox.appendChild(buildMedalSVG(medal.medal.rankIdx, 130));
   } else {
-    medalBox.appendChild(buildQuestionMedalSVG(120));
+    medalBox.appendChild(buildQuestionMedalSVG(130));
   }
   main.appendChild(medalBox);
 
@@ -483,4 +533,4 @@ window.renderRatingWidget = function () {
   return card;
 };
 
-console.log("rating v7.2 ready");
+console.log("rating v7.3 ready (full SVG medals)");
