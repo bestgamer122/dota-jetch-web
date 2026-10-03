@@ -1,20 +1,14 @@
-/* DOTA JETCH — RATING v10.0
-   Форма иконок Dota 2:
-   - Верхняя "корона" с заострёнными углами
-   - Основной ромб с 4 ромбиками по углам
-   - Боковые "крылья"
-   - Острый V-кончик снизу
-   + уникальный символ у каждого ранга */
+/* DOTA JETCH — RATING v11.0 */
 
 var RATING_TABLE = [
-  { name: "Herald",    ru: "Рекрут",    rankIdx: 0, dark: "#0a2210", mid: "#2a5a20", light: "#6ea84a", accent: "#a8e06a", glow: "#d8ffa0", stars: [0, 150, 300, 460, 610] },
-  { name: "Guardian",  ru: "Страж",     rankIdx: 1, dark: "#1a1a1c", mid: "#4a4a50", light: "#8a8a92", accent: "#c0c0c8", glow: "#e8e8f0", stars: [770, 920, 1080, 1230, 1400] },
-  { name: "Crusader",  ru: "Рыцарь",    rankIdx: 2, dark: "#0a2838", mid: "#1a5a70", light: "#3a9eb8", accent: "#60c8e0", glow: "#a8ecff", stars: [1540, 1700, 1850, 2000, 2150] },
-  { name: "Archon",    ru: "Герой",     rankIdx: 3, dark: "#0a3010", mid: "#2a6a20", light: "#5aa83a", accent: "#88d058", glow: "#b8f088", stars: [2310, 2450, 2610, 2770, 2930] },
-  { name: "Legend",    ru: "Легенда",   rankIdx: 4, dark: "#3a0818", mid: "#7a1a38", light: "#c04070", accent: "#e87098", glow: "#ffa8c0", stars: [3080, 3230, 3390, 3540, 3700] },
-  { name: "Ancient",   ru: "Властелин", rankIdx: 5, dark: "#2a1058", mid: "#5a2aa0", light: "#8858d0", accent: "#b088e8", glow: "#d8b8ff", stars: [3850, 4000, 4150, 4300, 4460] },
-  { name: "Divine",    ru: "Божество",  rankIdx: 6, dark: "#3a0818", mid: "#8a1a28", light: "#c04848", accent: "#e87878", glow: "#ffb0b0", stars: [4620, 4820, 5020, 5220, 5420] },
-  { name: "Immortal",  ru: "Титан",     rankIdx: 7, dark: "#0a2048", mid: "#2058a0", light: "#4890d8", accent: "#78b8f0", glow: "#b0d8ff", stars: [5620, 5800, 6000, 6200, 6500] }
+  { name: "Herald",    ru: "Рекрут",    rankIdx: 0, d: "#0d2a10", m: "#1e5a22", l: "#5ca03c", a: "#8ed468", g: "#c8f0a0", stars: [0, 150, 300, 460, 610] },
+  { name: "Guardian",  ru: "Страж",     rankIdx: 1, d: "#1c1c20", m: "#3a3a42", l: "#7a7a88", a: "#b0b0bc", g: "#e0e0e8", stars: [770, 920, 1080, 1230, 1400] },
+  { name: "Crusader",  ru: "Рыцарь",    rankIdx: 2, d: "#0a2630", m: "#1a5268", l: "#3894ac", a: "#5cc0dc", g: "#a8e8ff", stars: [1540, 1700, 1850, 2000, 2150] },
+  { name: "Archon",    ru: "Герой",     rankIdx: 3, d: "#0a2810", m: "#1a5a20", l: "#529c30", a: "#7ecc50", g: "#b8f088", stars: [2310, 2450, 2610, 2770, 2930] },
+  { name: "Legend",    ru: "Легенда",   rankIdx: 4, d: "#2a0810", m: "#6a1028", l: "#b03058", a: "#e05878", g: "#ff90a8", stars: [3080, 3230, 3390, 3540, 3700] },
+  { name: "Ancient",   ru: "Властелин", rankIdx: 5, d: "#1c0a3a", m: "#401a78", l: "#7a48c0", a: "#a87ee0", g: "#d0b0ff", stars: [3850, 4000, 4150, 4300, 4460] },
+  { name: "Divine",    ru: "Божество",  rankIdx: 6, d: "#2a0808", m: "#701818", l: "#b83838", a: "#e06060", g: "#ff9898", stars: [4620, 4820, 5020, 5220, 5420] },
+  { name: "Immortal",  ru: "Титан",     rankIdx: 7, d: "#0a1a38", m: "#1a4878", l: "#3880c0", a: "#60a8e8", g: "#a0d0ff", stars: [5620, 5800, 6000, 6200, 6500] }
 ];
 
 var CALIBRATION_GAMES = 10;
@@ -33,127 +27,168 @@ function ensureRatingStyles() {
   document.head.appendChild(s);
 }
 
-/* ─── Верхняя "корона" с заострёнными углами ─── */
-function topCrownPath() {
-  /* Горизонтальная фигура сверху, как в Dota 2 */
-  return "M35 68 L50 60 L68 52 L85 58 L100 48 L115 58 L132 52 L150 60 L165 68 L172 82 L28 82 Z";
+/* ─── ГЛАВНЫЙ СИЛУЭТ (одна замкнутая форма — щит с короной) ─── */
+function mainShieldPath() {
+  /* Единая форма:
+     - сверху 3-пиковая корона
+     - с боков плавно переходит в широкий ромб
+     - снизу острый кончик V
+  */
+  return [
+    "M 22 92",           // левый нижний угол короны
+    "L 42 72",           // левый пик
+    "L 60 82",           // левая впадина
+    "L 80 66",           // средний левый пик
+    "L 100 60",          // центральный верх
+    "L 120 66",          // средний правый пик
+    "L 140 82",          // правая впадина
+    "L 158 72",          // правый пик
+    "L 178 92",          // правый нижний угол короны
+    "L 178 102",         // вниз
+    "L 100 178",         // главный нижний угол (ромб)
+    "L 22 102",          // левый нижний угол ромба
+    "Z"
+  ].join(" ");
 }
 
-/* ─── Основной ромб (щит) ─── */
-function mainDiamondPath() {
-  return "M100 68 L162 118 L100 172 L38 118 Z";
+/* ─── ВНУТРЕННИЙ РОМБ (щит) ─── */
+function innerDiamondPath() {
+  return "M 100 72 L 162 122 L 100 168 L 38 122 Z";
 }
 
-/* ─── Нижний V-кончик ─── */
-function bottomSpikePath() {
-  return "M78 168 L100 195 L122 168 L114 168 L100 180 L86 168 Z";
+/* ─── БОКОВЫЕ КРЫЛЬЯ (перья) ─── */
+function sideFeathers(rankIdx, cfg) {
+  if (rankIdx < 2) return "";
+  var a = cfg.a;
+  var g = cfg.g;
+  var opacity = 0.65 + rankIdx * 0.03;
+  var levels = Math.min(rankIdx, 4);
+  var out = "";
+
+  /* Левое крыло */
+  out += '<g opacity="' + opacity.toFixed(2) + '">';
+  for (var i = 0; i < levels; i++) {
+    var yStart = 88 + i * 14;
+    var xStart = 30 - i * 3;
+    var xEnd = 4 - i * 2;
+    var yCurve = yStart - 6;
+    var yEnd = yStart + 8;
+    out += '<path d="M ' + xStart + ' ' + yStart + ' Q ' + (xStart - 12) + ' ' + yCurve + ' ' + xEnd + ' ' + (yStart + 4) + ' Q ' + (xStart - 14) + ' ' + (yStart + 6) + ' ' + xStart + ' ' + yEnd + ' Z" fill="' + (i % 2 === 0 ? a : cfg.l) + '"/>';
+    out += '<line x1="' + xStart + '" y1="' + (yStart + 4) + '" x2="' + xEnd + '" y2="' + (yStart + 4) + '" stroke="' + g + '" stroke-width="0.8" opacity="0.6"/>';
+  }
+  out += '</g>';
+
+  /* Правое крыло (зеркально) */
+  out += '<g opacity="' + opacity.toFixed(2) + '">';
+  for (var j = 0; j < levels; j++) {
+    var yS = 88 + j * 14;
+    var xS = 170 + j * 3;
+    var xE = 196 + j * 2;
+    var yC = yS - 6;
+    var yE = yS + 8;
+    out += '<path d="M ' + xS + ' ' + yS + ' Q ' + (xS + 12) + ' ' + yC + ' ' + xE + ' ' + (yS + 4) + ' Q ' + (xS + 14) + ' ' + (yS + 6) + ' ' + xS + ' ' + yE + ' Z" fill="' + (j % 2 === 0 ? a : cfg.l) + '"/>';
+    out += '<line x1="' + xS + '" y1="' + (yS + 4) + '" x2="' + xE + '" y2="' + (yS + 4) + '" stroke="' + g + '" stroke-width="0.8" opacity="0.6"/>';
+  }
+  out += '</g>';
+
+  return out;
 }
 
-/* ─── Боковые "крылья" — острые выступы ─── */
-function sideWings(rankIdx, cfg) {
-  var a = cfg.accent;
-  var hl = cfg.glow;
-  var intensity = 0.7 + rankIdx * 0.04;
-
-  /* Два уровня крыльев, как в Dota 2 */
-  return '' +
-    /* Верхние углы короны */
-    '<path d="M35 68 L20 62 L30 78 L22 84 L38 82 Z" fill="' + a + '" opacity="' + intensity + '"/>' +
-    '<path d="M165 68 L180 62 L170 78 L178 84 L162 82 Z" fill="' + a + '" opacity="' + intensity + '"/>' +
-    /* Боковые "шипы" вдоль ромба (для высоких рангов) */
-    (rankIdx >= 3 ?
-      '<path d="M38 118 L15 110 L25 125 L15 140 L38 130 Z" fill="' + a + '" opacity="' + (intensity - 0.1).toFixed(2) + '"/>' +
-      '<path d="M162 118 L185 110 L175 125 L185 140 L162 130 Z" fill="' + a + '" opacity="' + (intensity - 0.1).toFixed(2) + '"/>' : '') +
-    /* Уровень "перьев" для высоких */
-    (rankIdx >= 5 ?
-      '<path d="M30 90 L8 82 L18 96 L8 108 L32 102 Z" fill="' + hl + '" opacity="0.6"/>' +
-      '<path d="M170 90 L192 82 L182 96 L192 108 L168 102 Z" fill="' + hl + '" opacity="0.6"/>' : '');
-}
-
-/* ─── 4 маленьких ромбика по углам главного ромба ─── */
-function cornerDots(cfg, isActive) {
-  var colors = isActive ? ['#ffffff', cfg.accent, cfg.glow, cfg.accent] : [cfg.glow, cfg.accent, cfg.glow, cfg.accent];
+/* ─── 4 РОМБИКА ПО УГЛАМ ─── */
+function cornerDiamonds(cfg) {
   var positions = [
-    { x: 100, y: 78 },  /* верх */
-    { x: 145, y: 120 }, /* право */
-    { x: 100, y: 160 }, /* низ */
-    { x: 55, y: 120 }   /* лево */
+    { x: 100, y: 78, c: cfg.g },
+    { x: 156, y: 122, c: cfg.a },
+    { x: 100, y: 162, c: cfg.g },
+    { x: 44, y: 122, c: cfg.a }
   ];
   var out = "";
-  for (var i = 0; i < 4; i++) {
+  for (var i = 0; i < positions.length; i++) {
     var p = positions[i];
-    out += '<path d="M' + p.x + ' ' + (p.y - 5) + ' L' + (p.x + 5) + ' ' + p.y + ' L' + p.x + ' ' + (p.y + 5) + ' L' + (p.x - 5) + ' ' + p.y + ' Z" fill="' + colors[i] + '"/>';
+    var sz = 5;
+    out += '<path d="M ' + p.x + ' ' + (p.y - sz) + ' L ' + (p.x + sz) + ' ' + p.y + ' L ' + p.x + ' ' + (p.y + sz) + ' L ' + (p.x - sz) + ' ' + p.y + ' Z" fill="' + p.c + '" stroke="' + cfg.d + '" stroke-width="0.8"/>';
   }
   return out;
 }
 
-/* ─── Центральный символ ─── */
+/* ─── СИМВОЛ В ЦЕНТРЕ ─── */
 function rankSymbol(rankIdx, cfg) {
-  var a = cfg.accent;
-  var hl = cfg.glow;
-  var dk = cfg.dark;
+  var a = cfg.a;
+  var g = cfg.g;
+  var d = cfg.d;
 
-  /* 0 — Рекрут: Tango (лист) */
+  /* 0 — Рекрут: три листа (Tango) */
   if (rankIdx === 0) {
     return '' +
-      '<path d="M100 92 Q92 80 82 84 Q86 96 98 100 Q88 104 88 116 Q96 112 100 104 Q104 112 112 116 Q112 104 102 100 Q114 96 118 84 Q108 80 100 92 Z" fill="' + a + '" stroke="' + hl + '" stroke-width="1.2"/>' +
-      '<line x1="100" y1="92" x2="100" y2="80" stroke="' + hl + '" stroke-width="1.5"/>' +
-      '<circle cx="100" cy="78" r="2.5" fill="' + hl + '"/>';
+      '<path d="M100 90 Q94 78 84 82 Q90 94 98 100 Q84 100 84 112 Q94 108 100 102 Q106 108 116 112 Q116 100 102 100 Q110 94 116 82 Q106 78 100 90 Z" fill="' + a + '" stroke="' + g + '" stroke-width="1"/>' +
+      '<line x1="100" y1="90" x2="100" y2="78" stroke="' + g + '" stroke-width="1.5"/>';
   }
   /* 1 — Страж: щит с крестом */
   if (rankIdx === 1) {
     return '' +
-      '<path d="M100 82 Q84 82 82 96 L82 108 Q82 122 100 128 Q118 122 118 108 L118 96 Q116 82 100 82 Z" fill="' + a + '" stroke="' + hl + '" stroke-width="1.2"/>' +
-      '<line x1="100" y1="88" x2="100" y2="120" stroke="' + hl + '" stroke-width="2.5"/>' +
-      '<line x1="86" y1="104" x2="114" y2="104" stroke="' + hl + '" stroke-width="2.5"/>';
+      '<path d="M100 78 Q82 80 80 96 L80 110 Q80 124 100 130 Q120 124 120 110 L120 96 Q118 80 100 78 Z" fill="' + a + '" stroke="' + g + '" stroke-width="1.2"/>' +
+      '<line x1="100" y1="86" x2="100" y2="122" stroke="' + g + '" stroke-width="3"/>' +
+      '<line x1="84" y1="104" x2="116" y2="104" stroke="' + g + '" stroke-width="3"/>' +
+      '<circle cx="100" cy="104" r="2" fill="' + d + '"/>';
   }
-  /* 2 — Рыцарь: Ring of Aquila (кольцо с крылом) */
+  /* 2 — Рыцарь: кольцо с 4 лучами */
   if (rankIdx === 2) {
     return '' +
-      '<circle cx="100" cy="105" r="18" fill="none" stroke="' + a + '" stroke-width="3.5"/>' +
-      '<path d="M100 92 L103 100 L110 102 L104 108 L105 116 L100 111 L95 116 L96 108 L90 102 L97 100 Z" fill="' + hl + '"/>' +
-      '<circle cx="100" cy="105" r="3" fill="' + hl + '" opacity="0.7"/>';
+      '<circle cx="100" cy="104" r="17" fill="none" stroke="' + a + '" stroke-width="3"/>' +
+      '<circle cx="100" cy="104" r="10" fill="none" stroke="' + a + '" stroke-width="1.2" opacity="0.6"/>' +
+      '<path d="M100 92 L103 101 L112 104 L103 107 L100 116 L97 107 L88 104 L97 101 Z" fill="' + g + '"/>' +
+      '<circle cx="100" cy="104" r="2.5" fill="' + d + '"/>';
   }
-  /* 3 — Герой: Eul's (посох с кристаллом) */
+  /* 3 — Герой: посох с кристаллом-ромбом */
   if (rankIdx === 3) {
     return '' +
-      '<rect x="97" y="98" width="6" height="32" fill="' + a + '" rx="2"/>' +
-      '<path d="M100 86 L110 96 L100 102 L90 96 Z" fill="' + hl + '" stroke="' + a + '" stroke-width="1.2"/>' +
-      '<path d="M100 88 L105 95 L100 99 L95 95 Z" fill="#fff" opacity="0.5"/>' +
-      '<ellipse cx="100" cy="132" rx="5" ry="2" fill="' + a + '"/>';
+      '<path d="M100 74 L110 86 L100 94 L90 86 Z" fill="' + g + '" stroke="' + a + '" stroke-width="1.2"/>' +
+      '<path d="M100 78 L105 86 L100 90 L95 86 Z" fill="#fff" opacity="0.5"/>' +
+      '<rect x="97" y="94" width="6" height="36" fill="' + a + '" rx="2"/>' +
+      '<ellipse cx="100" cy="134" rx="5" ry="2" fill="' + a + '"/>' +
+      '<circle cx="100" cy="146" r="3" fill="' + g + '"/>';
   }
-  /* 4 — Легенда: BKB (молот) */
+  /* 4 — Легенда: молот */
   if (rankIdx === 4) {
     return '' +
-      '<rect x="97" y="98" width="6" height="32" fill="' + a + '" rx="2"/>' +
-      '<path d="M86 88 Q100 82 114 88 L114 98 Q100 104 86 98 Z" fill="' + a + '" stroke="' + hl + '" stroke-width="1.2"/>' +
-      '<circle cx="100" cy="93" r="4" fill="' + hl + '"/>' +
-      '<circle cx="100" cy="93" r="2" fill="#fff"/>';
+      '<path d="M86 82 Q100 76 114 82 L114 94 Q100 100 86 94 Z" fill="' + a + '" stroke="' + g + '" stroke-width="1.2"/>' +
+      '<circle cx="100" cy="88" r="4" fill="' + g + '"/>' +
+      '<circle cx="100" cy="88" r="1.8" fill="#fff"/>' +
+      '<rect x="97" y="94" width="6" height="38" fill="' + a + '" rx="2"/>' +
+      '<ellipse cx="100" cy="136" rx="5" ry="2.5" fill="' + a + '"/>';
   }
-  /* 5 — Властелин: Manta (три ромба) */
+  /* 5 — Властелин: 3 ромба (Manta) */
   if (rankIdx === 5) {
     return '' +
-      '<path d="M88 105 L94 92 L100 105 L94 118 Z" fill="' + a + '" opacity="0.6"/>' +
-      '<path d="M112 105 L106 92 L100 105 L106 118 Z" fill="' + a + '" opacity="0.6"/>' +
-      '<path d="M100 88 L114 105 L100 122 L86 105 Z" fill="' + a + '" stroke="' + hl + '" stroke-width="1.2"/>' +
-      '<path d="M100 96 L107 105 L100 114 L93 105 Z" fill="' + hl + '"/>';
+      '<path d="M84 104 L92 86 L100 104 L92 122 Z" fill="' + a + '" opacity="0.5"/>' +
+      '<path d="M116 104 L108 86 L100 104 L108 122 Z" fill="' + a + '" opacity="0.5"/>' +
+      '<path d="M100 82 L118 104 L100 126 L82 104 Z" fill="' + a + '" stroke="' + g + '" stroke-width="1.2"/>' +
+      '<path d="M100 90 L110 104 L100 118 L90 104 Z" fill="' + d + '" opacity="0.6"/>' +
+      '<path d="M100 96 L105 104 L100 112 L95 104 Z" fill="' + g + '"/>';
   }
-  /* 6 — Божество: Rapier (меч) */
+  /* 6 — Божество: рапира */
   if (rankIdx === 6) {
     return '' +
-      '<path d="M100 82 L103 94 L103 118 L97 118 L97 94 Z" fill="' + hl + '"/>' +
-      '<path d="M100 82 L101.5 94 L101.5 118 L100 118 Z" fill="#fff" opacity="0.5"/>' +
-      '<rect x="88" y="118" width="24" height="4" fill="' + a + '" rx="2"/>' +
-      '<rect x="97" y="122" width="6" height="10" fill="' + a + '" rx="2"/>' +
-      '<circle cx="100" cy="136" r="3.5" fill="' + hl + '"/>';
+      '<path d="M100 74 L103 88 L103 118 L97 118 L97 88 Z" fill="' + g + '"/>' +
+      '<path d="M100 74 L101.5 88 L101.5 118 L100 118 Z" fill="#fff" opacity="0.6"/>' +
+      '<rect x="86" y="118" width="28" height="4" fill="' + a + '" rx="2"/>' +
+      '<circle cx="86" cy="120" r="2.5" fill="' + g + '"/>' +
+      '<circle cx="114" cy="120" r="2.5" fill="' + g + '"/>' +
+      '<rect x="97" y="122" width="6" height="12" fill="' + a + '" rx="2"/>' +
+      '<circle cx="100" cy="140" r="3.5" fill="' + g + '"/>' +
+      '<circle cx="100" cy="140" r="1.5" fill="#fff"/>';
   }
-  /* 7 — Титан: Aegis (голова) */
+  /* 7 — Титан: голова в щите (Aegis) */
   return '' +
-    '<path d="M100 82 Q84 84 82 100 L82 112 Q82 122 100 128 Q118 122 118 112 L118 100 Q116 84 100 82 Z" fill="' + a + '" stroke="' + hl + '" stroke-width="1.2"/>' +
-    '<circle cx="100" cy="104" r="8" fill="' + hl + '"/>' +
-    '<circle cx="100" cy="104" r="5" fill="' + dk + '"/>' +
-    '<circle cx="97.5" cy="103" r="1.2" fill="' + hl + '"/>' +
-    '<circle cx="102.5" cy="103" r="1.2" fill="' + hl + '"/>';
+    '<path d="M100 78 Q82 80 80 98 L80 112 Q80 124 100 132 Q120 124 120 112 L120 98 Q118 80 100 78 Z" fill="' + a + '" stroke="' + g + '" stroke-width="1.2"/>' +
+    '<circle cx="100" cy="104" r="10" fill="' + g + '" opacity="0.9"/>' +
+    '<circle cx="100" cy="104" r="6.5" fill="' + d + '" opacity="0.85"/>' +
+    '<circle cx="97" cy="103" r="1.5" fill="' + g + '"/>' +
+    '<circle cx="103" cy="103" r="1.5" fill="' + g + '"/>' +
+    '<path d="M97 108 L100 111 L103 108" stroke="' + g + '" stroke-width="1" fill="none"/>' +
+    '<line x1="100" y1="88" x2="100" y2="84" stroke="' + g + '" stroke-width="1.5" stroke-linecap="round"/>' +
+    '<line x1="88" y1="94" x2="85" y2="91" stroke="' + g + '" stroke-width="1.5" stroke-linecap="round"/>' +
+    '<line x1="112" y1="94" x2="115" y2="91" stroke="' + g + '" stroke-width="1.5" stroke-linecap="round"/>';
 }
 
 function buildMedalSVG(rankIdx, size) {
@@ -164,42 +199,41 @@ function buildMedalSVG(rankIdx, size) {
   svg.setAttribute("viewBox", "0 0 200 200");
   svg.setAttribute("width", size);
   svg.setAttribute("height", size);
-  svg.style.cssText = "display:block;flex-shrink:0;filter:drop-shadow(0 0 8px " + cfg.glow + "88);";
+  svg.style.cssText = "display:block;flex-shrink:0;filter:drop-shadow(0 0 8px " + cfg.g + "88);";
 
-  var gMain = "gm" + rankIdx;
-  var gDia = "gd" + rankIdx;
+  var gid = "g" + rankIdx;
+  var gidIn = "gi" + rankIdx;
 
   var svgStr = '' +
     '<defs>' +
-      /* Градиент для главной формы (щит+корона) */
-      '<linearGradient id="' + gMain + '" x1="0%" y1="0%" x2="0%" y2="100%">' +
-        '<stop offset="0%" stop-color="' + cfg.light + '"/>' +
-        '<stop offset="45%" stop-color="' + cfg.accent + '"/>' +
-        '<stop offset="100%" stop-color="' + cfg.mid + '"/>' +
+      /* Градиент главной формы */
+      '<linearGradient id="' + gid + '" x1="0%" y1="0%" x2="0%" y2="100%">' +
+        '<stop offset="0%" stop-color="' + cfg.l + '"/>' +
+        '<stop offset="50%" stop-color="' + cfg.a + '"/>' +
+        '<stop offset="100%" stop-color="' + cfg.m + '"/>' +
       '</linearGradient>' +
-      /* Градиент для ромба */
-      '<linearGradient id="' + gDia + '" x1="0%" y1="0%" x2="0%" y2="100%">' +
-        '<stop offset="0%" stop-color="' + cfg.mid + '"/>' +
-        '<stop offset="100%" stop-color="' + cfg.dark + '"/>' +
+      /* Градиент внутреннего ромба */
+      '<linearGradient id="' + gidIn + '" x1="0%" y1="0%" x2="0%" y2="100%">' +
+        '<stop offset="0%" stop-color="' + cfg.m + '"/>' +
+        '<stop offset="100%" stop-color="' + cfg.d + '"/>' +
       '</linearGradient>' +
     '</defs>' +
-    /* Боковые крылья */
-    sideWings(rankIdx, cfg) +
-    /* Нижний V-кончик (за ромбом) */
-    '<path d="' + bottomSpikePath() + '" fill="' + cfg.mid + '" stroke="' + cfg.accent + '" stroke-width="1"/>' +
-    /* Верхняя корона */
-    '<path d="' + topCrownPath() + '" fill="url(#' + gMain + ')" stroke="' + cfg.accent + '" stroke-width="1.5"/>' +
-    /* Основной ромб (щит) */
-    '<path d="' + mainDiamondPath() + '" fill="url(#' + gDia + ')" stroke="' + cfg.accent + '" stroke-width="1.5"/>' +
-    /* 4 ромбика по углам */
-    cornerDots(cfg, false) +
-    /* Центральный символ */
+    /* 1. Боковые перья (позади) */
+    sideFeathers(rankIdx, cfg) +
+    /* 2. Главный силуэт (корона + ромб + V) */
+    '<path d="' + mainShieldPath() + '" fill="url(#' + gid + ')" stroke="' + cfg.g + '" stroke-width="1.5" stroke-linejoin="round"/>' +
+    /* 3. Внутренний ромб */
+    '<path d="' + innerDiamondPath() + '" fill="url(#' + gidIn + ')" stroke="' + cfg.a + '" stroke-width="1.2"/>' +
+    /* 4. Тонкая внутренняя обводка ромба */
+    '<path d="M100 82 L150 122 L100 158 L50 122 Z" fill="none" stroke="' + cfg.g + '" stroke-width="0.6" opacity="0.45"/>' +
+    /* 5. Ромбики по углам */
+    cornerDiamonds(cfg) +
+    /* 6. Символ */
     rankSymbol(rankIdx, cfg);
 
   var doc = new DOMParser().parseFromString('<svg xmlns="' + ns + '" viewBox="0 0 200 200">' + svgStr + '</svg>', "image/svg+xml");
   var parsed = doc.documentElement;
   while (parsed.firstChild) svg.appendChild(parsed.firstChild);
-
   return svg;
 }
 
@@ -214,20 +248,18 @@ function buildQuestionMedalSVG(size) {
 
   var svgStr = '' +
     '<defs>' +
-      '<linearGradient id="qa1" x1="0%" y1="0%" x2="0%" y2="100%">' +
-        '<stop offset="0%" stop-color="#5a4a6a"/>' +
-        '<stop offset="100%" stop-color="#2a1e3a"/>' +
+      '<linearGradient id="qa" x1="0%" y1="0%" x2="0%" y2="100%">' +
+        '<stop offset="0%" stop-color="#4a3a5a"/>' +
+        '<stop offset="100%" stop-color="#1a1226"/>' +
       '</linearGradient>' +
-      '<linearGradient id="qa2" x1="0%" y1="0%" x2="0%" y2="100%">' +
-        '<stop offset="0%" stop-color="#3a2a4a"/>' +
-        '<stop offset="100%" stop-color="#0f0a18"/>' +
+      '<linearGradient id="qai" x1="0%" y1="0%" x2="0%" y2="100%">' +
+        '<stop offset="0%" stop-color="#2a1e3a"/>' +
+        '<stop offset="100%" stop-color="#0b0810"/>' +
       '</linearGradient>' +
     '</defs>' +
-    '<path d="' + topCrownPath() + '" fill="url(#qa1)" stroke="#8b5cf6" stroke-width="1.5" stroke-dasharray="5 4"/>' +
-    '<path d="' + bottomSpikePath() + '" fill="#2a1e3a" stroke="#8b5cf6" stroke-width="1"/>' +
-    '<path d="' + mainDiamondPath() + '" fill="url(#qa2)" stroke="#8b5cf6" stroke-width="1.5" stroke-dasharray="5 4"/>' +
-    '<path d="M100 78 L105 78 L105 73 L100 73 Z M100 78 L105 78 L105 83 L100 83 Z M100 160 L95 160 L95 165 L100 165 Z M145 120 L140 120 L140 125 L145 125 Z M55 120 L60 120 L60 125 L55 125 Z" fill="#8b5cf6" opacity="0.5"/>' +
-    '<text x="100" y="122" text-anchor="middle" font-size="60" font-weight="900" fill="#a78bfa" font-family="sans-serif">?</text>';
+    '<path d="' + mainShieldPath() + '" fill="url(#qa)" stroke="#8b5cf6" stroke-width="1.5" stroke-dasharray="5 4" stroke-linejoin="round"/>' +
+    '<path d="' + innerDiamondPath() + '" fill="url(#qai)" stroke="#8b5cf6" stroke-width="1.2"/>' +
+    '<text x="100" y="122" text-anchor="middle" font-size="64" font-weight="900" fill="#a78bfa" font-family="sans-serif">?</text>';
 
   var doc = new DOMParser().parseFromString('<svg xmlns="' + ns + '" viewBox="0 0 200 200">' + svgStr + '</svg>', "image/svg+xml");
   var parsed = doc.documentElement;
@@ -324,11 +356,11 @@ function showCalibrationCompleteDialog(medal, stars, mmr) {
   ov.classList.add("rating-overlay-anim");
 
   var box = document.createElement("div");
-  box.style.cssText = "max-width:380px;width:100%;background:var(--bg-card);border:1px solid " + medal.accent + ";border-radius:18px;padding:28px 24px 22px;box-shadow:0 20px 60px rgba(0,0,0,0.7);text-align:center;";
+  box.style.cssText = "max-width:380px;width:100%;background:var(--bg-card);border:1px solid " + medal.a + ";border-radius:18px;padding:28px 24px 22px;box-shadow:0 20px 60px rgba(0,0,0,0.7);text-align:center;";
   box.classList.add("rating-box-anim");
 
   var head = document.createElement("div");
-  head.style.cssText = "font-size:14px;font-weight:700;letter-spacing:0.12em;color:" + medal.accent + ";text-transform:uppercase;margin-bottom:18px;";
+  head.style.cssText = "font-size:14px;font-weight:700;letter-spacing:0.12em;color:" + medal.a + ";text-transform:uppercase;margin-bottom:18px;";
   head.textContent = "Калибровка завершена";
   box.appendChild(head);
 
@@ -341,14 +373,14 @@ function showCalibrationCompleteDialog(medal, stars, mmr) {
   starsRow.style.cssText = "display:flex;gap:4px;justify-content:center;margin-top:12px;";
   for (var s = 0; s < 5; s++) {
     var star = document.createElement("span");
-    star.style.cssText = "font-size:16px;color:" + (s < stars ? medal.accent : "var(--border)") + ";";
+    star.style.cssText = "font-size:16px;color:" + (s < stars ? medal.a : "var(--border)") + ";";
     star.textContent = "★";
     starsRow.appendChild(star);
   }
   box.appendChild(starsRow);
 
   var rankName = document.createElement("div");
-  rankName.style.cssText = "font-size:26px;font-weight:900;color:" + medal.accent + ";margin-top:16px;";
+  rankName.style.cssText = "font-size:26px;font-weight:900;color:" + medal.a + ";margin-top:16px;";
   rankName.textContent = medal.ru;
   box.appendChild(rankName);
 
@@ -364,7 +396,7 @@ function showCalibrationCompleteDialog(medal, stars, mmr) {
 
   var btn = document.createElement("button");
   btn.type = "button";
-  btn.style.cssText = "margin-top:20px;padding:12px 24px;border-radius:10px;background:" + medal.accent + ";color:#0b0c10;border:none;font-size:14px;font-weight:800;cursor:pointer;font-family:inherit;";
+  btn.style.cssText = "margin-top:20px;padding:12px 24px;border-radius:10px;background:" + medal.a + ";color:#0b0c10;border:none;font-size:14px;font-weight:800;cursor:pointer;font-family:inherit;";
   btn.textContent = "Отлично!";
   btn.addEventListener("click", function () { ov.remove(); });
   box.appendChild(btn);
@@ -417,7 +449,7 @@ function showAllRanksDialog() {
       tile.appendChild(medalWrap);
 
       var name = document.createElement("div");
-      name.style.cssText = "font-size:14px;font-weight:800;color:" + m.accent + ";margin-top:8px;";
+      name.style.cssText = "font-size:14px;font-weight:800;color:" + m.a + ";margin-top:8px;";
       name.textContent = m.ru;
       tile.appendChild(name);
 
@@ -435,7 +467,7 @@ function showAllRanksDialog() {
       starsRow.style.cssText = "display:flex;gap:2px;justify-content:center;margin-top:8px;";
       for (var s = 0; s < 5; s++) {
         var st = document.createElement("span");
-        st.style.cssText = "font-size:10px;color:" + m.accent + ";";
+        st.style.cssText = "font-size:10px;color:" + m.a + ";";
         st.textContent = "★";
         starsRow.appendChild(st);
       }
@@ -470,13 +502,13 @@ window.renderRatingWidget = function () {
 
   var info = el("div", { style: "flex:1;min-width:180px;" });
   if (calibrated) {
-    var rankName = el("div", { style: "font-size:24px;font-weight:900;color:" + medal.medal.accent + ";" });
+    var rankName = el("div", { style: "font-size:24px;font-weight:900;color:" + medal.medal.a + ";" });
     rankName.textContent = medal.medal.ru;
     info.appendChild(rankName);
 
     var starsRow = el("div", { style: "display:flex;gap:3px;margin-top:6px;" });
     for (var s = 0; s < 5; s++) {
-      var star = el("span", { style: "font-size:12px;color:" + (s < medal.stars ? medal.medal.accent : "var(--border)") + ";" }, "★");
+      var star = el("span", { style: "font-size:12px;color:" + (s < medal.stars ? medal.medal.a : "var(--border)") + ";" }, "★");
       starsRow.appendChild(star);
     }
     info.appendChild(starsRow);
@@ -511,7 +543,7 @@ window.renderRatingWidget = function () {
       var barWrap = el("div", { style: "margin-top:10px;" });
       barWrap.appendChild(el("div", { class: "dim", style: "font-size:10px;margin-bottom:4px;" }, "До следующей звезды: " + (nextStarMMR - data.mmr) + " MMR"));
       var bar = el("div", { style: "height:6px;background:var(--bg-elev);border-radius:3px;overflow:hidden;" });
-      var fill = el("div", { style: "height:100%;width:" + pct + "%;background:linear-gradient(90deg," + medal.medal.accent + ",var(--cyan));border-radius:3px;transition:width 0.6s ease;" });
+      var fill = el("div", { style: "height:100%;width:" + pct + "%;background:linear-gradient(90deg," + medal.medal.a + ",var(--cyan));border-radius:3px;transition:width 0.6s ease;" });
       bar.appendChild(fill);
       barWrap.appendChild(bar);
       info.appendChild(barWrap);
@@ -557,4 +589,4 @@ window.renderRatingWidget = function () {
   return card;
 };
 
-console.log("rating v10.0 ready");
+console.log("rating v11.0 ready");
