@@ -1,4 +1,7 @@
-/* DOTA JETCH — RATING v7.1 */
+/* DOTA JETCH — RATING v7.2
+   - Исправлен URL иконок: rank_icon_1.png ... rank_icon_8.png (Valve CDN)
+   - Несколько прокси подряд + прямая ссылка
+   - Fallback SVG, если все не сработали */
 
 var RATING_TABLE = [
   { name: "Herald",    ru: "Рекрут",    rankIdx: 0, accent: "#7ab85a", stars: [0, 150, 300, 460, 610] },
@@ -13,10 +16,19 @@ var RATING_TABLE = [
 
 var CALIBRATION_GAMES = 10;
 
-/* URL иконок Valve (через wsrv.nl proxy, работает в РФ) */
-function rankUrl(rankIdx, star) {
-  var path = "cdn.cloudflare.steamstatic.com/apps/dota2/images/dota_react/icons/ranks/rank_icon_" + rankIdx + "_" + star + ".png";
-  return "https://wsrv.nl/?url=" + encodeURIComponent(path);
+/* Список URL для иконки ранга. rankIdx 0..7 → Valve rank_icon_1..8.png */
+function rankIconUrls(rankIdx) {
+  var num = rankIdx + 1; /* 1..8 */
+  var rawPath = "cdn.cloudflare.steamstatic.com/apps/dota2/images/dota_react/icons/ranks/rank_icon_" + num + ".png";
+  var enc = encodeURIComponent(rawPath);
+  return [
+    /* 1. wsrv.nl (бесплатный прокси) */
+    "https://wsrv.nl/?url=" + enc,
+    /* 2. images.weserv.nl (старый домен, тот же сервис) */
+    "https://images.weserv.nl/?url=" + enc,
+    /* 3. Прямая ссылка (вдруг у юзера Steam не заблочен) */
+    "https://" + rawPath
+  ];
 }
 
 function ensureRatingStyles() {
@@ -33,7 +45,7 @@ function ensureRatingStyles() {
   document.head.appendChild(s);
 }
 
-/* Fallback SVG если картинка не загрузилась */
+/* Fallback SVG — если картинки не загрузились */
 function buildFallbackSVG(rankIdx, size) {
   var cfg = RATING_TABLE[rankIdx] || RATING_TABLE[0];
   size = size || 96;
@@ -72,7 +84,7 @@ function buildFallbackSVG(rankIdx, size) {
   return svg;
 }
 
-/* Медаль: пробует картинку, если не удалось — fallback */
+/* Медаль: пробует URL по очереди, потом fallback */
 function buildMedalSVG(rankIdx, size) {
   size = size || 96;
   var wrap = document.createElement("div");
@@ -83,28 +95,29 @@ function buildMedalSVG(rankIdx, size) {
   fb.style.inset = "0";
   wrap.appendChild(fb);
 
+  var urls = rankIconUrls(rankIdx);
   var img = document.createElement("img");
   img.alt = "";
   img.loading = "lazy";
+  img.referrerPolicy = "no-referrer";
   img.style.cssText = "position:relative;width:100%;height:100%;object-fit:contain;display:block;z-index:1;opacity:0;transition:opacity 0.3s ease;";
 
-  var triedDirect = false;
+  var idx = 0;
   img.onload = function () {
     img.style.opacity = "1";
     fb.style.display = "none";
   };
   img.onerror = function () {
-    if (!triedDirect) {
-      triedDirect = true;
-      var path = "cdn.cloudflare.steamstatic.com/apps/dota2/images/dota_react/icons/ranks/rank_icon_" + rankIdx + "_5.png";
-      img.src = "https://" + path;
+    idx++;
+    if (idx < urls.length) {
+      img.src = urls[idx];
     } else {
       img.style.display = "none";
       fb.style.display = "block";
     }
   };
 
-  img.src = rankUrl(rankIdx, 5);
+  img.src = urls[0];
   wrap.appendChild(img);
   return wrap;
 }
@@ -470,4 +483,4 @@ window.renderRatingWidget = function () {
   return card;
 };
 
-console.log("rating v7.1 ready");
+console.log("rating v7.2 ready");
