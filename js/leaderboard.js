@@ -1,8 +1,7 @@
-/* DOTA JETCH — LEADERBOARD v1.5
-   - Сохраняет ТОЛЬКО лучший результат (не перезаписывает плохим)
-   - Анимация появления
-   - Обогащает из publicProfiles
-   - Топ по MMR только для откалиброванных */
+/* DOTA JETCH — LEADERBOARD v1.6
+   - Сохраняет ТОЛЬКО лучший результат
+   - Показывает всех, откалиброванных с рангом, неоткалиброванных с "?"
+   - Анимации появления */
 
 import { getDatabase, ref, get, update, query, orderByChild, limitToLast } from "https://www.gstatic.com/firebasejs/11.8.0/firebase-database.js";
 
@@ -19,7 +18,6 @@ function getCtx() {
   }
 }
 
-/* Вставляем стиль анимации */
 function ensureLbStyle() {
   if (document.getElementById("lbAnimStyle")) return;
   var s = document.createElement("style");
@@ -34,12 +32,10 @@ function ensureLbStyle() {
       from { opacity: 0; transform: translateX(-10px); }
       to { opacity: 1; transform: translateX(0); }
     }
-    .lb-row-anim { animation: lbRowIn 0.3s ease both; }
   `;
   document.head.appendChild(s);
 }
 
-/* Сохраняет только лучший результат */
 window.submitToLeaderboard = async function (game, rawScore, mmr) {
   if (game === "quiz") return;
   var ctx = getCtx();
@@ -52,19 +48,15 @@ window.submitToLeaderboard = async function (game, rawScore, mmr) {
     var snap = await get(ref1);
     var existing = snap.val();
     if (existing && typeof existing.score === "number" && existing.score >= rawScore) {
-      /* Старый результат лучше — обновляем только MMR и ник */
       await update(ref1, { mmr: mmr, nickname: nick, ts: Date.now() });
-      console.log("📊 Результат сохранён как MMR-апдейт (прошлый лучше)");
       return;
     }
-    /* Новый результат лучше или первый */
     await update(ref1, {
       nickname: nick,
       score: rawScore,
       mmr: mmr,
       ts: Date.now()
     });
-    console.log("🏅 Новый лучший результат: " + rawScore);
   } catch (e) { console.warn("submitToLeaderboard:", e); }
 };
 
@@ -87,7 +79,6 @@ window.fetchLeaderboard = async function (game, limit) {
         });
       }
     }
-    /* Обогащаем из publicProfiles */
     for (var i = 0; i < list.length; i++) {
       try {
         var prof = await get(ref(ctx.db, "publicProfiles/" + list[i].uid));
@@ -121,7 +112,6 @@ window.fetchTopByMMR = async function (limit) {
     for (var uid in data) {
       if (!Object.prototype.hasOwnProperty.call(data, uid)) continue;
       var p = data[uid] || {};
-      /* Только откалиброванные */
       if (p.calibrated !== true) continue;
       if (typeof p.mmr !== "number") continue;
       list.push({
@@ -189,10 +179,6 @@ window.renderLeaderboard = async function (game) {
     return av;
   }
 
-  function rowAnim(idx) {
-    return "lb-row-anim";
-  }
-
   async function loadTab(tab) {
     contentWrap.innerHTML = "";
     contentWrap.appendChild(el("div", { class: "dim", style: "font-size:12px;padding:8px 0;" }, "Загрузка..."));
@@ -201,19 +187,13 @@ window.renderLeaderboard = async function (game) {
       var list = await window.fetchLeaderboard(tab.id, 20);
       contentWrap.innerHTML = "";
 
-      /* Фильтр: показываем только откалиброванных */
-      var filtered = [];
-      for (var fi = 0; fi < list.length; fi++) {
-        if (list[fi].calibrated === true) filtered.push(list[fi]);
-      }
-
-      if (filtered.length === 0) {
-        contentWrap.appendChild(el("div", { class: "dim", style: "font-size:12px;padding:8px 0;" }, "Пока пусто. Играй 10 матчей для калибровки."));
+      if (list.length === 0) {
+        contentWrap.appendChild(el("div", { class: "dim", style: "font-size:12px;padding:8px 0;" }, "Пока пусто. Будь первым!"));
         return;
       }
 
-      for (var i = 0; i < filtered.length; i++) {
-        var r = filtered[i];
+      for (var i = 0; i < list.length; i++) {
+        var r = list[i];
         var row = el("div", { style: "display:flex;align-items:center;gap:12px;padding:10px 4px;border-bottom:1px solid var(--border);" });
         row.style.animation = "lbRowIn 0.3s ease both";
         row.style.animationDelay = (i * 30) + "ms";
@@ -228,7 +208,23 @@ window.renderLeaderboard = async function (game) {
 
         var info = el("div", { style: "flex:1;min-width:0;" });
         info.appendChild(el("div", { style: "font-size:13px;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" }, r.nickname || "Аноним"));
-        info.appendChild(el("div", { class: "dim", style: "font-size:10px;font-family:'JetBrains Mono', monospace;" }, (r.mmr || 0) + " MMR"));
+
+        /* Ранг или "Калибровка" */
+        var rankLabel = el("div", { style: "font-size:10px;margin-top:2px;" });
+        if (r.calibrated && typeof window.getMedalForMMR === "function") {
+          try {
+            var md = window.getMedalForMMR(r.mmr);
+            if (md) {
+              rankLabel.textContent = md.medal.ru + " · " + md.stars + "★";
+              rankLabel.style.color = md.medal.accent;
+            }
+          } catch (e) {}
+        } else {
+          rankLabel.textContent = "Калибровка · ?";
+          rankLabel.style.color = "var(--text-dim)";
+          rankLabel.style.fontStyle = "italic";
+        }
+        info.appendChild(rankLabel);
         row.appendChild(info);
 
         var sc = el("div", { style: "font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:900;color:var(--gold);" });
@@ -259,17 +255,17 @@ window.renderLeaderboard = async function (game) {
 
         var info2 = el("div", { style: "flex:1;min-width:0;" });
         info2.appendChild(el("div", { style: "font-size:13px;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" }, r2.nickname || "Аноним"));
-        var rankLabel = el("div", { style: "font-size:10px;color:var(--text-muted);margin-top:2px;" });
+        var rankLabel2 = el("div", { style: "font-size:10px;color:var(--text-muted);margin-top:2px;" });
         if (typeof window.getMedalForMMR === "function") {
           try {
-            var md = window.getMedalForMMR(r2.mmr);
-            if (md) {
-              rankLabel.textContent = md.medal.ru + " · " + md.stars + "★";
-              rankLabel.style.color = md.medal.accent;
+            var md2 = window.getMedalForMMR(r2.mmr);
+            if (md2) {
+              rankLabel2.textContent = md2.medal.ru + " · " + md2.stars + "★";
+              rankLabel2.style.color = md2.medal.accent;
             }
           } catch (e) {}
         }
-        info2.appendChild(rankLabel);
+        info2.appendChild(rankLabel2);
         row2.appendChild(info2);
 
         var mmrVal = el("div", { style: "font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:900;color:var(--gold);" });
@@ -289,4 +285,4 @@ window.renderLeaderboard = async function (game) {
   return card;
 };
 
-console.log("leaderboard v1.5 ready");
+console.log("leaderboard v1.6 ready");
