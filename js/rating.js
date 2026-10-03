@@ -1,8 +1,6 @@
-/* DOTA JETCH — RATING v21.1
-   - Уменьшен glow (мерцание менее яркое)
-   - Искры стали мягче
-   - buildMedalSVG экспортирован в window с параметром animate
-   - Перья / символы без изменений */
+/* DOTA JETCH — RATING v21.2
+   - Fix: утечка ID градиентов в buildQuestionMedalSVG (уникальный uid)
+   - Параметр animate для отключения анимаций */
 
 var RATING_TABLE = [
   { name: "Herald",    ru: "Рекрут",    rankIdx: 0,
@@ -427,19 +425,23 @@ function buildQuestionMedalSVG(size) {
   svg.style.setProperty("--mglow", "#8b5cf6");
   svg.classList.add("medal-svg");
 
+  var uid = Math.random().toString(36).slice(2, 8);
+  var qid = "qa_" + uid;
+  var qidIn = "qai_" + uid;
+
   var svgStr = '' +
     '<defs>' +
-      '<linearGradient id="qa" x1="0%" y1="0%" x2="0%" y2="100%">' +
+      '<linearGradient id="' + qid + '" x1="0%" y1="0%" x2="0%" y2="100%">' +
         '<stop offset="0%" stop-color="#4a3a5a"/>' +
         '<stop offset="100%" stop-color="#1a1226"/>' +
       '</linearGradient>' +
-      '<linearGradient id="qai" x1="0%" y1="0%" x2="0%" y2="100%">' +
+      '<linearGradient id="' + qidIn + '" x1="0%" y1="0%" x2="0%" y2="100%">' +
         '<stop offset="0%" stop-color="#2a1e3a"/>' +
         '<stop offset="100%" stop-color="#0b0810"/>' +
       '</linearGradient>' +
     '</defs>' +
-    '<path d="M100 38 L162 100 L100 162 L38 100 Z" fill="url(#qa)" stroke="#8b5cf6" stroke-width="1.6" stroke-dasharray="5 4"/>' +
-    '<path d="M100 62 L142 100 L100 138 L58 100 Z" fill="url(#qai)" stroke="#8b5cf6" stroke-width="1.3"/>' +
+    '<path d="M100 38 L162 100 L100 162 L38 100 Z" fill="url(#' + qid + ')" stroke="#8b5cf6" stroke-width="1.6" stroke-dasharray="5 4"/>' +
+    '<path d="M100 62 L142 100 L100 138 L58 100 Z" fill="url(#' + qidIn + ')" stroke="#8b5cf6" stroke-width="1.3"/>' +
     '<text x="100" y="122" text-anchor="middle" font-size="64" font-weight="900" fill="#a78bfa" font-family="sans-serif">?</text>';
 
   var doc = new DOMParser().parseFromString('<svg xmlns="' + ns + '" viewBox="-30 -30 260 260">' + svgStr + '</svg>', "image/svg+xml");
@@ -859,4 +861,4 @@ window.renderRatingWidget = function () {
   return card;
 };
 
-console.log("rating v21.1 ready (softer glow, medal export for leaderboard)");
+console.log("rating v21.2 ready (fix: unique gradient IDs)");

@@ -1,3 +1,6 @@
+/* DOTA JETCH — DIARY v1.1
+   - Fix: вызов Daily.bump("diary") при добавлении записи */
+
 var Diary = {
   all: function () {
     var l = Store.get("diarynotes", []);
@@ -7,6 +10,7 @@ var Diary = {
     var l = this.all();
     l.unshift(n);
     Store.set("diarynotes", l.slice(0, 200));
+    if (typeof Daily !== "undefined") Daily.bump("diary");
   },
   remove: function (id) {
     var l = this.all().filter(function (n) { return n.id !== id; });
