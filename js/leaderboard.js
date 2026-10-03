@@ -1,6 +1,6 @@
 /* DOTA JETCH — LEADERBOARD v1.4
    - 3 таба: Взлом, Автоматоны, Топ по рангу
-   - Актуальный MMR (из publicProfiles, а не из записи лидерборда)
+   - Актуальный MMR из publicProfiles
    - Аватарки */
 
 import { getDatabase, ref, get, update, query, orderByChild, limitToLast } from "https://www.gstatic.com/firebasejs/11.8.0/firebase-database.js";
@@ -18,12 +18,13 @@ function getCtx() {
   }
 }
 
-window.submitToLeaderboard = async function (game, rawScore, mmr) {  if (game === "quiz") return;
+window.submitToLeaderboard = async function (game, rawScore, mmr) {
+  if (game === "quiz") return;
   var ctx = getCtx();
   if (!ctx) return;
   var user = ctx.auth.currentUser;
   if (!user) return;
-  var nick = (window.Store && Store.get("nickname", "")) || "Аноним";
+  var nick = (window.Store && Store.get("nickname", "")) || "Anon";
   try {
     await update(ref(ctx.db, "leaderboards/" + game + "/" + user.uid), {
       nickname: nick,
@@ -53,8 +54,6 @@ window.fetchLeaderboard = async function (game, limit) {
         });
       }
     }
-
-    /* Обогащаем: аватарка + актуальный MMR из publicProfiles */
     for (var i = 0; i < list.length; i++) {
       try {
         var prof = await get(ref(ctx.db, "publicProfiles/" + list[i].uid));
@@ -72,7 +71,6 @@ window.fetchLeaderboard = async function (game, limit) {
         }
       } catch (e) {}
     }
-
     list.sort(function (a, b) { return b.score - a.score; });
     return list;
   } catch (e) {
@@ -81,7 +79,6 @@ window.fetchLeaderboard = async function (game, limit) {
   }
 };
 
-/* Топ по рангу: собираем все publicProfiles с откалиброванным MMR */
 window.fetchTopByMMR = async function (limit) {
   limit = limit || 30;
   var ctx = getCtx();
@@ -96,7 +93,7 @@ window.fetchTopByMMR = async function (limit) {
       if (typeof p.mmr !== "number" || !p.calibrated) continue;
       list.push({
         uid: uid,
-        nickname: p.nickname || "Аноним",
+        nickname: p.nickname || "Anon",
         mmr: p.mmr,
         avatar: p.avatar || null
       });
@@ -110,16 +107,16 @@ window.fetchTopByMMR = async function (limit) {
 };
 
 window.renderLeaderboard = async function (game) {
-  var card = UI.card("🏅 Лидерборд");
+  var card = UI.card("Leaderboard");
   var tabsRow = el("div", { style: "display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;" });
   var tabs = [
-    { id: "lockpick", label: "🔓 Взлом", type: "game" },
-    { id: "automaton", label: "⌨️ Автоматоны", type: "game" },
-    { id: "mmr", label: "🏆 Топ по рангу", type: "mmr" }
+    { id: "lockpick", label: "Lockpick", type: "game" },
+    { id: "automaton", label: "Automaton", type: "game" },
+    { id: "mmr", label: "Top MMR", type: "mmr" }
   ];
   var currentTab = "lockpick";
   var contentWrap = el("div", { id: "lbContent" });
-  contentWrap.appendChild(el("div", { class: "dim", style: "font-size:12px;padding:8px 0;" }, "Загрузка..."));
+  contentWrap.appendChild(el("div", { class: "dim", style: "font-size:12px;padding:8px 0;" }, "Loading..."));
 
   for (var g = 0; g < tabs.length; g++) {
     (function (tab) {
@@ -144,7 +141,7 @@ window.renderLeaderboard = async function (game) {
 
   function buildAvatar(profile, size) {
     size = size || 32;
-    var av = el("div", { style: "width:" + size + "px;height:" + size + "px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--cyan));display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:900;color:#fff;font-family:'JetBrains Mono',monospace;flex-shrink:0;background-size:cover;background-position:center;" });
+    var av = el("div", { style: "width:" + size + "px;height:" + size + "px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--cyan));display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:900;color:#fff;font-family:monospace;flex-shrink:0;background-size:cover;background-position:center;" });
     if (profile && profile.avatar) {
       av.style.backgroundImage = "url(" + profile.avatar + ")";
       av.textContent = "";
@@ -156,84 +153,68 @@ window.renderLeaderboard = async function (game) {
 
   async function loadTab(tab) {
     contentWrap.innerHTML = "";
-    contentWrap.appendChild(el("div", { class: "dim", style: "font-size:12px;padding:8px 0;" }, "Загрузка..."));
+    contentWrap.appendChild(el("div", { class: "dim", style: "font-size:12px;padding:8px 0;" }, "Loading..."));
 
     if (tab.type === "game") {
       var list = await window.fetchLeaderboard(tab.id, 20);
       contentWrap.innerHTML = "";
       if (list.length === 0) {
-        contentWrap.appendChild(el("div", { class: "dim", style: "font-size:12px;padding:8px 0;" }, "Пока никто не играл. Будь первым!"));
+        contentWrap.appendChild(el("div", { class: "dim", style: "font-size:12px;padding:8px 0;" }, "Empty. Be first!"));
         return;
       }
       for (var i = 0; i < list.length; i++) {
         var r = list[i];
         var row = el("div", { style: "display:flex;align-items:center;gap:12px;padding:10px 4px;border-bottom:1px solid var(--border);" });
-
-        var place = el("div", { style: "width:30px;text-align:center;font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:900;flex-shrink:0;" });
-        if (i === 0) { place.textContent = "🥇"; place.style.fontSize = "20px"; }
-        else if (i === 1) { place.textContent = "🥈"; place.style.fontSize = "20px"; }
-        else if (i === 2) { place.textContent = "🥉"; place.style.fontSize = "20px"; }
-        else { place.textContent = "#" + (i + 1); place.style.color = "var(--text-dim)"; }
+        var place = el("div", { style: "width:30px;text-align:center;font-family:monospace;font-size:15px;font-weight:900;flex-shrink:0;" });
+        if (i === 0) { place.textContent = "1"; place.style.color = "var(--gold)"; }
+        else if (i === 1) { place.textContent = "2"; place.style.color = "var(--text-muted)"; }
+        else if (i === 2) { place.textContent = "3"; place.style.color = "var(--orange)"; }
+        else { place.textContent = String(i + 1); place.style.color = "var(--text-dim)"; }
         row.appendChild(place);
-
         row.appendChild(buildAvatar(r, 32));
-
         var info = el("div", { style: "flex:1;min-width:0;" });
-        info.appendChild(el("div", { style: "font-size:13px;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" }, r.nickname || "Аноним"));
-        info.appendChild(el("div", { class: "dim", style: "font-size:10px;font-family:'JetBrains Mono', monospace;" }, (r.mmr || 0) + " MMR"));
+        info.appendChild(el("div", { style: "font-size:13px;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" }, r.nickname || "Anon"));
+        info.appendChild(el("div", { class: "dim", style: "font-size:10px;font-family:monospace;" }, (r.mmr || 0) + " MMR"));
         row.appendChild(info);
-
-        var sc = el("div", { style: "font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:900;color:var(--gold);" });
+        var sc = el("div", { style: "font-family:monospace;font-size:14px;font-weight:900;color:var(--gold);" });
         sc.textContent = (r.score || 0).toLocaleString();
         row.appendChild(sc);
-
         contentWrap.appendChild(row);
       }
     } else {
-      /* Топ по рангу */
       var topList = await window.fetchTopByMMR(30);
       contentWrap.innerHTML = "";
       if (topList.length === 0) {
-        contentWrap.appendChild(el("div", { class: "dim", style: "font-size:12px;padding:8px 0;" }, "Пока никого нет. Сыграй 10 игр, чтобы попасть в топ."));
+        contentWrap.appendChild(el("div", { class: "dim", style: "font-size:12px;padding:8px 0;" }, "Empty. Play 10 games to appear here."));
         return;
       }
       for (var j = 0; j < topList.length; j++) {
         var r2 = topList[j];
         var row2 = el("div", { style: "display:flex;align-items:center;gap:12px;padding:10px 4px;border-bottom:1px solid var(--border);" });
-
-        var place2 = el("div", { style: "width:30px;text-align:center;font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:900;flex-shrink:0;" });
-        if (j === 0) { place2.textContent = "🥇"; place2.style.fontSize = "20px"; }
-        else if (j === 1) { place2.textContent = "🥈"; place2.style.fontSize = "20px"; }
-        else if (j === 2) { place2.textContent = "🥉"; place2.style.fontSize = "20px"; }
-        else { place2.textContent = "#" + (j + 1); place2.style.color = "var(--text-dim)"; }
+        var place2 = el("div", { style: "width:30px;text-align:center;font-family:monospace;font-size:15px;font-weight:900;flex-shrink:0;" });
+        if (j === 0) { place2.textContent = "1"; place2.style.color = "var(--gold)"; }
+        else if (j === 1) { place2.textContent = "2"; place2.style.color = "var(--text-muted)"; }
+        else if (j === 2) { place2.textContent = "3"; place2.style.color = "var(--orange)"; }
+        else { place2.textContent = String(j + 1); place2.style.color = "var(--text-dim)"; }
         row2.appendChild(place2);
-
         row2.appendChild(buildAvatar(r2, 32));
-
         var info2 = el("div", { style: "flex:1;min-width:0;" });
-        info2.appendChild(el("div", { style: "font-size:13px;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" }, r2.nickname || "Аноним"));
-        /* Ранг */
+        info2.appendChild(el("div", { style: "font-size:13px;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" }, r2.nickname || "Anon"));
         var rankLabel = el("div", { style: "font-size:10px;color:var(--text-muted);margin-top:2px;" });
-        var medalData = null;
-        try {
-          /* Используем функцию из rating.js */
-          if (typeof window !== "undefined" && typeof window.getMedalForMMR === "function") {
-            medalData = window.getMedalForMMR(r2.mmr);
-          }
-        } catch (e) {}
-        if (medalData) {
-          rankLabel.textContent = medalData.medal.ru + " · " + medalData.stars + "★";
-          rankLabel.style.color = medalData.medal.accent;
-        } else {
-          rankLabel.textContent = "—";
+        if (typeof window.getMedalForMMR === "function") {
+          try {
+            var medalData = window.getMedalForMMR(r2.mmr);
+            if (medalData) {
+              rankLabel.textContent = medalData.medal.ru + " · " + medalData.stars + " stars";
+              rankLabel.style.color = medalData.medal.accent;
+            }
+          } catch (e) {}
         }
         info2.appendChild(rankLabel);
         row2.appendChild(info2);
-
-        var mmrVal = el("div", { style: "font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:900;color:var(--gold);" });
+        var mmrVal = el("div", { style: "font-family:monospace;font-size:14px;font-weight:900;color:var(--gold);" });
         mmrVal.textContent = r2.mmr.toLocaleString();
         row2.appendChild(mmrVal);
-
         contentWrap.appendChild(row2);
       }
     }
@@ -245,4 +226,7 @@ window.renderLeaderboard = async function (game) {
     if (currentTabObj) loadTab(currentTabObj);
   }, 50);
 
-  return card
+  return card;
+};
+
+console.log("leaderboard v1.4 ready");
