@@ -1,8 +1,8 @@
-/* DOTA JETCH — RATING v17.0
-   - Крылья: веером из угла ромба, ИЗОГНУТЫЕ (не параллельные)
-   - Только из левого и правого угла ромба (не от края)
-   - Перья растут из одной точки → визуально едины с ромбом
-   - У Титана крылья ЗОЛОТЫЕ (не красные) */
+/* DOTA JETCH — RATING v18.0
+   - Крылья МАСШТАБИРУЮТСЯ: Рыцарь маленькие → Титан огромные
+   - Форма веера из угла ромба (как в v17)
+   - Титан: золотые крылья + внутренний символ не тронут
+   - viewBox расширен (-25 -25 250 250), чтобы большие крылья влезали */
 
 var RATING_TABLE = [
   { name: "Herald",    ru: "Рекрут",    rankIdx: 0,
@@ -49,7 +49,7 @@ function ensureRatingStyles() {
   document.head.appendChild(s);
 }
 
-/* ─── Боковые перья: ВЕЕРОМ из угла ромба, ИЗОГНУТЫЕ ─── */
+/* ─── Боковые перья: ВЕЕРОМ из угла ромба, МАСШТАБ по рангу ─── */
 function sideFeathers(rankIdx, cfg) {
   if (rankIdx < 2) return ""; /* Рыцарь и выше */
   var a = cfg.a;
@@ -59,74 +59,71 @@ function sideFeathers(rankIdx, cfg) {
   var fill1 = cfg.gold || a;
   var fill2 = cfg.goldLight || l;
   var opacity = Math.min(1, 0.72 + rankIdx * 0.04);
-  /* Количество перьев: Рыцарь=3, Герой=4, Легенда=5, Властелин+=5 */
+
+  /* ─────── КЛЮЧЕВОЕ: масштаб от ранга ─────── */
+  /* Рыцарь(2)=30, Герой(3)=36, Легенда(4)=42, Властелин(5)=48, Божество(6)=54, Титан(7)=60 */
+  var baseLen = 18 + rankIdx * 6;
+  /* Толщина пера: Рыцарь(2)=3.8, Титан(7)=5.8 */
+  var baseW = 3 + rankIdx * 0.4;
+  /* Количество перьев: 3..5 */
   var levels = Math.min(3 + (rankIdx - 2), 5);
-  
-  /* Базовая точка = ЛЕВЫЙ угол ромба (38, 100) */
+
+  /* Базовая точка = ЛЕВЫЙ / ПРАВЫЙ угол ромба */
   var baseX = 39;
   var baseY = 100;
-  
+  var baseX2 = 161;
+
   var out = "";
-  
+
   /* ─── ЛЕВОЕ КРЫЛО ─── */
   out += '<g opacity="' + opacity.toFixed(2) + '">';
   for (var i = 0; i < levels; i++) {
-    /* t: -1 (верх) ... +1 (низ) */
     var t = levels > 1 ? (i / (levels - 1)) * 2 - 1 : 0;
-    /* Угол пера — веером от -35° до +35° */
     var angle = t * 35;
     var rad = angle * Math.PI / 180;
-    /* Длина: средние длиннее, крайние короче — крыло-веер */
-    var len = 42 - Math.abs(t) * 8;
-    /* Конечная точка пера */
+    /* Крайние перья короче (форма крыла) */
+    var len = baseLen - Math.abs(t) * 8;
     var xE = baseX - len * Math.cos(rad);
     var yE = baseY + len * Math.sin(rad);
-    /* Контрольная точка изгиба — перо изгибается "вверх" относительно своей оси */
     var xM = baseX - len * 0.55;
     var yM = baseY + (yE - baseY) * 0.4 - t * 4;
-    /* Ширина у основания */
-    var w = 4.5;
-    
-    /* Перо — изогнутый лист (Q-кривые сверху и снизу) */
+    var w = baseW;
+
     out += '<path d="M ' + baseX + ' ' + (baseY - w) +
-      ' Q ' + xM + ' ' + (yM - 3) + ' ' + xE + ' ' + yE +
-      ' Q ' + xM + ' ' + (yM + 3) + ' ' + baseX + ' ' + (baseY + w) +
+      ' Q ' + xM + ' ' + (yM - w * 0.6) + ' ' + xE + ' ' + yE +
+      ' Q ' + xM + ' ' + (yM + w * 0.6) + ' ' + baseX + ' ' + (baseY + w) +
       ' Z" fill="' + (i % 2 === 0 ? fill1 : fill2) + '" stroke="' + g + '" stroke-width="0.6" stroke-opacity="0.9"/>';
-    /* Светлая прожилка вдоль пера */
-    out += '<path d="M ' + (baseX - 4) + ' ' + baseY +
-      ' Q ' + (xM + 2) + ' ' + yM + ' ' + (xE + 4) + ' ' + yE +
+    out += '<path d="M ' + (baseX - w * 0.8) + ' ' + baseY +
+      ' Q ' + (xM + 2) + ' ' + yM + ' ' + (xE + w * 0.8) + ' ' + yE +
       '" stroke="' + g + '" stroke-width="0.8" fill="none" opacity="0.9"/>';
-    /* Блик на конце пера */
-    out += '<circle cx="' + xE + '" cy="' + yE + '" r="1.2" fill="' + g + '"/>';
+    out += '<circle cx="' + xE + '" cy="' + yE + '" r="' + (1 + w * 0.1).toFixed(1) + '" fill="' + g + '"/>';
   }
   out += '</g>';
-  
-  /* ─── ПРАВОЕ КРЫЛО (зеркально) ─── */
-  var baseX2 = 161;
-  var baseY2 = 100;
+
+  /* ─── ПРАВОЕ КРЫЛО ─── */
   out += '<g opacity="' + opacity.toFixed(2) + '">';
   for (var j = 0; j < levels; j++) {
     var t2 = levels > 1 ? (j / (levels - 1)) * 2 - 1 : 0;
     var angle2 = t2 * 35;
     var rad2 = angle2 * Math.PI / 180;
-    var len2 = 42 - Math.abs(t2) * 8;
+    var len2 = baseLen - Math.abs(t2) * 8;
     var xE2 = baseX2 + len2 * Math.cos(rad2);
-    var yE2 = baseY2 + len2 * Math.sin(rad2);
+    var yE2 = baseY + len2 * Math.sin(rad2);
     var xM2 = baseX2 + len2 * 0.55;
-    var yM2 = baseY2 + (yE2 - baseY2) * 0.4 - t2 * 4;
-    var w2 = 4.5;
-    
-    out += '<path d="M ' + baseX2 + ' ' + (baseY2 - w2) +
-      ' Q ' + xM2 + ' ' + (yM2 - 3) + ' ' + xE2 + ' ' + yE2 +
-      ' Q ' + xM2 + ' ' + (yM2 + 3) + ' ' + baseX2 + ' ' + (baseY2 + w2) +
+    var yM2 = baseY + (yE2 - baseY) * 0.4 - t2 * 4;
+    var w2 = baseW;
+
+    out += '<path d="M ' + baseX2 + ' ' + (baseY - w2) +
+      ' Q ' + xM2 + ' ' + (yM2 - w2 * 0.6) + ' ' + xE2 + ' ' + yE2 +
+      ' Q ' + xM2 + ' ' + (yM2 + w2 * 0.6) + ' ' + baseX2 + ' ' + (baseY + w2) +
       ' Z" fill="' + (j % 2 === 0 ? fill1 : fill2) + '" stroke="' + g + '" stroke-width="0.6" stroke-opacity="0.9"/>';
-    out += '<path d="M ' + (baseX2 + 4) + ' ' + baseY2 +
-      ' Q ' + (xM2 - 2) + ' ' + yM2 + ' ' + (xE2 - 4) + ' ' + yE2 +
+    out += '<path d="M ' + (baseX2 + w2 * 0.8) + ' ' + baseY +
+      ' Q ' + (xM2 - 2) + ' ' + yM2 + ' ' + (xE2 - w2 * 0.8) + ' ' + yE2 +
       '" stroke="' + g + '" stroke-width="0.8" fill="none" opacity="0.9"/>';
-    out += '<circle cx="' + xE2 + '" cy="' + yE2 + '" r="1.2" fill="' + g + '"/>';
+    out += '<circle cx="' + xE2 + '" cy="' + yE2 + '" r="' + (1 + w2 * 0.1).toFixed(1) + '" fill="' + g + '"/>';
   }
   out += '</g>';
-  
+
   return out;
 }
 
@@ -177,7 +174,7 @@ function innerOrnament(cfg) {
   return out;
 }
 
-/* ─── Символы предметов ─── */
+/* ─── Символы предметов (Титан не тронут — нравится) ─── */
 function rankSymbol(rankIdx, cfg) {
   var a = cfg.a;
   var g = cfg.g;
@@ -185,7 +182,6 @@ function rankSymbol(rankIdx, cfg) {
   var gold = cfg.gold || null;
   var goldLight = cfg.goldLight || "#fff";
 
-  /* 0 — Tango */
   if (rankIdx === 0) {
     return '' +
       '<line x1="100" y1="70" x2="100" y2="114" stroke="' + g + '" stroke-width="2.6" stroke-linecap="round"/>' +
@@ -198,7 +194,6 @@ function rankSymbol(rankIdx, cfg) {
       '<circle cx="100" cy="68" r="3.2" fill="' + g + '"/>' +
       '<circle cx="100" cy="68" r="1.5" fill="#fff" opacity="0.9"/>';
   }
-  /* 1 — Stout Shield */
   if (rankIdx === 1) {
     return '' +
       '<path d="M100 74 Q74 78 72 98 L72 112 Q72 128 100 138 Q128 128 128 112 L128 98 Q126 78 100 74 Z" fill="' + a + '" stroke="' + g + '" stroke-width="1.8"/>' +
@@ -212,7 +207,6 @@ function rankSymbol(rankIdx, cfg) {
       '<circle cx="80" cy="124" r="2.6" fill="' + g + '"/>' +
       '<circle cx="120" cy="124" r="2.6" fill="' + g + '"/>';
   }
-  /* 2 — Ring of Aquila */
   if (rankIdx === 2) {
     return '' +
       '<circle cx="100" cy="104" r="26" fill="none" stroke="' + a + '" stroke-width="4"/>' +
@@ -225,7 +219,6 @@ function rankSymbol(rankIdx, cfg) {
       '<circle cx="72" cy="104" r="2.8" fill="' + g + '"/>' +
       '<circle cx="128" cy="104" r="2.8" fill="' + g + '"/>';
   }
-  /* 3 — Eul's Scepter */
   if (rankIdx === 3) {
     return '' +
       '<path d="M100 64 L116 86 L100 100 L84 86 Z" fill="' + g + '" stroke="' + a + '" stroke-width="1.8"/>' +
@@ -238,7 +231,6 @@ function rankSymbol(rankIdx, cfg) {
       '<circle cx="76" cy="76" r="1.5" fill="' + g + '"/>' +
       '<circle cx="124" cy="76" r="1.5" fill="' + g + '"/>';
   }
-  /* 4 — BKB */
   if (rankIdx === 4) {
     return '' +
       '<rect x="94" y="94" width="12" height="46" fill="' + a + '" rx="2.5" stroke="' + g + '" stroke-width="1"/>' +
@@ -252,7 +244,6 @@ function rankSymbol(rankIdx, cfg) {
       '<line x1="114" y1="76" x2="116" y2="72" stroke="' + g + '" stroke-width="1.6" stroke-linecap="round"/>' +
       '<ellipse cx="100" cy="142" rx="8" ry="3.2" fill="' + a + '" stroke="' + g + '" stroke-width="1"/>';
   }
-  /* 5 — Manta Style */
   if (rankIdx === 5) {
     return '' +
       '<path d="M72 104 L82 84 L92 104 L82 124 Z" fill="' + a + '" opacity="0.6" stroke="' + g + '" stroke-width="0.9"/>' +
@@ -270,7 +261,6 @@ function rankSymbol(rankIdx, cfg) {
       '<circle cx="72" cy="104" r="3" fill="' + g + '" stroke="' + d + '" stroke-width="0.7"/>' +
       '<circle cx="128" cy="104" r="3" fill="' + g + '" stroke="' + d + '" stroke-width="0.7"/>';
   }
-  /* 6 — Divine Rapier */
   if (rankIdx === 6) {
     return '' +
       '<path d="M100 62 L105 82 L105 118 L95 118 L95 82 Z" fill="' + g + '" stroke="' + d + '" stroke-width="1"/>' +
@@ -287,58 +277,42 @@ function rankSymbol(rankIdx, cfg) {
       '<path d="M100 140 L105 148 L100 156 L95 148 Z" fill="' + g + '" stroke="' + a + '" stroke-width="0.9"/>' +
       '<path d="M100 143 L102.5 148 L100 153 L97.5 148 Z" fill="#fff" opacity="0.8"/>';
   }
-  /* 7 — Aegis: мраморная маска (без улыбки) */
+  /* 7 — Титан: Aegis (НЕ ТРОГАЕМ — пользователю нравится) */
   var goldStroke = gold || g;
   var goldGlow = goldLight || g;
   var marble = cfg.marble || "#f0e8d8";
   var marbleDark = cfg.marbleDark || "#a09880";
 
   return '' +
-    /* Щит Aegis — вертикальный с острием вверху */
     '<path d="M100 62 Q100 58 100 56 L100 56 Q80 62 72 80 L70 100 L70 116 Q70 136 100 148 Q130 136 130 116 L130 100 L128 80 Q120 62 100 56 Z" fill="' + a + '" stroke="' + goldStroke + '" stroke-width="2.4" stroke-linejoin="round"/>' +
-    /* Внутренний тёмный щит */
     '<path d="M100 72 Q90 76 84 90 L82 100 L82 114 Q82 130 100 140 Q118 130 118 114 L118 100 L116 90 Q110 76 100 72 Z" fill="' + d + '" opacity="0.75"/>' +
-    /* Золотая внутренняя обводка */
     '<path d="M100 72 Q90 76 84 90 L82 100 L82 114 Q82 130 100 140 Q118 130 118 114 L118 100 L116 90 Q110 76 100 72 Z" fill="none" stroke="' + goldStroke + '" stroke-width="1" opacity="0.85"/>' +
-    /* Золотая арка-свод */
     '<path d="M84 82 Q100 70 116 82" fill="none" stroke="' + goldStroke + '" stroke-width="1.6" opacity="0.9"/>' +
-    /* МРАМОРНАЯ ГОЛОВА */
     '<ellipse cx="100" cy="108" rx="15" ry="18" fill="' + marble + '" stroke="' + marbleDark + '" stroke-width="1"/>' +
-    /* Тень справа */
     '<path d="M100 90 Q112 92 115 108 Q115 122 100 126 Z" fill="' + marbleDark + '" opacity="0.35"/>' +
-    /* Блик слева */
     '<path d="M100 90 Q90 92 87 106 Q88 116 96 122 Q92 112 94 102 Q96 94 100 90 Z" fill="#fff" opacity="0.45"/>' +
-    /* Закрытые веки */
     '<path d="M88 106 Q92 102 96 106" stroke="' + marbleDark + '" stroke-width="1.6" fill="none" stroke-linecap="round"/>' +
     '<path d="M104 106 Q108 102 112 106" stroke="' + marbleDark + '" stroke-width="1.6" fill="none" stroke-linecap="round"/>' +
-    /* Ресницы */
     '<path d="M89 108 Q93 110 95 108" stroke="' + marbleDark + '" stroke-width="0.7" fill="none" opacity="0.6"/>' +
     '<path d="M105 108 Q107 110 111 108" stroke="' + marbleDark + '" stroke-width="0.7" fill="none" opacity="0.6"/>' +
-    /* Нос */
     '<path d="M100 104 L100 114" stroke="' + marbleDark + '" stroke-width="0.9" fill="none" opacity="0.7"/>' +
     '<path d="M97 115 Q100 116 103 115" stroke="' + marbleDark + '" stroke-width="0.8" fill="none" opacity="0.7"/>' +
-    /* Нейтральный рот (НЕ улыбка) */
     '<path d="M97 120 L103 120" stroke="' + marbleDark + '" stroke-width="0.9" fill="none" stroke-linecap="round" opacity="0.7"/>' +
-    /* Скулы */
     '<path d="M88 116 Q90 120 92 122" stroke="' + marbleDark + '" stroke-width="0.5" fill="none" opacity="0.4"/>' +
     '<path d="M112 116 Q110 120 108 122" stroke="' + marbleDark + '" stroke-width="0.5" fill="none" opacity="0.4"/>' +
-    /* Шлем-повязка над маской */
     '<path d="M86 90 Q100 84 114 90 L114 92 Q100 86 86 92 Z" fill="' + goldStroke + '" opacity="0.8"/>' +
     '<circle cx="100" cy="88" r="2" fill="' + goldGlow + '"/>' +
-    /* Крылья Aegis */
     '<path d="M84 92 Q70 82 62 92 Q72 96 82 96 Z" fill="' + goldGlow + '" opacity="0.85" stroke="' + goldStroke + '" stroke-width="0.6"/>' +
     '<path d="M84 96 Q72 92 64 100 Q74 102 82 100 Z" fill="' + goldGlow + '" opacity="0.7" stroke="' + goldStroke + '" stroke-width="0.5"/>' +
     '<path d="M116 92 Q130 82 138 92 Q128 96 118 96 Z" fill="' + goldGlow + '" opacity="0.85" stroke="' + goldStroke + '" stroke-width="0.6"/>' +
     '<path d="M116 96 Q128 92 136 100 Q126 102 118 100 Z" fill="' + goldGlow + '" opacity="0.7" stroke="' + goldStroke + '" stroke-width="0.5"/>' +
     '<path d="M84 104 Q74 100 68 106 Q76 108 82 106 Z" fill="' + goldGlow + '" opacity="0.6" stroke="' + goldStroke + '" stroke-width="0.4"/>' +
     '<path d="M116 104 Q126 100 132 106 Q124 108 118 106 Z" fill="' + goldGlow + '" opacity="0.6" stroke="' + goldStroke + '" stroke-width="0.4"/>' +
-    /* Лучи славы */
     '<line x1="100" y1="54" x2="100" y2="48" stroke="' + goldStroke + '" stroke-width="2" stroke-linecap="round"/>' +
     '<line x1="88" y1="58" x2="84" y2="52" stroke="' + goldStroke + '" stroke-width="1.6" stroke-linecap="round"/>' +
     '<line x1="112" y1="58" x2="116" y2="52" stroke="' + goldStroke + '" stroke-width="1.6" stroke-linecap="round"/>' +
     '<line x1="78" y1="68" x2="72" y2="64" stroke="' + goldStroke + '" stroke-width="1.4" stroke-linecap="round"/>' +
     '<line x1="122" y1="68" x2="128" y2="64" stroke="' + goldStroke + '" stroke-width="1.4" stroke-linecap="round"/>' +
-    /* Заклёпки */
     '<circle cx="80" cy="94" r="2" fill="' + goldGlow + '" stroke="' + goldStroke + '" stroke-width="0.5"/>' +
     '<circle cx="120" cy="94" r="2" fill="' + goldGlow + '" stroke="' + goldStroke + '" stroke-width="0.5"/>' +
     '<circle cx="80" cy="126" r="2" fill="' + goldGlow + '" stroke="' + goldStroke + '" stroke-width="0.5"/>' +
@@ -350,7 +324,8 @@ function buildMedalSVG(rankIdx, size) {
   size = size || 96;
   var ns = "http://www.w3.org/2000/svg";
   var svg = document.createElementNS(ns, "svg");
-  svg.setAttribute("viewBox", "0 0 200 200");
+  /* Расширенный viewBox: крылья Титана могут уходить за -25..225 */
+  svg.setAttribute("viewBox", "-25 -25 250 250");
   svg.setAttribute("width", size);
   svg.setAttribute("height", size);
   var glowColor = cfg.gold || cfg.g;
@@ -398,7 +373,7 @@ function buildMedalSVG(rankIdx, size) {
     innerOrnament(cfg) +
     rankSymbol(rankIdx, cfg);
 
-  var doc = new DOMParser().parseFromString('<svg xmlns="' + ns + '" viewBox="0 0 200 200">' + svgStr + '</svg>', "image/svg+xml");
+  var doc = new DOMParser().parseFromString('<svg xmlns="' + ns + '" viewBox="-25 -25 250 250">' + svgStr + '</svg>', "image/svg+xml");
   var parsed = doc.documentElement;
   while (parsed.firstChild) svg.appendChild(parsed.firstChild);
   return svg;
@@ -408,7 +383,7 @@ function buildQuestionMedalSVG(size) {
   size = size || 96;
   var ns = "http://www.w3.org/2000/svg";
   var svg = document.createElementNS(ns, "svg");
-  svg.setAttribute("viewBox", "0 0 200 200");
+  svg.setAttribute("viewBox", "-25 -25 250 250");
   svg.setAttribute("width", size);
   svg.setAttribute("height", size);
   svg.style.cssText = "display:block;filter:drop-shadow(0 0 10px rgba(139,92,246,0.7));";
@@ -428,7 +403,7 @@ function buildQuestionMedalSVG(size) {
     '<path d="M100 62 L142 100 L100 138 L58 100 Z" fill="url(#qai)" stroke="#8b5cf6" stroke-width="1.3"/>' +
     '<text x="100" y="122" text-anchor="middle" font-size="64" font-weight="900" fill="#a78bfa" font-family="sans-serif">?</text>';
 
-  var doc = new DOMParser().parseFromString('<svg xmlns="' + ns + '" viewBox="0 0 200 200">' + svgStr + '</svg>', "image/svg+xml");
+  var doc = new DOMParser().parseFromString('<svg xmlns="' + ns + '" viewBox="-25 -25 250 250">' + svgStr + '</svg>', "image/svg+xml");
   var parsed = doc.documentElement;
   while (parsed.firstChild) svg.appendChild(parsed.firstChild);
   return svg;
@@ -756,4 +731,4 @@ window.renderRatingWidget = function () {
   return card;
 };
 
-console.log("rating v17.0 ready (fan-shaped curved feathers from diamond corners)");
+console.log("rating v18.0 ready (scaling feathers by rank)");
