@@ -1,19 +1,20 @@
-/* DOTA JETCH — RATING v9.0
-   SVG-иконки рангов в стиле Dota 2 (без CDN)
-   - Ромбы с 3D-градиентом
-   - Боковые крылья у каждого ранга
-   - Внутренний символ уникальный для каждого ранга
-   - Реальные цвета из игры */
+/* DOTA JETCH — RATING v10.0
+   Форма иконок Dota 2:
+   - Верхняя "корона" с заострёнными углами
+   - Основной ромб с 4 ромбиками по углам
+   - Боковые "крылья"
+   - Острый V-кончик снизу
+   + уникальный символ у каждого ранга */
 
 var RATING_TABLE = [
-  { name: "Herald",    ru: "Рекрут",    rankIdx: 0, d1: "#0d2818", d2: "#1a4a28", light: "#6ea850", accent: "#8ecf5c", hglow: "#a8e880", stars: [0, 150, 300, 460, 610] },
-  { name: "Guardian",  ru: "Страж",     rankIdx: 1, d1: "#2a2820", d2: "#4a4438", light: "#a89880", accent: "#c8b898", hglow: "#e8dcc0", stars: [770, 920, 1080, 1230, 1400] },
-  { name: "Crusader",  ru: "Рыцарь",    rankIdx: 2, d1: "#0a2028", d2: "#1a5060", light: "#3a8898", accent: "#5ab8d0", hglow: "#80e0f8", stars: [1540, 1700, 1850, 2000, 2150] },
-  { name: "Archon",    ru: "Герой",     rankIdx: 3, d1: "#0a2810", d2: "#1a5020", light: "#5aa840", accent: "#7ed050", hglow: "#a8e878", stars: [2310, 2450, 2610, 2770, 2930] },
-  { name: "Legend",    ru: "Легенда",   rankIdx: 4, d1: "#2a0818", d2: "#500a2a", light: "#a03058", accent: "#d05880", hglow: "#f888a8", stars: [3080, 3230, 3390, 3540, 3700] },
-  { name: "Ancient",   ru: "Властелин", rankIdx: 5, d1: "#1a0838", d2: "#301560", light: "#5a30a0", accent: "#8858c8", hglow: "#b888f0", stars: [3850, 4000, 4150, 4300, 4460] },
-  { name: "Divine",    ru: "Божество",  rankIdx: 6, d1: "#2a0808", d2: "#501010", light: "#b03030", accent: "#e05050", hglow: "#ff8080", stars: [4620, 4820, 5020, 5220, 5420] },
-  { name: "Immortal",  ru: "Титан",     rankIdx: 7, d1: "#08182a", d2: "#102a50", light: "#3070b0", accent: "#5890e0", hglow: "#88b8ff", stars: [5620, 5800, 6000, 6200, 6500] }
+  { name: "Herald",    ru: "Рекрут",    rankIdx: 0, dark: "#0a2210", mid: "#2a5a20", light: "#6ea84a", accent: "#a8e06a", glow: "#d8ffa0", stars: [0, 150, 300, 460, 610] },
+  { name: "Guardian",  ru: "Страж",     rankIdx: 1, dark: "#1a1a1c", mid: "#4a4a50", light: "#8a8a92", accent: "#c0c0c8", glow: "#e8e8f0", stars: [770, 920, 1080, 1230, 1400] },
+  { name: "Crusader",  ru: "Рыцарь",    rankIdx: 2, dark: "#0a2838", mid: "#1a5a70", light: "#3a9eb8", accent: "#60c8e0", glow: "#a8ecff", stars: [1540, 1700, 1850, 2000, 2150] },
+  { name: "Archon",    ru: "Герой",     rankIdx: 3, dark: "#0a3010", mid: "#2a6a20", light: "#5aa83a", accent: "#88d058", glow: "#b8f088", stars: [2310, 2450, 2610, 2770, 2930] },
+  { name: "Legend",    ru: "Легенда",   rankIdx: 4, dark: "#3a0818", mid: "#7a1a38", light: "#c04070", accent: "#e87098", glow: "#ffa8c0", stars: [3080, 3230, 3390, 3540, 3700] },
+  { name: "Ancient",   ru: "Властелин", rankIdx: 5, dark: "#2a1058", mid: "#5a2aa0", light: "#8858d0", accent: "#b088e8", glow: "#d8b8ff", stars: [3850, 4000, 4150, 4300, 4460] },
+  { name: "Divine",    ru: "Божество",  rankIdx: 6, dark: "#3a0818", mid: "#8a1a28", light: "#c04848", accent: "#e87878", glow: "#ffb0b0", stars: [4620, 4820, 5020, 5220, 5420] },
+  { name: "Immortal",  ru: "Титан",     rankIdx: 7, dark: "#0a2048", mid: "#2058a0", light: "#4890d8", accent: "#78b8f0", glow: "#b0d8ff", stars: [5620, 5800, 6000, 6200, 6500] }
 ];
 
 var CALIBRATION_GAMES = 10;
@@ -32,184 +33,127 @@ function ensureRatingStyles() {
   document.head.appendChild(s);
 }
 
-/* ─── Форма ромба с "вырезами" ─── */
-function diamondPath() {
-  return "M100 10 L190 100 L100 190 L10 100 Z";
-}
-function innerDiamondPath() {
-  return "M100 35 L165 100 L100 165 L35 100 Z";
+/* ─── Верхняя "корона" с заострёнными углами ─── */
+function topCrownPath() {
+  /* Горизонтальная фигура сверху, как в Dota 2 */
+  return "M35 68 L50 60 L68 52 L85 58 L100 48 L115 58 L132 52 L150 60 L165 68 L172 82 L28 82 Z";
 }
 
-/* ─── Боковые "рога" / шипы (для Рыцаря и выше) ─── */
-function sideSpikes(rankIdx, cfg) {
-  if (rankIdx < 2) return "";
+/* ─── Основной ромб (щит) ─── */
+function mainDiamondPath() {
+  return "M100 68 L162 118 L100 172 L38 118 Z";
+}
+
+/* ─── Нижний V-кончик ─── */
+function bottomSpikePath() {
+  return "M78 168 L100 195 L122 168 L114 168 L100 180 L86 168 Z";
+}
+
+/* ─── Боковые "крылья" — острые выступы ─── */
+function sideWings(rankIdx, cfg) {
   var a = cfg.accent;
-  var len = 15 + rankIdx * 3;
-  var op = 0.7 + rankIdx * 0.03;
+  var hl = cfg.glow;
+  var intensity = 0.7 + rankIdx * 0.04;
+
+  /* Два уровня крыльев, как в Dota 2 */
   return '' +
-    /* Левый */
-    '<path d="M20 100 L' + (20 - len) + ' 90 L' + (20 - len) + ' 110 Z" fill="' + a + '" opacity="' + op + '"/>' +
-    /* Правый */
-    '<path d="M180 100 L' + (180 + len) + ' 90 L' + (180 + len) + ' 110 Z" fill="' + a + '" opacity="' + op + '"/>';
+    /* Верхние углы короны */
+    '<path d="M35 68 L20 62 L30 78 L22 84 L38 82 Z" fill="' + a + '" opacity="' + intensity + '"/>' +
+    '<path d="M165 68 L180 62 L170 78 L178 84 L162 82 Z" fill="' + a + '" opacity="' + intensity + '"/>' +
+    /* Боковые "шипы" вдоль ромба (для высоких рангов) */
+    (rankIdx >= 3 ?
+      '<path d="M38 118 L15 110 L25 125 L15 140 L38 130 Z" fill="' + a + '" opacity="' + (intensity - 0.1).toFixed(2) + '"/>' +
+      '<path d="M162 118 L185 110 L175 125 L185 140 L162 130 Z" fill="' + a + '" opacity="' + (intensity - 0.1).toFixed(2) + '"/>' : '') +
+    /* Уровень "перьев" для высоких */
+    (rankIdx >= 5 ?
+      '<path d="M30 90 L8 82 L18 96 L8 108 L32 102 Z" fill="' + hl + '" opacity="0.6"/>' +
+      '<path d="M170 90 L192 82 L182 96 L192 108 L168 102 Z" fill="' + hl + '" opacity="0.6"/>' : '');
 }
 
-/* ─── Крылья (для высоких рангов, за ромбом) ─── */
-function bigWings(rankIdx, cfg) {
-  if (rankIdx < 4) return "";
-  var a = cfg.accent;
-  var hl = cfg.hglow;
-  var wings = "";
-
-  /* ЛАВРОВЫЕ крылья (Легенда, Властелин) — золото/цвет */
-  var featherColor = cfg.light;
-  var featherDark = cfg.d2;
-
-  /* Сколько слоёв крыла */
-  var layers = rankIdx - 3; /* Легенда=1, Властелин=2, Божество=3, Титан=4 */
-
-  /* ЛЕВОЕ крыло */
-  wings += '<g>';
-  for (var i = 0; i < layers; i++) {
-    var s = 1 - i * 0.15;
-    var yOff = -18 + i * 12;
-    var xStart = 55;
-    var len = 45 + i * 5;
-    wings += '<path d="M' + xStart + ' ' + (100 + yOff) + ' Q' + (xStart - len * 0.7) + ' ' + (100 + yOff - 8) + ' ' + (xStart - len) + ' ' + (100 + yOff + 4) + ' Q' + (xStart - len * 0.5) + ' ' + (100 + yOff + 10) + ' ' + xStart + ' ' + (100 + yOff + 8) + ' Z" fill="' + (i % 2 === 0 ? featherColor : featherDark) + '" opacity="' + (0.75 - i * 0.1) + '"/>';
-    wings += '<path d="M' + xStart + ' ' + (100 + yOff) + ' L' + (xStart - len * 0.9) + ' ' + (100 + yOff - 2) + '" stroke="' + hl + '" stroke-width="1" opacity="0.5" fill="none"/>';
+/* ─── 4 маленьких ромбика по углам главного ромба ─── */
+function cornerDots(cfg, isActive) {
+  var colors = isActive ? ['#ffffff', cfg.accent, cfg.glow, cfg.accent] : [cfg.glow, cfg.accent, cfg.glow, cfg.accent];
+  var positions = [
+    { x: 100, y: 78 },  /* верх */
+    { x: 145, y: 120 }, /* право */
+    { x: 100, y: 160 }, /* низ */
+    { x: 55, y: 120 }   /* лево */
+  ];
+  var out = "";
+  for (var i = 0; i < 4; i++) {
+    var p = positions[i];
+    out += '<path d="M' + p.x + ' ' + (p.y - 5) + ' L' + (p.x + 5) + ' ' + p.y + ' L' + p.x + ' ' + (p.y + 5) + ' L' + (p.x - 5) + ' ' + p.y + ' Z" fill="' + colors[i] + '"/>';
   }
-  wings += '</g>';
-
-  /* ПРАВОЕ крыло */
-  wings += '<g>';
-  for (var j = 0; j < layers; j++) {
-    var s2 = 1 - j * 0.15;
-    var yOff2 = -18 + j * 12;
-    var xStart2 = 145;
-    var len2 = 45 + j * 5;
-    wings += '<path d="M' + xStart2 + ' ' + (100 + yOff2) + ' Q' + (xStart2 + len2 * 0.7) + ' ' + (100 + yOff2 - 8) + ' ' + (xStart2 + len2) + ' ' + (100 + yOff2 + 4) + ' Q' + (xStart2 + len2 * 0.5) + ' ' + (100 + yOff2 + 10) + ' ' + xStart2 + ' ' + (100 + yOff2 + 8) + ' Z" fill="' + (j % 2 === 0 ? featherColor : featherDark) + '" opacity="' + (0.75 - j * 0.1) + '"/>';
-    wings += '<path d="M' + xStart2 + ' ' + (100 + yOff2) + ' L' + (xStart2 + len2 * 0.9) + ' ' + (100 + yOff2 - 2) + '" stroke="' + hl + '" stroke-width="1" opacity="0.5" fill="none"/>';
-  }
-  wings += '</g>';
-
-  return wings;
+  return out;
 }
 
-/* ─── Символ внутри ромба ─── */
+/* ─── Центральный символ ─── */
 function rankSymbol(rankIdx, cfg) {
   var a = cfg.accent;
-  var hl = cfg.hglow;
-  var d1 = cfg.d1;
+  var hl = cfg.glow;
+  var dk = cfg.dark;
 
-  /* 0 — РЕКРУТ: два листа Tango (зелёные) */
+  /* 0 — Рекрут: Tango (лист) */
   if (rankIdx === 0) {
     return '' +
-      '<path d="M100 95 Q92 78 78 80 Q82 92 94 100 Q84 106 84 120 Q94 116 100 106 Q106 116 116 120 Q116 106 106 100 Q118 92 122 80 Q108 78 100 95 Z" fill="' + a + '" stroke="' + hl + '" stroke-width="1"/>' +
-      '<path d="M100 95 L100 78" stroke="' + hl + '" stroke-width="1.5" opacity="0.7" fill="none"/>' +
-      '<circle cx="100" cy="76" r="2.5" fill="' + hl + '"/>';
+      '<path d="M100 92 Q92 80 82 84 Q86 96 98 100 Q88 104 88 116 Q96 112 100 104 Q104 112 112 116 Q112 104 102 100 Q114 96 118 84 Q108 80 100 92 Z" fill="' + a + '" stroke="' + hl + '" stroke-width="1.2"/>' +
+      '<line x1="100" y1="92" x2="100" y2="80" stroke="' + hl + '" stroke-width="1.5"/>' +
+      '<circle cx="100" cy="78" r="2.5" fill="' + hl + '"/>';
   }
-
-  /* 1 — СТРАЖ: Stout Shield (деревянный щит) */
+  /* 1 — Страж: щит с крестом */
   if (rankIdx === 1) {
     return '' +
-      '<path d="M100 72 Q82 72 82 88 L82 100 Q82 116 100 124 Q118 116 118 100 L118 88 Q118 72 100 72 Z" fill="' + a + '" stroke="' + hl + '" stroke-width="1.5"/>' +
-      '<path d="M100 78 Q88 78 88 90 L88 100 Q88 110 100 116 Q112 110 112 100 L112 90 Q112 78 100 78 Z" fill="' + d1 + '" opacity="0.6"/>' +
-      /* Крест */
-      '<line x1="100" y1="82" x2="100" y2="114" stroke="' + hl + '" stroke-width="2.5" opacity="0.85"/>' +
-      '<line x1="88" y1="98" x2="112" y2="98" stroke="' + hl + '" stroke-width="2.5" opacity="0.85"/>';
+      '<path d="M100 82 Q84 82 82 96 L82 108 Q82 122 100 128 Q118 122 118 108 L118 96 Q116 82 100 82 Z" fill="' + a + '" stroke="' + hl + '" stroke-width="1.2"/>' +
+      '<line x1="100" y1="88" x2="100" y2="120" stroke="' + hl + '" stroke-width="2.5"/>' +
+      '<line x1="86" y1="104" x2="114" y2="104" stroke="' + hl + '" stroke-width="2.5"/>';
   }
-
-  /* 2 — РЫЦАРЬ: Ring of Aquila (кольцо с мечом-звездой) */
+  /* 2 — Рыцарь: Ring of Aquila (кольцо с крылом) */
   if (rankIdx === 2) {
     return '' +
-      '<circle cx="100" cy="100" r="22" fill="none" stroke="' + a + '" stroke-width="3.5"/>' +
-      '<circle cx="100" cy="100" r="16" fill="none" stroke="' + hl + '" stroke-width="1" opacity="0.7"/>' +
-      /* Меч по центру */
-      '<path d="M100 82 L103 96 L103 108 L100 112 L97 108 L97 96 Z" fill="' + hl + '"/>' +
-      /* Звёздочка */
-      '<path d="M100 90 L101.5 95 L107 95 L102.5 98 L104 103 L100 100 L96 103 L97.5 98 L93 95 L98.5 95 Z" fill="' + a + '"/>' +
-      /* Декоративные точки по сторонам */
-      '<circle cx="100" cy="80" r="2" fill="' + hl + '"/>' +
-      '<circle cx="100" cy="120" r="2" fill="' + hl + '"/>' +
-      '<circle cx="80" cy="100" r="2" fill="' + hl + '"/>' +
-      '<circle cx="120" cy="100" r="2" fill="' + hl + '"/>';
+      '<circle cx="100" cy="105" r="18" fill="none" stroke="' + a + '" stroke-width="3.5"/>' +
+      '<path d="M100 92 L103 100 L110 102 L104 108 L105 116 L100 111 L95 116 L96 108 L90 102 L97 100 Z" fill="' + hl + '"/>' +
+      '<circle cx="100" cy="105" r="3" fill="' + hl + '" opacity="0.7"/>';
   }
-
-  /* 3 — ГЕРОЙ: Eul's Scepter (посох с кристаллом) */
+  /* 3 — Герой: Eul's (посох с кристаллом) */
   if (rankIdx === 3) {
     return '' +
-      '<rect x="97" y="94" width="6" height="40" fill="' + a + '" rx="2"/>' +
-      /* Кристалл сверху */
-      '<path d="M100 76 L110 90 L100 96 L90 90 Z" fill="' + hl + '" stroke="' + a + '" stroke-width="1.5"/>' +
-      '<path d="M100 80 L105 88 L100 92 L95 88 Z" fill="#fff" opacity="0.4"/>' +
-      /* Малые "крылья" посоха */
-      '<path d="M86 90 Q78 86 82 96" stroke="' + a + '" stroke-width="2.5" fill="none" stroke-linecap="round"/>' +
-      '<path d="M114 90 Q122 86 118 96" stroke="' + a + '" stroke-width="2.5" fill="none" stroke-linecap="round"/>' +
-      /* Основание */
-      '<ellipse cx="100" cy="136" rx="6" ry="2.5" fill="' + a + '"/>';
+      '<rect x="97" y="98" width="6" height="32" fill="' + a + '" rx="2"/>' +
+      '<path d="M100 86 L110 96 L100 102 L90 96 Z" fill="' + hl + '" stroke="' + a + '" stroke-width="1.2"/>' +
+      '<path d="M100 88 L105 95 L100 99 L95 95 Z" fill="#fff" opacity="0.5"/>' +
+      '<ellipse cx="100" cy="132" rx="5" ry="2" fill="' + a + '"/>';
   }
-
-  /* 4 — ЛЕГЕНДА: Black King Bar (молот) */
+  /* 4 — Легенда: BKB (молот) */
   if (rankIdx === 4) {
     return '' +
-      '<rect x="97" y="90" width="6" height="42" fill="' + a + '" rx="2"/>' +
-      /* Навершие */
-      '<path d="M82 76 Q100 68 118 76 L118 90 Q100 96 82 90 Z" fill="' + a + '" stroke="' + hl + '" stroke-width="1.5"/>' +
-      /* Светящееся ядро */
-      '<circle cx="100" cy="83" r="5" fill="' + hl + '"/>' +
-      '<circle cx="100" cy="83" r="2.5" fill="#fff" opacity="0.85"/>' +
-      /* Ободок снизу */
-      '<ellipse cx="100" cy="134" rx="6" ry="3" fill="' + a + '"/>';
+      '<rect x="97" y="98" width="6" height="32" fill="' + a + '" rx="2"/>' +
+      '<path d="M86 88 Q100 82 114 88 L114 98 Q100 104 86 98 Z" fill="' + a + '" stroke="' + hl + '" stroke-width="1.2"/>' +
+      '<circle cx="100" cy="93" r="4" fill="' + hl + '"/>' +
+      '<circle cx="100" cy="93" r="2" fill="#fff"/>';
   }
-
-  /* 5 — ВЛАСТЕЛИН: Manta Style (три ромба — иллюзии) */
+  /* 5 — Властелин: Manta (три ромба) */
   if (rankIdx === 5) {
     return '' +
-      /* Боковые (иллюзии) */
-      '<path d="M82 100 L88 82 L94 100 L88 118 Z" fill="' + a + '" opacity="0.55"/>' +
-      '<path d="M118 100 L112 82 L106 100 L112 118 Z" fill="' + a + '" opacity="0.55"/>' +
-      /* Центральный (основной) */
-      '<path d="M100 74 L120 100 L100 126 L80 100 Z" fill="' + a + '" stroke="' + hl + '" stroke-width="1.5"/>' +
-      '<path d="M100 84 L112 100 L100 116 L88 100 Z" fill="' + d1 + '"/>' +
-      '<path d="M100 92 L106 100 L100 108 L94 100 Z" fill="' + hl + '"/>' +
-      /* Золотые точки по углам */
-      '<circle cx="100" cy="74" r="2.5" fill="' + hl + '"/>' +
-      '<circle cx="100" cy="126" r="2.5" fill="' + hl + '"/>' +
-      '<circle cx="80" cy="100" r="2.5" fill="' + hl + '"/>' +
-      '<circle cx="120" cy="100" r="2.5" fill="' + hl + '"/>';
+      '<path d="M88 105 L94 92 L100 105 L94 118 Z" fill="' + a + '" opacity="0.6"/>' +
+      '<path d="M112 105 L106 92 L100 105 L106 118 Z" fill="' + a + '" opacity="0.6"/>' +
+      '<path d="M100 88 L114 105 L100 122 L86 105 Z" fill="' + a + '" stroke="' + hl + '" stroke-width="1.2"/>' +
+      '<path d="M100 96 L107 105 L100 114 L93 105 Z" fill="' + hl + '"/>';
   }
-
-  /* 6 — БОЖЕСТВО: Divine Rapier (рапира с золотом) */
+  /* 6 — Божество: Rapier (меч) */
   if (rankIdx === 6) {
     return '' +
-      /* Клинок */
-      '<path d="M100 70 L103 84 L103 118 L97 118 L97 84 Z" fill="' + hl + '"/>' +
-      '<path d="M100 70 L101.5 84 L101.5 118 L100 118 Z" fill="#fff" opacity="0.5"/>' +
-      /* Гарда */
+      '<path d="M100 82 L103 94 L103 118 L97 118 L97 94 Z" fill="' + hl + '"/>' +
+      '<path d="M100 82 L101.5 94 L101.5 118 L100 118 Z" fill="#fff" opacity="0.5"/>' +
       '<rect x="88" y="118" width="24" height="4" fill="' + a + '" rx="2"/>' +
-      '<circle cx="88" cy="120" r="2.5" fill="' + hl + '"/>' +
-      '<circle cx="112" cy="120" r="2.5" fill="' + hl + '"/>' +
-      /* Рукоять */
-      '<rect x="97" y="122" width="6" height="12" fill="' + a + '" rx="2"/>' +
-      /* Навершие */
-      '<circle cx="100" cy="138" r="4" fill="' + hl + '"/>' +
-      '<circle cx="100" cy="138" r="2" fill="#fff" opacity="0.8"/>';
+      '<rect x="97" y="122" width="6" height="10" fill="' + a + '" rx="2"/>' +
+      '<circle cx="100" cy="136" r="3.5" fill="' + hl + '"/>';
   }
-
-  /* 7 — ТИТАН: Aegis of the Immortal (щит с головой) */
+  /* 7 — Титан: Aegis (голова) */
   return '' +
-    /* Щит */
-    '<path d="M100 70 Q80 72 78 92 L78 108 Q78 122 100 130 Q122 122 122 108 L122 92 Q120 72 100 70 Z" fill="' + a + '" stroke="' + hl + '" stroke-width="1.5"/>' +
-    '<path d="M100 76 Q86 78 84 94 L84 106 Q84 116 100 124 Q116 116 116 106 L116 94 Q114 78 100 76 Z" fill="' + d1 + '" opacity="0.55"/>' +
-    /* Голова */
-    '<circle cx="100" cy="98" r="9" fill="' + hl + '" opacity="0.9"/>' +
-    '<circle cx="100" cy="98" r="6" fill="' + d1 + '" opacity="0.8"/>' +
-    '<circle cx="97" cy="97" r="1.3" fill="' + hl + '"/>' +
-    '<circle cx="103" cy="97" r="1.3" fill="' + hl + '"/>' +
-    '<path d="M97 102 L100 105 L103 102" stroke="' + hl + '" stroke-width="1" fill="none"/>' +
-    /* Лучи вокруг головы */
-    '<line x1="100" y1="86" x2="100" y2="82" stroke="' + hl + '" stroke-width="1.5" stroke-linecap="round"/>' +
-    '<line x1="88" y1="92" x2="85" y2="89" stroke="' + hl + '" stroke-width="1.5" stroke-linecap="round"/>' +
-    '<line x1="112" y1="92" x2="115" y2="89" stroke="' + hl + '" stroke-width="1.5" stroke-linecap="round"/>';
+    '<path d="M100 82 Q84 84 82 100 L82 112 Q82 122 100 128 Q118 122 118 112 L118 100 Q116 84 100 82 Z" fill="' + a + '" stroke="' + hl + '" stroke-width="1.2"/>' +
+    '<circle cx="100" cy="104" r="8" fill="' + hl + '"/>' +
+    '<circle cx="100" cy="104" r="5" fill="' + dk + '"/>' +
+    '<circle cx="97.5" cy="103" r="1.2" fill="' + hl + '"/>' +
+    '<circle cx="102.5" cy="103" r="1.2" fill="' + hl + '"/>';
 }
 
 function buildMedalSVG(rankIdx, size) {
@@ -220,38 +164,36 @@ function buildMedalSVG(rankIdx, size) {
   svg.setAttribute("viewBox", "0 0 200 200");
   svg.setAttribute("width", size);
   svg.setAttribute("height", size);
-  svg.style.cssText = "display:block;flex-shrink:0;filter:drop-shadow(0 0 8px " + cfg.hglow + "88);";
+  svg.style.cssText = "display:block;flex-shrink:0;filter:drop-shadow(0 0 8px " + cfg.glow + "88);";
 
-  var gid = "g" + rankIdx;
-  var gid2 = "gi" + rankIdx;
+  var gMain = "gm" + rankIdx;
+  var gDia = "gd" + rankIdx;
 
   var svgStr = '' +
     '<defs>' +
-      '<linearGradient id="' + gid + '" x1="0%" y1="0%" x2="0%" y2="100%">' +
+      /* Градиент для главной формы (щит+корона) */
+      '<linearGradient id="' + gMain + '" x1="0%" y1="0%" x2="0%" y2="100%">' +
         '<stop offset="0%" stop-color="' + cfg.light + '"/>' +
-        '<stop offset="50%" stop-color="' + cfg.accent + '"/>' +
-        '<stop offset="100%" stop-color="' + cfg.d2 + '"/>' +
+        '<stop offset="45%" stop-color="' + cfg.accent + '"/>' +
+        '<stop offset="100%" stop-color="' + cfg.mid + '"/>' +
       '</linearGradient>' +
-      '<linearGradient id="' + gid2 + '" x1="0%" y1="0%" x2="0%" y2="100%">' +
-        '<stop offset="0%" stop-color="' + cfg.d2 + '"/>' +
-        '<stop offset="100%" stop-color="' + cfg.d1 + '"/>' +
+      /* Градиент для ромба */
+      '<linearGradient id="' + gDia + '" x1="0%" y1="0%" x2="0%" y2="100%">' +
+        '<stop offset="0%" stop-color="' + cfg.mid + '"/>' +
+        '<stop offset="100%" stop-color="' + cfg.dark + '"/>' +
       '</linearGradient>' +
-      '<radialGradient id="glow' + rankIdx + '" cx="50%" cy="50%" r="50%">' +
-        '<stop offset="0%" stop-color="' + cfg.hglow + '" stop-opacity="0.4"/>' +
-        '<stop offset="100%" stop-color="' + cfg.hglow + '" stop-opacity="0"/>' +
-      '</radialGradient>' +
     '</defs>' +
-    /* Большие крылья (за ромбом) */
-    bigWings(rankIdx, cfg) +
-    /* Внешний ромб */
-    '<path d="' + diamondPath() + '" fill="url(#' + gid + ')" stroke="' + cfg.hglow + '" stroke-width="1.5"/>' +
-    /* Внутренний ромб */
-    '<path d="' + innerDiamondPath() + '" fill="url(#' + gid2 + ')" stroke="' + cfg.accent + '" stroke-width="1.5"/>' +
-    /* Свечение внутри */
-    '<path d="' + innerDiamondPath() + '" fill="url(#glow' + rankIdx + ')"/>' +
-    /* Боковые шипы */
-    sideSpikes(rankIdx, cfg) +
-    /* Символ в центре */
+    /* Боковые крылья */
+    sideWings(rankIdx, cfg) +
+    /* Нижний V-кончик (за ромбом) */
+    '<path d="' + bottomSpikePath() + '" fill="' + cfg.mid + '" stroke="' + cfg.accent + '" stroke-width="1"/>' +
+    /* Верхняя корона */
+    '<path d="' + topCrownPath() + '" fill="url(#' + gMain + ')" stroke="' + cfg.accent + '" stroke-width="1.5"/>' +
+    /* Основной ромб (щит) */
+    '<path d="' + mainDiamondPath() + '" fill="url(#' + gDia + ')" stroke="' + cfg.accent + '" stroke-width="1.5"/>' +
+    /* 4 ромбика по углам */
+    cornerDots(cfg, false) +
+    /* Центральный символ */
     rankSymbol(rankIdx, cfg);
 
   var doc = new DOMParser().parseFromString('<svg xmlns="' + ns + '" viewBox="0 0 200 200">' + svgStr + '</svg>', "image/svg+xml");
@@ -272,18 +214,20 @@ function buildQuestionMedalSVG(size) {
 
   var svgStr = '' +
     '<defs>' +
-      '<linearGradient id="qq1" x1="0%" y1="0%" x2="0%" y2="100%">' +
-        '<stop offset="0%" stop-color="#4a3f5a"/>' +
-        '<stop offset="100%" stop-color="#1a1226"/>' +
+      '<linearGradient id="qa1" x1="0%" y1="0%" x2="0%" y2="100%">' +
+        '<stop offset="0%" stop-color="#5a4a6a"/>' +
+        '<stop offset="100%" stop-color="#2a1e3a"/>' +
       '</linearGradient>' +
-      '<linearGradient id="qq2" x1="0%" y1="0%" x2="0%" y2="100%">' +
-        '<stop offset="0%" stop-color="#2a1e3a"/>' +
-        '<stop offset="100%" stop-color="#0b0810"/>' +
+      '<linearGradient id="qa2" x1="0%" y1="0%" x2="0%" y2="100%">' +
+        '<stop offset="0%" stop-color="#3a2a4a"/>' +
+        '<stop offset="100%" stop-color="#0f0a18"/>' +
       '</linearGradient>' +
     '</defs>' +
-    '<path d="M100 10 L190 100 L100 190 L10 100 Z" fill="url(#qq1)" stroke="#8b5cf6" stroke-width="2" stroke-dasharray="6 5"/>' +
-    '<path d="M100 35 L165 100 L100 165 L35 100 Z" fill="url(#qq2)" stroke="#8b5cf6" stroke-width="1.5"/>' +
-    '<text x="100" y="124" text-anchor="middle" font-size="80" font-weight="900" fill="#a78bfa" font-family="sans-serif">?</text>';
+    '<path d="' + topCrownPath() + '" fill="url(#qa1)" stroke="#8b5cf6" stroke-width="1.5" stroke-dasharray="5 4"/>' +
+    '<path d="' + bottomSpikePath() + '" fill="#2a1e3a" stroke="#8b5cf6" stroke-width="1"/>' +
+    '<path d="' + mainDiamondPath() + '" fill="url(#qa2)" stroke="#8b5cf6" stroke-width="1.5" stroke-dasharray="5 4"/>' +
+    '<path d="M100 78 L105 78 L105 73 L100 73 Z M100 78 L105 78 L105 83 L100 83 Z M100 160 L95 160 L95 165 L100 165 Z M145 120 L140 120 L140 125 L145 125 Z M55 120 L60 120 L60 125 L55 125 Z" fill="#8b5cf6" opacity="0.5"/>' +
+    '<text x="100" y="122" text-anchor="middle" font-size="60" font-weight="900" fill="#a78bfa" font-family="sans-serif">?</text>';
 
   var doc = new DOMParser().parseFromString('<svg xmlns="' + ns + '" viewBox="0 0 200 200">' + svgStr + '</svg>', "image/svg+xml");
   var parsed = doc.documentElement;
@@ -613,4 +557,4 @@ window.renderRatingWidget = function () {
   return card;
 };
 
-console.log("rating v9.0 ready");
+console.log("rating v10.0 ready");
