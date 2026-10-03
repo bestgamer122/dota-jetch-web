@@ -3,7 +3,19 @@
     "users": {
       "$uid": {
         ".read": "$uid === auth.uid",
-        ".write": "$uid === auth.uid"
+        ".write": "$uid === auth.uid",
+        "nickname": {
+          ".validate": "!newData.exists() || (newData.isString() && newData.val().length >= 3 && newData.val().length <= 20 && newData.val().matches(/^[A-Za-z0-9_]+$/))"
+        },
+        "avatar": {
+          ".validate": "!newData.exists() || (newData.isString() && newData.val().length <= 200000)"
+        },
+        "minigames_mmr": {
+          ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 99999"
+        },
+        "analyzequota": {
+          ".validate": "newData.hasChildren(['date', 'count']) && newData.child('count').isNumber() && newData.child('count').val() >= 0"
+        }
       }
     },
     "nicknames": {
@@ -16,7 +28,19 @@
     "publicProfiles": {
       ".read": "auth != null",
       "$uid": {
-        ".write": "auth != null && $uid === auth.uid"
+        ".write": "auth != null && $uid === auth.uid",
+        "nickname": {
+          ".validate": "!newData.exists() || (newData.isString() && newData.val().length >= 3 && newData.val().length <= 20)"
+        },
+        "avatar": {
+          ".validate": "!newData.exists() || (newData.isString() && newData.val().length <= 200000 && newData.val().beginsWith('data:image'))"
+        },
+        "mmr": {
+          ".validate": "!newData.exists() || (newData.isNumber() && newData.val() >= 0 && newData.val() <= 99999)"
+        },
+        "calibrated": {
+          ".validate": "!newData.exists() || newData.isBoolean()"
+        }
       }
     },
     "leaderboards": {
@@ -24,8 +48,23 @@
         ".read": "auth != null",
         ".indexOn": ["score"],
         "$uid": {
-          ".write": "auth != null && $uid === auth.uid"
+          ".write": "auth != null && $uid === auth.uid",
+          "score": {
+            ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 99999999"
+          },
+          "mmr": {
+            ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 99999"
+          },
+          "nickname": {
+            ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 20"
+          }
         }
+      }
+    },
+    "usedKeys": {
+      "$key": {
+        ".read": "auth != null",
+        ".write": "auth != null && !data.exists()"
       }
     }
   }
