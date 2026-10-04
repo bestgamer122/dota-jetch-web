@@ -1,7 +1,4 @@
-/* DOTA JETCH — FIREBASE AUTH v11.2
-   - syncPublicProfileMMR: сохраняет MMR в publicProfiles для лидерборда
-   - publicProfiles также хранит nickname, avatar, calibrated
-   - SYNC_KEYS: добавлены sound.enabled и sound.volume */
+/* DOTA JETCH — FIREBASE AUTH v11.3 */
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.8.0/firebase-app.js";
 import {
@@ -45,56 +42,36 @@ function decodeKey(k) {
                   .replace(/__LB__/g, "[").replace(/__RB__/g, "]");
 }
 
-/* ─── Публичный профиль (для лидерборда) ─── */
 async function syncPublicProfile() {
   if (!currentUser) return;
   var nick = getCurrentNickname() || "";
   var avatar = Store.get("avatar", null);
   var mmr = Store.get("minigames_mmr", 0) || 0;
   var calibrated = Store.get("minigames_calibrated", false) === true;
-
-  var data = {
-    nickname: nick,
-    mmr: mmr,
-    calibrated: calibrated,
-    ts: Date.now()
-  };
-  if (avatar && typeof avatar === "string" && avatar.indexOf("data:image") === 0) {
-    data.avatar = avatar;
-  }
+  var data = { nickname: nick, mmr: mmr, calibrated: calibrated, ts: Date.now() };
+  if (avatar && typeof avatar === "string" && avatar.indexOf("data:image") === 0) data.avatar = avatar;
   try {
     await update(ref(db, "publicProfiles/" + currentUser.uid), data);
-    if (!data.avatar) {
-      try { await remove(ref(db, "publicProfiles/" + currentUser.uid + "/avatar")); } catch (e) {}
-    }
+    if (!data.avatar) { try { await remove(ref(db, "publicProfiles/" + currentUser.uid + "/avatar")); } catch (e) {} }
     console.log("📇 publicProfiles: " + nick + " · " + mmr + " MMR");
   } catch (e) { console.warn("syncPublicProfile:", e); }
 }
 
-/* Вызывается из rating.js после каждого изменения MMR */
 window.syncPublicProfileMMR = function (mmr) {
   if (!currentUser) return;
   var calibrated = Store.get("minigames_calibrated", false) === true;
-  update(ref(db, "publicProfiles/" + currentUser.uid), {
-    mmr: mmr,
-    calibrated: calibrated,
-    ts: Date.now()
-  }).catch(function (e) { console.warn("syncPublicProfileMMR:", e); });
+  update(ref(db, "publicProfiles/" + currentUser.uid), { mmr: mmr, calibrated: calibrated, ts: Date.now() }).catch(function (e) {});
 };
 
 async function isNicknameTaken(nick) {
   const lower = String(nick).toLowerCase();
-  try {
-    const snap = await get(ref(db, "nicknames/" + lower));
-    return snap.exists();
-  } catch (e) { return false; }
+  try { const snap = await get(ref(db, "nicknames/" + lower)); return snap.exists(); }
+  catch (e) { return false; }
 }
 async function claimNickname(nick, uid) {
   const lower = String(nick).toLowerCase();
-  try {
-    await update(ref(db, "nicknames"), { [lower]: uid });
-    return true;
-  } catch (e) { return false; }
+  try { await update(ref(db, "nicknames"), { [lower]: uid }); return true; }
+  catch (e) { return false; }
 }
 async function releaseNickname(nick) {
   const lower = String(nick).toLowerCase();
@@ -150,21 +127,19 @@ function injectAuthAnimations() {
   if (document.getElementById("authAnimationsStyle")) return;
   var s = document.createElement("style");
   s.id = "authAnimationsStyle";
-  s.textContent = `
-    @keyframes authCardIn { 0%{opacity:0;transform:translateY(40px) scale(0.96)} 60%{transform:translateY(-4px) scale(1.01)} 100%{opacity:1;transform:translateY(0) scale(1)} }
-    @keyframes authSlideUp { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
-    @keyframes authIconFloat { 0%,100%{transform:translateY(0) rotate(0)} 50%{transform:translateY(-8px) rotate(6deg)} }
-    @keyframes authShake { 0%,20%,40%,60%,80%,100%{transform:translateX(0)} 10%,30%{transform:translateX(-10px)} 50%,70%{transform:translateX(10px)} }
-    @keyframes authGlow { 0%,100%{filter:drop-shadow(0 0 8px var(--accent-light))} 50%{filter:drop-shadow(0 0 20px var(--accent-light))} }
-    #authScreen .auth-card { animation: authCardIn 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
-    #authScreen .auth-logo svg { animation: authIconFloat 3s ease-in-out infinite, authGlow 2.5s ease-in-out infinite; }
-    #authScreen input, #authScreen .auth-btn, #authScreen .auth-switch { animation: authSlideUp 0.45s ease-out both; }
-    #authScreen .auth-error-shake { animation: authShake 0.4s ease-in-out; }
-    #authScreen .auth-switch { text-align: center; margin-top: 16px; font-size: 12px; color: var(--text-muted, #888); font-weight: 500; }
-    #authScreen .auth-switch a { color: #8b5cf6; text-decoration: none; font-weight: 600; cursor: pointer; margin-left: 6px; }
-    #authScreen .auth-switch a:hover { text-decoration: underline; }
-    #authScreen .auth-title { font-size: 22px; font-weight: 800; color: #fff; text-align: center; margin: 0 0 4px; }
-  `;
+  s.textContent = "@keyframes authCardIn { 0%{opacity:0;transform:translateY(40px) scale(0.96)} 60%{transform:translateY(-4px) scale(1.01)} 100%{opacity:1;transform:translateY(0) scale(1)} }" +
+    "@keyframes authSlideUp { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }" +
+    "@keyframes authIconFloat { 0%,100%{transform:translateY(0) rotate(0)} 50%{transform:translateY(-8px) rotate(6deg)} }" +
+    "@keyframes authShake { 0%,20%,40%,60%,80%,100%{transform:translateX(0)} 10%,30%{transform:translateX(-10px)} 50%,70%{transform:translateX(10px)} }" +
+    "@keyframes authGlow { 0%,100%{filter:drop-shadow(0 0 8px var(--accent-light))} 50%{filter:drop-shadow(0 0 20px var(--accent-light))} }" +
+    "#authScreen .auth-card { animation: authCardIn 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) both; }" +
+    "#authScreen .auth-logo svg { animation: authIconFloat 3s ease-in-out infinite, authGlow 2.5s ease-in-out infinite; }" +
+    "#authScreen input, #authScreen .auth-btn, #authScreen .auth-switch { animation: authSlideUp 0.45s ease-out both; }" +
+    "#authScreen .auth-error-shake { animation: authShake 0.4s ease-in-out; }" +
+    "#authScreen .auth-switch { text-align: center; margin-top: 16px; font-size: 12px; color: var(--text-muted, #888); font-weight: 500; }" +
+    "#authScreen .auth-switch a { color: #8b5cf6; text-decoration: none; font-weight: 600; cursor: pointer; margin-left: 6px; }" +
+    "#authScreen .auth-switch a:hover { text-decoration: underline; }" +
+    "#authScreen .auth-title { font-size: 22px; font-weight: 800; color: #fff; text-align: center; margin: 0 0 4px; }";
   document.head.appendChild(s);
 }
 
@@ -209,56 +184,53 @@ function setAuthError(msg) {
 }
 
 function buildLoginScreen() {
-  return `
-  <div class="auth-card">
-    <div class="auth-logo">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 L15 9 L22 12 L15 15 L12 22 L9 15 L2 12 L9 9 Z"/></svg>
-      <h1>DOTA JETCH AI 2.0</h1>
-      <div class="auth-sub">Войди в аккаунт, чтобы продолжить</div>
-    </div>
-    <div id="authError" class="auth-error"></div>
-    <input type="email" id="authEmail" placeholder="Email" autocomplete="email">
-    <input type="password" id="authPassword" placeholder="Пароль" autocomplete="current-password">
-    <button id="authLoginBtn" class="auth-btn auth-btn-primary">Войти</button>
-    <div class="auth-forgot"><a href="#" id="authForgotLink">Забыли пароль?</a></div>
-    <div class="auth-switch">Нет аккаунта?&nbsp;<a id="toRegisterLink">Зарегистрироваться</a></div>
-  </div>`;
+  return '<div class="auth-card">' +
+    '<div class="auth-logo">' +
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 L15 9 L22 12 L15 15 L12 22 L9 15 L2 12 L9 9 Z"/></svg>' +
+      '<h1>DOTA JETCH AI 2.0</h1>' +
+      '<div class="auth-sub">Войди в аккаунт, чтобы продолжить</div>' +
+    '</div>' +
+    '<div id="authError" class="auth-error"></div>' +
+    '<input type="email" id="authEmail" placeholder="Email" autocomplete="email">' +
+    '<input type="password" id="authPassword" placeholder="Пароль" autocomplete="current-password">' +
+    '<button id="authLoginBtn" class="auth-btn auth-btn-primary">Войти</button>' +
+    '<div class="auth-forgot"><a href="#" id="authForgotLink">Забыли пароль?</a></div>' +
+    '<div class="auth-switch">Нет аккаунта?&nbsp;<a id="toRegisterLink">Зарегистрироваться</a></div>' +
+  '</div>';
 }
 
 function buildRegisterScreen() {
-  return `
-  <div class="auth-card">
-    <div class="auth-logo">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 L15 9 L22 12 L15 15 L12 22 L9 15 L2 12 L9 9 Z"/></svg>
-      <h1 class="auth-title">Создать аккаунт</h1>
-      <div class="auth-sub">Ник будет виден другим игрокам, а данные привяжутся к аккаунту</div>
-    </div>
-    <div id="authError" class="auth-error"></div>
-    <input type="text" id="regNick" placeholder="Ник (3-20 символов, A-Z, 0-9, _)" autocomplete="username" maxlength="20">
-    <div id="regNickHint" style="${HINT_BASE}">Ник будет виден другим</div>
-    <input type="email" id="regEmail" placeholder="Email" autocomplete="email">
-    <input type="password" id="regPassword" placeholder="Пароль (минимум 6 символов)" autocomplete="new-password">
-    <input type="password" id="regPassword2" placeholder="Повтори пароль" autocomplete="new-password">
-    <button id="authRegisterBtn" class="auth-btn auth-btn-primary">Зарегистрироваться</button>
-    <div class="auth-switch">Уже есть аккаунт?&nbsp;<a id="toLoginLink">Войти</a></div>
-  </div>`;
+  return '<div class="auth-card">' +
+    '<div class="auth-logo">' +
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 L15 9 L22 12 L15 15 L12 22 L9 15 L2 12 L9 9 Z"/></svg>' +
+      '<h1 class="auth-title">Создать аккаунт</h1>' +
+      '<div class="auth-sub">Ник будет виден другим игрокам</div>' +
+    '</div>' +
+    '<div id="authError" class="auth-error"></div>' +
+    '<input type="text" id="regNick" placeholder="Ник (3-20 символов, A-Z, 0-9, _)" autocomplete="username" maxlength="20">' +
+    '<div id="regNickHint" style="' + HINT_BASE + '">Ник будет виден другим</div>' +
+    '<input type="email" id="regEmail" placeholder="Email" autocomplete="email">' +
+    '<input type="password" id="regPassword" placeholder="Пароль (минимум 6 символов)" autocomplete="new-password">' +
+    '<input type="password" id="regPassword2" placeholder="Повтори пароль" autocomplete="new-password">' +
+    '<button id="authRegisterBtn" class="auth-btn auth-btn-primary">Зарегистрироваться</button>' +
+    '<div class="auth-switch">Уже есть аккаунт?&nbsp;<a id="toLoginLink">Войти</a></div>' +
+  '</div>';
 }
 
 function buildVerificationScreen(email) {
-  return `
-  <div class="auth-card">
-    <div class="auth-logo">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v16H4z"/><path d="M4 6l8 6 8-6"/></svg>
-      <h1>Подтвердите email</h1>
-      <div class="auth-sub">Мы отправили письмо на <strong>${email || ""}</strong>.</div>
-      <div class="auth-sub">Перейди по ссылке из письма, чтобы активировать аккаунт.</div>
-    </div>
-    <div id="authError" class="auth-error"></div>
-    <button id="checkVerifyBtn" class="auth-btn auth-btn-primary">Я подтвердил почту</button>
-    <button id="resendVerifyBtn" class="auth-btn auth-btn-outline">Отправить письмо заново</button>
-    <button id="backToLoginBtn" class="auth-btn auth-btn-outline" style="margin-top:10px;">Назад ко входу</button>
-    <div class="auth-hint">Проверь папку «Спам»</div>
-  </div>`;
+  return '<div class="auth-card">' +
+    '<div class="auth-logo">' +
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v16H4z"/><path d="M4 6l8 6 8-6"/></svg>' +
+      '<h1>Подтвердите email</h1>' +
+      '<div class="auth-sub">Мы отправили письмо на <strong>' + (email || "") + '</strong>.</div>' +
+      '<div class="auth-sub">Перейди по ссылке из письма, чтобы активировать аккаунт.</div>' +
+    '</div>' +
+    '<div id="authError" class="auth-error"></div>' +
+    '<button id="checkVerifyBtn" class="auth-btn auth-btn-primary">Я подтвердил почту</button>' +
+    '<button id="resendVerifyBtn" class="auth-btn auth-btn-outline">Отправить письмо заново</button>' +
+    '<button id="backToLoginBtn" class="auth-btn auth-btn-outline" style="margin-top:10px;">Назад ко входу</button>' +
+    '<div class="auth-hint">Проверь папку «Спам»</div>' +
+  '</div>';
 }
 
 function bindLoginHandlers() {
@@ -315,23 +287,14 @@ function bindRegisterHandlers() {
     const nick = (nInp.value || "").trim();
     nInp.style.borderColor = "";
     if (!nick) { setHint("Ник будет виден другим", "base"); return; }
-    if (!NICK_REGEX.test(nick)) {
-      nInp.style.borderColor = "#ef4444";
-      setHint("3-20 символов: A-Z, 0-9, _", "bad");
-      return;
-    }
+    if (!NICK_REGEX.test(nick)) { nInp.style.borderColor = "#ef4444"; setHint("3-20 символов: A-Z, 0-9, _", "bad"); return; }
     setHint("Проверяю...", "base");
     if (nickLastChecked === nick.toLowerCase()) return;
     nickLastChecked = nick.toLowerCase();
     const taken = await isNicknameTaken(nick);
     if (nickLastChecked !== nick.toLowerCase()) return;
-    if (taken) {
-      nInp.style.borderColor = "#ef4444";
-      setHint("✕ Ник занят", "bad");
-    } else {
-      nInp.style.borderColor = "#22c55e";
-      setHint("✓ Свободен", "ok");
-    }
+    if (taken) { nInp.style.borderColor = "#ef4444"; setHint("✕ Ник занят", "bad"); }
+    else { nInp.style.borderColor = "#22c55e"; setHint("✓ Свободен", "ok"); }
   }
 
   if (nInp) nInp.addEventListener("input", function() {
@@ -345,24 +308,15 @@ function bindRegisterHandlers() {
     const email = (eInp && eInp.value || "").trim();
     const password = pInp && pInp.value || "";
     const password2 = p2Inp && p2Inp.value || "";
-
     if (!nick) { setAuthError("Введи ник."); return; }
     if (!NICK_REGEX.test(nick)) { setAuthError("Ник: 3-20 символов."); return; }
     if (!email || !password || !password2) { setAuthError("Заполни все поля."); return; }
     if (password.length < 6) { setAuthError("Пароль минимум 6 символов."); return; }
     if (password !== password2) { setAuthError("Пароли не совпадают."); return; }
-
     rBtn.disabled = true;
     rBtn.textContent = "Проверяю ник...";
-
     const taken = await isNicknameTaken(nick);
-    if (taken) {
-      setAuthError("Этот ник уже занят.");
-      rBtn.disabled = false;
-      rBtn.textContent = "Зарегистрироваться";
-      return;
-    }
-
+    if (taken) { setAuthError("Этот ник уже занят."); rBtn.disabled = false; rBtn.textContent = "Зарегистрироваться"; return; }
     rBtn.textContent = "Создаю аккаунт...";
     try {
       const cred = await createUserWithEmailAndPassword(auth, email, password);
@@ -371,13 +325,8 @@ function bindRegisterHandlers() {
       Store.set("nickname", nick);
       try {
         await update(ref(db, "users/" + uid), { nickname: nick });
-        await update(ref(db, "publicProfiles/" + uid), {
-          nickname: nick,
-          mmr: 0,
-          calibrated: false,
-          ts: Date.now()
-        });
-      } catch (e) { console.warn("save nickname error:", e); }
+        await update(ref(db, "publicProfiles/" + uid), { nickname: nick, mmr: 0, calibrated: false, ts: Date.now() });
+      } catch (e) {}
       await sendEmailVerification(cred.user);
     } catch (e) {
       setAuthError(translateAuthError(e.code));
@@ -438,7 +387,8 @@ const SYNC_KEYS = [
   "dailylastclaimdate","diarynotes",
   "lockpickbest","automatonbest","minigames_mmr","minigames_games",
   "minigames_calibrated","minigames_calibration_games","minigames_wins",
-  "sound.enabled","sound.volume"
+  "sound.volume",
+  "direjumperbest","direjumpergames"
 ];
 
 function collectLocalData() {
@@ -463,19 +413,17 @@ async function loadUserData(uid) {
     const snap = await get(ref(db, "users/" + uid));
     const data = snap.val();
     if (data && typeof data === "object") {
-      let loaded = 0, skipped = 0;
+      let loaded = 0;
       for (const key in data) {
         if (!Object.prototype.hasOwnProperty.call(data, key)) continue;
         const realKey = decodeKey(key);
         const val = data[key];
-        if (val === null || val === undefined) { skipped++; continue; }
+        if (val === null || val === undefined) continue;
         let strVal;
-        try { strVal = JSON.stringify(val); } catch (e) { skipped++; continue; }
+        try { strVal = JSON.stringify(val); } catch (e) { continue; }
         try { sessionStorage.setItem(STORE_PREFIX + realKey, strVal); loaded++; } catch (e) {}
       }
       console.log("✅ Загружено: " + loaded + " ключей");
-    } else {
-      console.log("⚠ Новый аккаунт");
     }
   } catch (e) { console.error("❌ loadUserData:", e); }
 }
@@ -565,16 +513,13 @@ window.refreshUserUI = function () {
     const email = (auth.currentUser && auth.currentUser.email) || "—";
     const avatar = Store.get("avatar", null);
     const plus = isPlusActive();
-
     const nickEl = document.getElementById("userNick");
     const emailEl = document.getElementById("userEmailSmall");
     const avEl = document.getElementById("sidebarAvatar");
     const badgeEl = document.getElementById("sidebarUserBadge");
     const modalBadgeEl = document.getElementById("profileModalBadge");
-
     if (nickEl) nickEl.textContent = nick;
     if (emailEl) emailEl.textContent = email;
-
     if (avEl) {
       if (avatar && typeof avatar === "string" && avatar.indexOf("data:image") === 0) {
         avEl.style.backgroundImage = "url(" + avatar + ")";
@@ -586,7 +531,6 @@ window.refreshUserUI = function () {
         avEl.textContent = String(nick).charAt(0).toUpperCase() || "?";
       }
     }
-
     [badgeEl, modalBadgeEl].forEach(function (b) {
       if (!b) return;
       b.classList.remove("free", "jetch");

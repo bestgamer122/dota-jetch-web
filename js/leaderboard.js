@@ -1,29 +1,18 @@
-/* DOTA JETCH — LEADERBOARD v2.1
-   - Batch-запрос publicProfiles вместо N+1
-   - Мини-медаль у счёта
-   - Fallback на пустую медаль */
+/* DOTA JETCH — LEADERBOARD v2.2 (Dire Jumper tab) */
 
 import { getDatabase, ref, get, update, query, orderByChild, limitToLast } from "https://www.gstatic.com/firebasejs/11.8.0/firebase-database.js";
 
 function getCtx() {
   if (!window.__fbAuth) return null;
-  try {
-    return {
-      auth: window.__fbAuth,
-      db: getDatabase(window.__fbAuth.app)
-    };
-  } catch (e) { return null; }
+  try { return { auth: window.__fbAuth, db: getDatabase(window.__fbAuth.app) }; }
+  catch (e) { return null; }
 }
 
 function ensureLbStyle() {
   if (document.getElementById("lbAnimStyle")) return;
   var s = document.createElement("style");
   s.id = "lbAnimStyle";
-  s.textContent = `
-    @keyframes lbFadeIn { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
-    .lb-card-anim { animation: lbFadeIn 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
-    @keyframes lbRowIn { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: translateX(0); } }
-  `;
+  s.textContent = "@keyframes lbFadeIn{from{opacity:0;transform:translateY(14px);}to{opacity:1;transform:translateY(0);}}.lb-card-anim{animation:lbFadeIn 0.45s cubic-bezier(0.34,1.56,0.64,1) both;}@keyframes lbRowIn{from{opacity:0;transform:translateX(-10px);}to{opacity:1;transform:translateX(0);}}";
   document.head.appendChild(s);
 }
 
@@ -31,8 +20,7 @@ function miniMedal(rankIdx, size) {
   size = size || 36;
   var wrap = el("div", { style: "flex-shrink:0;display:flex;align-items:center;justify-content:center;" });
   if (typeof window.buildMedalSVG === "function") {
-    try { wrap.appendChild(window.buildMedalSVG(rankIdx, size, false)); return wrap; }
-    catch (e) {}
+    try { wrap.appendChild(window.buildMedalSVG(rankIdx, size, false)); } catch (e) {}
   }
   return wrap;
 }
@@ -70,7 +58,6 @@ window.fetchLeaderboard = async function (game, limit) {
         list.push({ uid: uid, nickname: data[uid].nickname, score: data[uid].score, mmr: data[uid].mmr });
       }
     }
-    /* Один batch-запрос ко всем publicProfiles */
     var profilesSnap = await get(ref(ctx.db, "publicProfiles"));
     var profiles = profilesSnap.val() || {};
     for (var i = 0; i < list.length; i++) {
@@ -110,11 +97,11 @@ window.renderLeaderboard = async function (game) {
   ensureLbStyle();
   var card = UI.card("🏅 Лидерборд");
   card.classList.add("lb-card-anim");
-
   var tabsRow = el("div", { style: "display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;" });
   var tabs = [
     { id: "lockpick", label: "🔓 Взлом", type: "game" },
     { id: "automaton", label: "⌨️ Автоматоны", type: "game" },
+    { id: "direjumper", label: "🎪 Дири-Джампер", type: "game" },
     { id: "mmr", label: "🏆 Топ по MMR", type: "mmr" }
   ];
   var currentTab = "lockpick";
@@ -150,7 +137,6 @@ window.renderLeaderboard = async function (game) {
     var row = el("div", { style: "display:flex;align-items:center;gap:12px;padding:10px 4px;border-bottom:1px solid var(--border);" });
     row.style.animation = "lbRowIn 0.3s ease both";
     row.style.animationDelay = (rank * 30) + "ms";
-
     var place = el("div", { style: "width:30px;text-align:center;font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:900;flex-shrink:0;" });
     if (rank === 0) { place.textContent = "🥇"; place.style.fontSize = "20px"; }
     else if (rank === 1) { place.textContent = "🥈"; place.style.fontSize = "20px"; }
@@ -158,10 +144,8 @@ window.renderLeaderboard = async function (game) {
     else { place.textContent = "#" + (rank + 1); place.style.color = "var(--text-dim)"; }
     row.appendChild(place);
     row.appendChild(buildAvatar(data, 32));
-
     var info = el("div", { style: "flex:1;min-width:0;" });
     info.appendChild(el("div", { style: "font-size:13px;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" }, data.nickname || "Аноним"));
-
     var rankLabel = el("div", { style: "font-size:10px;margin-top:2px;" });
     var md = null;
     if (data.calibrated && typeof window.getMedalForMMR === "function") {
@@ -177,13 +161,11 @@ window.renderLeaderboard = async function (game) {
     }
     info.appendChild(rankLabel);
     row.appendChild(info);
-
     if (md) {
       var medalBox = miniMedal(md.medal.rankIdx, 36);
       medalBox.style.marginRight = "2px";
       row.appendChild(medalBox);
     }
-
     var val = el("div", { style: "font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:900;color:var(--gold);flex-shrink:0;" });
     val.textContent = isMMR ? data.mmr.toLocaleString() : (data.score || 0).toLocaleString();
     row.appendChild(val);
@@ -193,7 +175,6 @@ window.renderLeaderboard = async function (game) {
   async function loadTab(tab) {
     contentWrap.innerHTML = "";
     contentWrap.appendChild(el("div", { class: "dim", style: "font-size:12px;padding:8px 0;" }, "Загрузка..."));
-
     if (tab.type === "game") {
       var list = await window.fetchLeaderboard(tab.id, 20);
       contentWrap.innerHTML = "";
@@ -202,7 +183,7 @@ window.renderLeaderboard = async function (game) {
     } else {
       var topList = await window.fetchTopByMMR(30);
       contentWrap.innerHTML = "";
-      if (topList.length === 0) { contentWrap.appendChild(el("div", { class: "dim", style: "font-size:12px;padding:8px 0;" }, "Пока никого нет. Сыграй 10 игр, чтобы попасть сюда.")); return; }
+      if (topList.length === 0) { contentWrap.appendChild(el("div", { class: "dim", style: "font-size:12px;padding:8px 0;" }, "Пока никого нет.")); return; }
       for (var j = 0; j < topList.length; j++) addRow(contentWrap, j, topList[j], true);
     }
   }
@@ -212,8 +193,7 @@ window.renderLeaderboard = async function (game) {
     for (var k = 0; k < tabs.length; k++) if (tabs[k].id === currentTab) t = tabs[k];
     if (t) loadTab(t);
   }, 50);
-
   return card;
 };
 
-console.log("leaderboard v2.1 ready (batch profiles, mini-medals)");
+console.log("leaderboard v2.2 ready");

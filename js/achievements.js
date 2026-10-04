@@ -1,5 +1,4 @@
-/* DOTA JETCH — ACHIEVEMENTS v2.0
-   - Красивые тосты: вылет справа, иконка пульсирует, прогресс-бар */
+/* DOTA JETCH — ACHIEVEMENTS v2.1 (Dire Jumper) */
 
 var ACHIEVEMENTS = [
   { id: "a1", cat: "Анализ", icon: "1", title: "Первый анализ", desc: "1 матч", check: function (s) { return s.analyzed >= 1; } },
@@ -25,7 +24,11 @@ var ACHIEVEMENTS = [
   { id: "a21", cat: "Активность", icon: "100", title: "Верный", desc: "100 сессий", check: function (s) { return s.sessions >= 100; } },
   { id: "a22", cat: "Особые", icon: "C", title: "Стилист", desc: "Сменить тему", check: function (s) { return s.themeChanged === true; } },
   { id: "a23", cat: "Особые", icon: "?", title: "Любопытный", desc: "Открой «О программе»", check: function (s) { return s.visitedAbout === true; } },
-  { id: "a24", cat: "Особые", icon: "20", title: "Мастер", desc: "Открыть 20 ачивок", check: function (s) { return s.unlockedCount >= 20; }, late: true }
+  { id: "a24", cat: "Особые", icon: "20", title: "Мастер", desc: "Открыть 20 ачивок", check: function (s) { return s.unlockedCount >= 20; }, late: true },
+  { id: "a25", cat: "Дири-Джампер", icon: "1", title: "Первый прыжок", desc: "Сыграть 1 раз", check: function (s) { return s.djGames >= 1; } },
+  { id: "a26", cat: "Дири-Джампер", icon: "5k", title: "Высоко", desc: "5 000 очков", check: function (s) { return s.djBest >= 5000; } },
+  { id: "a27", cat: "Дири-Джампер", icon: "10k", title: "Летающий Сларк", desc: "10 000 очков", check: function (s) { return s.djBest >= 10000; } },
+  { id: "a28", cat: "Дири-Джампер", icon: "25k", title: "Дирижабль", desc: "25 000 очков", check: function (s) { return s.djBest >= 25000; } }
 ];
 
 var Achievements = {
@@ -43,7 +46,9 @@ var Achievements = {
       sessions: Store.get("sessions", 0) || 0,
       themeChanged: Store.get("themechanged", false),
       visitedAbout: Store.get("visitedabout", false),
-      unlockedCount: (Store.get("achievementsunlocked", []) || []).length
+      unlockedCount: (Store.get("achievementsunlocked", []) || []).length,
+      djBest: Store.get("direjumperbest", 0) || 0,
+      djGames: Store.get("direjumpergames", 0) || 0
     };
   },
   unlocked: function () {
@@ -79,10 +84,7 @@ var Achievements = {
   },
   toast: function (a) {
     var c = qs("#achToast");
-    if (!c) {
-      c = el("div", { id: "achToast" });
-      document.body.appendChild(c);
-    }
+    if (!c) { c = el("div", { id: "achToast" }); document.body.appendChild(c); }
     var t = el("div", { class: "ach-toast" });
     var icoWrap = el("div", { class: "ach-toast-ico" });
     icoWrap.textContent = a.icon;
@@ -103,9 +105,7 @@ var Achievements = {
     c.appendChild(t);
     setTimeout(function () {
       t.classList.add("ach-toast-out");
-      setTimeout(function () {
-        if (t.parentNode) t.parentNode.removeChild(t);
-      }, 450);
+      setTimeout(function () { if (t.parentNode) t.parentNode.removeChild(t); }, 450);
     }, 4000);
   },
   onAnalyze: function (result) {
