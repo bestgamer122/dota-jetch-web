@@ -1,8 +1,13 @@
-/* DOTA JETCH — MINI-GAMES v10.0
-   - Dire Jumper: swept-коллизия, умный спавн, статичные шипы, лава
+/* DOTA JETCH — MINI-GAMES v11.0
+   - Dire Jumper: гарантированная достижимость платформ
+   - JUMP_POWER увеличен до -14 (высота прыжка = 196px)
+   - STEP_MAX уменьшен до 95px (запас 100px)
+   - xRange ограничен 100px
+   - Скорость движущихся платформ снижена
+   - Swept-коллизия: не пролетает сквозь
+   - Лава убивает
    - Заточка с cooldown 300ms
-   - Игры останавливаются при смене вкладки сайта
-   - Плавная прогрессия сложности в автоматонах и замке */
+   - Игры останавливаются при смене вкладки */
 
 var QUIZ = [
   { q: "Какая способность у Juggernaut даёт неуязвимость во время каста?", a: "Omnislash", opts: ["Omnislash", "Blade Fury", "Blade Dance", "Healing Ward"] },
@@ -840,7 +845,7 @@ function renderQuiz() {
   return card;
 }
 
-/* ─── DIRE JUMPER v10.0 ─── */
+/* ─── DIRE JUMPER v11.0 (ФИНАЛЬНАЯ) ─── */
 function renderDireJumper() {
   var card = UI.card("🎪 Дири-Джампер");
   var topRow = el("div", { style: "display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;" });
@@ -880,13 +885,14 @@ function renderDireJumper() {
   var W = canvas.width, H = canvas.height;
   var LAVA_HEIGHT = 30;
   var SHOT_COOLDOWN = 300;
-  var JUMP_POWER = -13;
+  var JUMP_POWER = -14;      // Высота = 14^2 / (2*0.5) = 196px
   var GRAVITY = 0.5;
   var MAX_VY = 16;
-  var STEP_MIN = 65;
-  var STEP_MAX = 105;
-  var PLATFORM_MIN_W = 70;
+  var STEP_MIN = 60;
+  var STEP_MAX = 95;         // Максимум 95px (запас 101px)
+  var PLATFORM_MIN_W = 75;
   var PLATFORM_MAX_W = 110;
+  var MAX_X_OFFSET = 100;    // Горизонтальное смещение не более 100px
 
   var lastShotTime = 0;
   var state = {
@@ -925,27 +931,32 @@ function renderDireJumper() {
   function stopDireJumper() { stop(); _activeDireJumper = null; }
   window._stopDireJumper = stopDireJumper;
 
+  /* ─── УМНЫЙ СПАВН ─── */
   function findSpawnSpot(baseX, baseY) {
-    for (var attempt = 0; attempt < 15; attempt++) {
+    for (var attempt = 0; attempt < 20; attempt++) {
       var w = PLATFORM_MIN_W + Math.random() * (PLATFORM_MAX_W - PLATFORM_MIN_W);
       var step = STEP_MIN + Math.random() * (STEP_MAX - STEP_MIN);
       var y = baseY - step;
-      var xRange = 130;
-      var minX = Math.max(10, baseX - xRange);
-      var maxX = Math.min(W - w - 10, baseX + xRange);
-      if (maxX < minX) { minX = 10; maxX = W - w - 10; }
+
+      // Горизонтальное смещение ограничено 100px
+      var minX = Math.max(15, baseX - MAX_X_OFFSET);
+      var maxX = Math.min(W - w - 15, baseX + MAX_X_OFFSET);
+      if (maxX < minX) { minX = 15; maxX = W - w - 15; }
       var x = minX + Math.random() * (maxX - minX);
+
+      // Проверка пересечений
       var overlaps = false;
       for (var i = 0; i < state.platforms.length; i++) {
         var p = state.platforms[i];
         if (Math.abs(p.y - y) < 25) {
-          if (x < p.x + p.w + 10 && x + w + 10 > p.x) { overlaps = true; break; }
+          if (x < p.x + p.w + 15 && x + w + 15 > p.x) { overlaps = true; break; }
         }
       }
       if (!overlaps) return { x: x, y: y, w: w };
     }
-    var wf = 80;
-    var xf = Math.max(10, Math.min(W - wf - 10, baseX + (Math.random() - 0.5) * 100));
+    // Fallback — прямо над предыдущей
+    var wf = 85;
+    var xf = Math.max(15, Math.min(W - wf - 15, baseX + (Math.random() - 0.5) * 60));
     return { x: xf, y: baseY - 90, w: wf };
   }
 
@@ -961,19 +972,21 @@ function renderDireJumper() {
       x: spot.x, y: spot.y, w: spot.w, h: 12,
       type: type,
       dir: Math.random() < 0.5 ? 1 : -1,
-      speed: 0.6 + Math.random() * 0.6,
+      speed: 0.4 + Math.random() * 0.4,   // Уменьшена скорость
       baseX: spot.x
     };
     state.platforms.push(p);
 
-    if (type !== "bouncy" && Math.random() < 0.18 && spot.y < -200) {
+    // Препятствия — только на статичных, на безопасном расстоянии от краёв
+    if (type === "static" && Math.random() < 0.20 && spot.y < -200) {
       var obsW = 20;
-      var obsX = spot.x + 5 + Math.random() * Math.max(1, spot.w - obsW - 10);
+      var obsX = spot.x + 12 + Math.random() * Math.max(1, spot.w - obsW - 24);
       state.obstacles.push({ x: obsX, y: spot.y - 20, w: obsW, h: 20, type: "spike", alive: true });
-    } else if (type === "static" && Math.random() < 0.10 && spot.y < -400) {
+    } else if (type === "static" && Math.random() < 0.10 && spot.y < -500) {
       state.obstacles.push({ x: spot.x + spot.w / 2 - 11, y: spot.y - 22, w: 22, h: 22, type: "enemy", alive: true });
     }
-    if (Math.random() < 0.05 && spot.y < -300) {
+    // Ускорители
+    if (Math.random() < 0.06 && spot.y < -300) {
       state.powerups.push({ x: spot.x + spot.w / 2 - 8, y: spot.y - 20, w: 16, h: 16, type: "spring" });
     } else if (Math.random() < 0.02 && spot.y < -800) {
       state.powerups.push({ x: spot.x + spot.w / 2 - 10, y: spot.y - 24, w: 20, h: 24, type: "rocket" });
@@ -1001,12 +1014,14 @@ function renderDireJumper() {
     var startY = H - LAVA_HEIGHT - 70;
     state.player = { x: startX, y: startY, vx: 0, vy: 0, w: 30, h: 30, facing: 1, animT: 0, prevY: startY };
 
+    // Стартовая платформа
     state.platforms.push({ x: W / 2 - 50, y: H - LAVA_HEIGHT - 40, w: 100, h: 12, type: "static", dir: 1, speed: 0, baseX: W / 2 - 50 });
 
+    // Спавним платформы вверх
     var lastX = W / 2 - 50;
     var lastY = H - LAVA_HEIGHT - 40;
     for (var i = 0; i < 25; i++) {
-      var pl = spawnPlatformAbove(lastX, lastY);
+      var pl = spawnPlatformAbove(lastX + 50, lastY);   // центр предыдущей
       lastX = pl.x + pl.w / 2;
       lastY = pl.y;
     }
@@ -1073,6 +1088,7 @@ function renderDireJumper() {
     p.animT += dt;
     p.prevY = p.y;
 
+    // Горизонтальное движение
     var accel = 0.7;
     if (state.keys.left) p.vx -= accel;
     if (state.keys.right) p.vx += accel;
@@ -1084,19 +1100,22 @@ function renderDireJumper() {
     if (p.x < -p.w) p.x = W;
     if (p.x > W) p.x = -p.w;
 
+    // Вертикальное движение
     p.vy += GRAVITY * dt;
     if (p.vy > MAX_VY) p.vy = MAX_VY;
     p.y += p.vy * dt;
 
+    // Двигающиеся платформы
     for (var i = 0; i < state.platforms.length; i++) {
       var pl = state.platforms[i];
       if (pl.type === "moving") {
         pl.x += pl.dir * pl.speed * dt;
-        if (pl.x < 5) { pl.x = 5; pl.dir = 1; }
-        if (pl.x + pl.w > W - 5) { pl.x = W - 5 - pl.w; pl.dir = -1; }
+        if (pl.x < 10) { pl.x = 10; pl.dir = 1; }
+        if (pl.x + pl.w > W - 10) { pl.x = W - 10 - pl.w; pl.dir = -1; }
       }
     }
 
+    // Swept-коллизия
     var hitPlatform = checkPlatformCollision(p);
     if (hitPlatform) {
       p.y = hitPlatform.y - p.h;
@@ -1120,6 +1139,7 @@ function renderDireJumper() {
       }
     }
 
+    // Ускорители
     for (var j = state.powerups.length - 1; j >= 0; j--) {
       var pu = state.powerups[j];
       if (p.x + p.w > pu.x && p.x < pu.x + pu.w && p.y + p.h > pu.y && p.y < pu.y + pu.h) {
@@ -1130,6 +1150,7 @@ function renderDireJumper() {
       }
     }
 
+    // Препятствия
     for (var oi = state.obstacles.length - 1; oi >= 0; oi--) {
       var ob = state.obstacles[oi];
       if (!ob.alive) continue;
@@ -1144,6 +1165,7 @@ function renderDireJumper() {
       }
     }
 
+    // Заточки
     for (var pi = state.projectiles.length - 1; pi >= 0; pi--) {
       var pr = state.projectiles[pi];
       pr.y -= 12 * dt;
@@ -1164,6 +1186,7 @@ function renderDireJumper() {
       }
     }
 
+    // Камера
     var targetCam = p.y - H * 0.55;
     if (targetCam < state.cameraY) {
       var diff = state.cameraY - targetCam;
@@ -1172,17 +1195,20 @@ function renderDireJumper() {
       state.score = Math.floor(state.maxHeight);
     }
 
+    // Лава
     var lavaTopWorld = state.cameraY + H - LAVA_HEIGHT;
     if (p.y + p.h >= lavaTopWorld) {
       die("lava");
       return;
     }
 
+    // Ачивки
     if (state.score > state.lastCheckedScore + 500) {
       state.lastCheckedScore = state.score;
       if (typeof Achievements !== "undefined") Achievements.check();
     }
 
+    // Спавн новых платформ сверху
     state.spawnAcc += dt;
     if (state.spawnAcc > 40) {
       state.spawnAcc = 0;
@@ -1193,6 +1219,7 @@ function renderDireJumper() {
       if (topPlatform) spawnPlatformAbove(topPlatform.x + topPlatform.w / 2, topPlatform.y);
     }
 
+    // Удаление ушедших вниз
     for (var di = state.platforms.length - 1; di >= 0; di--) {
       if (state.platforms[di].y > state.cameraY + H + 100) state.platforms.splice(di, 1);
     }
@@ -1203,6 +1230,7 @@ function renderDireJumper() {
       if (state.powerups[di3].y > state.cameraY + H + 100) state.powerups.splice(di3, 1);
     }
 
+    // Частицы
     for (var qi = state.particles.length - 1; qi >= 0; qi--) {
       var q = state.particles[qi];
       q.x += q.vx * dt;
@@ -1702,4 +1730,4 @@ if (!window._gamesGlobalListeners) {
   });
 }
 
-console.log("games v10.0 ready (Dire Jumper fixed: swept collision, smart spawn, static spikes, lava)");
+console.log("games v11.0 ready (Dire Jumper FINAL: guaranteed reachable platforms)");
