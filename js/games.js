@@ -1,4 +1,5 @@
-/* DOTA JETCH — MINI-GAMES v8.2
+/* DOTA JETCH — MINI-GAMES v8.3
+   - «Атака автоматонов»: переработан баланс, игра стала легче
    - Fix: multiplier сбрасывается при неверном вводе
    - Fix: lockpick останавливается при уходе со страницы
    - Fix: quiz перезапускается корректно */
@@ -271,7 +272,7 @@ function renderLockpick() {
   function stopLockpick() { stop(); _activeLockpick = null; }
   window._stopLockpick = stopLockpick;
 
-  function spawnZones() { /* ... без изменений ... */
+  function spawnZones() {
     state.zones = [];
     var count = 1 + Math.floor(Math.random() * 2);
     var used = [];
@@ -466,7 +467,7 @@ function renderLockpick() {
   return card;
 }
 
-/* ─── AUTOMATON ─── */
+/* ─── AUTOMATON (упрощённая версия) ─── */
 function renderAutomaton() {
   var card = UI.card("⌨️ Атака автоматонов");
   var topRow = el("div", { style: "display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;" });
@@ -553,7 +554,7 @@ function renderAutomaton() {
     el_.style.left = x + "px";
     el_.style.top = "-40px";
     wordsLayer.appendChild(el_);
-    var speed = 60 + Math.random() * 40 + (60 - st.timeLeft) * 0.8;
+    var speed = 40 + Math.random() * 30 + (60 - st.timeLeft) * 0.5;
     st.words.push({ el: el_, word: word, y: -40, speed: speed });
   }
 
@@ -563,7 +564,7 @@ function renderAutomaton() {
       var w = st.words[i];
       w.y += w.speed * dt;
       w.el.style.top = w.y + "px";
-      if (w.y > fieldH - 80) {
+      if (w.y > fieldH - 100) {
         if (w.el.parentNode) w.el.parentNode.removeChild(w.el);
         st.words.splice(i, 1);
         st.multiplier = 1;
@@ -606,7 +607,6 @@ function renderAutomaton() {
         return;
       }
     }
-    /* Подсветка префиксов */
     for (var j = 0; j < st.words.length; j++) {
       var w2 = st.words[j];
       var t2 = w2.word.toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -619,7 +619,6 @@ function renderAutomaton() {
         w2.el.style.borderColor = "rgba(139,92,246,0.4)";
       }
     }
-    /* Fix: если ввод не совпал ни с одним словом — сбрасываем множитель */
     if (!matched && typed.length >= 3) {
       st.multiplier = 1;
       statusEl.textContent = "✕ Не то слово! Множитель сброшен";
@@ -637,8 +636,8 @@ function renderAutomaton() {
     st.spawnTimer -= dt;
     if (st.spawnTimer <= 0) {
       spawnWord();
-      var baseRate = 1.4 - (st.hits * 0.02) - ((60 - st.timeLeft) * 0.01);
-      st.spawnTimer = Math.max(0.4, baseRate + Math.random() * 0.3);
+      var baseRate = 1.9 - (st.hits * 0.01) - ((60 - st.timeLeft) * 0.005);
+      st.spawnTimer = Math.max(0.8, baseRate + Math.random() * 0.3);
     }
     updateWords(dt);
     renderHUD();
@@ -649,7 +648,7 @@ function renderAutomaton() {
   function start() {
     stopAutomaton();
     st.score = 0; st.timeLeft = 60; st.multiplier = 1; st.hits = 0; st.misses = 0;
-    st.running = true; st.words = []; st.spawnTimer = 0.4; st.lastFrame = performance.now();
+    st.running = true; st.words = []; st.spawnTimer = 0.8; st.lastFrame = performance.now();
     wordsLayer.innerHTML = "";
     botEmoji.textContent = "🤖";
     inp.disabled = false; inp.value = ""; inp.focus();
@@ -772,4 +771,4 @@ function renderQuiz() {
   return card;
 }
 
-console.log("games v8.2 ready (fixes: multiplier reset, lockpick stop, quiz restart)");
+console.log("games v8.3 ready (automaton easier)");
