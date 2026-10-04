@@ -1,5 +1,8 @@
-/* DOTA JETCH — MINI-GAMES v9.0
-   - НОВАЯ ИГРА: Дири-Джампер
+/* DOTA JETCH — MINI-GAMES v9.1
+   - FIX: управление через e.code (работает на русской раскладке!)
+   - FIX: слушатели клавиатуры не удаляются при смерти
+   - NEW: экранные кнопки управления ◀ ▶ ↑
+   - NEW: Сларк переделан — тело-капля, зубы, плавники
    - Плавная прогрессия сложности */
 
 var QUIZ = [
@@ -206,11 +209,12 @@ function buildDireJumperIntro() {
   card.appendChild(visual);
   card.appendChild(buildRulesBlock("Как играть", [
     "A / D или ← → — двигать Сларка влево/вправо",
-    "W или ↑ — метнуть заточку вверх (уничтожает врагов)",
+    "W или ↑ — метнуть заточку вверх (убивает врагов)",
+    "Работает на любой раскладке клавиатуры",
+    "Есть экранные кнопки ◀ ▶ ▲ под канвасом",
     "Прыгай по платформам как можно выше",
     "Экран зациклен по горизонтали",
     "Избегай шипов, шариков, голов шутов и птиц",
-    "Собирай ускорители: ракеты и пружины",
     "Цель — набрать максимум очков за высоту"
   ]));
   card.appendChild(buildPlayButton("🎮 Играть", "direjumper"));
@@ -233,6 +237,7 @@ function buildQuizIntro() {
   return card;
 }
 
+/* ─── LOCKPICK ─── */
 function renderLockpick() {
   var card = UI.card("🔓 Взлом замка");
   var topRow = el("div", { style: "display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;" });
@@ -519,6 +524,7 @@ function renderLockpick() {
   return card;
 }
 
+/* ─── AUTOMATON ─── */
 function renderAutomaton() {
   var card = UI.card("⌨️ Атака автоматонов");
   var topRow = el("div", { style: "display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;" });
@@ -756,6 +762,7 @@ function renderAutomaton() {
   return card;
 }
 
+/* ─── QUIZ ─── */
 function renderQuiz() {
   var card = UI.card("🧠 Викторина");
   var topRow = el("div", { style: "display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;" });
@@ -835,7 +842,7 @@ function renderQuiz() {
   return card;
 }
 
-/* ─── DIRE JUMPER ─── */
+/* ─── DIRE JUMPER (v9.1 — исправлено управление, новый Сларк) ─── */
 function renderDireJumper() {
   var card = UI.card("🎪 Дири-Джампер");
   var topRow = el("div", { style: "display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;" });
@@ -864,28 +871,61 @@ function renderDireJumper() {
   var canvas = document.createElement("canvas");
   canvas.width = 420;
   canvas.height = 500;
-  canvas.style.cssText = "display:block;width:100%;border-radius:16px;background:#0c0e14;border:1px solid var(--border);user-select:none;";
+  canvas.tabIndex = 0;
+  canvas.style.cssText = "display:block;width:100%;border-radius:16px 16px 0 0;background:#0c0e14;border:1px solid var(--border);border-bottom:none;user-select:none;outline:none;";
   canvasWrap.appendChild(canvas);
   card.appendChild(canvasWrap);
 
-  var statusEl = el("div", { style: "text-align:center;margin-top:12px;font-size:12px;font-weight:600;color:var(--text-muted);min-height:20px;max-width:420px;margin-left:auto;margin-right:auto;" }, "A / D — двигать, W — заточка.");
+  // Экранные кнопки управления
+  var controls = el("div", { style: "display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;max-width:420px;margin:0 auto;padding:12px;background:#0c0e14;border:1px solid var(--border);border-radius:0 0 16px 16px;" });
+  function mkBtn(label, dataAttr) {
+    var b = document.createElement("button");
+    b.type = "button";
+    b.setAttribute(dataAttr, "1");
+    b.textContent = label;
+    b.style.cssText = "padding:16px 8px;font-size:22px;font-weight:900;background:var(--bg-elev);color:var(--text);border:1px solid var(--border);border-radius:10px;cursor:pointer;font-family:inherit;touch-action:none;-webkit-tap-highlight-color:transparent;user-select:none;";
+    return b;
+  }
+  var btnLeft = mkBtn("◀", "data-dj-left");
+  var btnUp = mkBtn("▲", "data-dj-up");
+  var btnRight = mkBtn("▶", "data-dj-right");
+  controls.appendChild(btnLeft);
+  controls.appendChild(btnUp);
+  controls.appendChild(btnRight);
+  card.appendChild(controls);
+
+  var statusEl = el("div", { style: "text-align:center;margin-top:12px;font-size:12px;font-weight:600;color:var(--text-muted);min-height:20px;max-width:420px;margin-left:auto;margin-right:auto;" }, "A / D — двигать, W — заточка. Или кнопки под полем.");
   card.appendChild(statusEl);
 
   var W = canvas.width, H = canvas.height;
   var state = {
     running: false, score: 0, best: Store.get("direjumperbest", 0) || 0,
     cameraY: 0, maxHeight: 0,
-    player: { x: W / 2, y: H - 60, vx: 0, vy: 0, w: 30, h: 30, facing: 1, onGround: false, jumpPower: -12, gravity: 0.5 },
+    player: { x: W / 2 - 15, y: H - 60, vx: 0, vy: 0, w: 30, h: 30, facing: 1, jumpPower: -12, gravity: 0.5, animT: 0 },
     platforms: [], obstacles: [], projectiles: [], particles: [], powerups: [],
     keys: { left: false, right: false },
-    lastFrame: 0, lastSpawn: 0, spawnCooldown: 60,
-    flash: null
+    lastFrame: 0, lastSpawn: 0, spawnCooldown: 60
   };
   var rafId = null;
+  var listenersAttached = false;
+
+  function attachListeners() {
+    if (listenersAttached) return;
+    document.addEventListener("keydown", onKeyDown, true);
+    document.addEventListener("keyup", onKeyUp, true);
+    listenersAttached = true;
+  }
+  function detachListeners() {
+    if (!listenersAttached) return;
+    document.removeEventListener("keydown", onKeyDown, true);
+    document.removeEventListener("keyup", onKeyUp, true);
+    listenersAttached = false;
+  }
 
   function stop() {
     state.running = false;
     if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+    detachListeners();
   }
   _activeDireJumper = { stop: stop };
 
@@ -896,7 +936,7 @@ function renderDireJumper() {
     state.score = 0;
     state.cameraY = 0;
     state.maxHeight = 0;
-    state.player = { x: W / 2, y: H - 60, vx: 0, vy: 0, w: 30, h: 30, facing: 1, onGround: false, jumpPower: -12, gravity: 0.5 };
+    state.player = { x: W / 2 - 15, y: H - 60, vx: 0, vy: 0, w: 30, h: 30, facing: 1, jumpPower: -12, gravity: 0.5, animT: 0 };
     state.platforms = [];
     state.obstacles = [];
     state.projectiles = [];
@@ -906,7 +946,6 @@ function renderDireJumper() {
     state.lastFrame = performance.now();
     state.lastSpawn = 0;
     state.spawnCooldown = 60;
-    state.flash = null;
 
     state.platforms.push({ x: W / 2 - 40, y: H - 30, w: 80, h: 10, type: "static" });
     for (var i = 0; i < 20; i++) {
@@ -953,12 +992,54 @@ function renderDireJumper() {
     bestH.val.textContent = state.best.toLocaleString();
   }
 
+  /* ─── УПРАВЛЕНИЕ — используем e.code, работает на любой раскладке ─── */
+  function onKeyDown(e) {
+    if (!state.running) return;
+    var code = e.code || "";
+    if (code === "ArrowLeft" || code === "KeyA") { state.keys.left = true; e.preventDefault(); }
+    else if (code === "ArrowRight" || code === "KeyD") { state.keys.right = true; e.preventDefault(); }
+    else if (code === "ArrowUp" || code === "KeyW" || code === "Space") {
+      e.preventDefault();
+      fireProjectile();
+    }
+  }
+  function onKeyUp(e) {
+    var code = e.code || "";
+    if (code === "ArrowLeft" || code === "KeyA") state.keys.left = false;
+    else if (code === "ArrowRight" || code === "KeyD") state.keys.right = false;
+  }
+
+  function fireProjectile() {
+    state.projectiles.push({ x: state.player.x + state.player.w / 2, y: state.player.y, vx: 0, vy: -12 });
+    _snd("hit");
+  }
+
+  /* ─── Экранные кнопки ─── */
+  function bindControl(btn, action) {
+    function start(e) { e.preventDefault(); e.stopPropagation(); if (!state.running) return; action(true); }
+    function end(e) { e.preventDefault(); e.stopPropagation(); action(false); }
+    btn.addEventListener("mousedown", start);
+    btn.addEventListener("mouseup", end);
+    btn.addEventListener("mouseleave", end);
+    btn.addEventListener("touchstart", start, { passive: false });
+    btn.addEventListener("touchend", end, { passive: false });
+    btn.addEventListener("touchcancel", end, { passive: false });
+    btn.addEventListener("contextmenu", function (e) { e.preventDefault(); });
+  }
+  bindControl(btnLeft, function (on) { state.keys.left = on; });
+  bindControl(btnRight, function (on) { state.keys.right = on; });
+  bindControl(btnUp, function (on) {
+    if (on && state.running) fireProjectile();
+  });
+
   function loop(ts) {
     if (!state.running) return;
     var dt = Math.min((ts - state.lastFrame) / 16.67, 3);
     state.lastFrame = ts;
 
     var p = state.player;
+    p.animT += dt;
+
     var accel = 0.7;
     if (state.keys.left) p.vx -= accel;
     if (state.keys.right) p.vx += accel;
@@ -997,7 +1078,6 @@ function renderDireJumper() {
         } else {
           p.vy = p.jumpPower;
         }
-        p.onGround = true;
         break;
       }
     }
@@ -1018,10 +1098,8 @@ function renderDireJumper() {
       ob.x += ob.vx * dt;
       if (ob.x < 0 || ob.x + ob.w > W) ob.vx *= -1;
       if (p.x + p.w > ob.x && p.x < ob.x + ob.w && p.y + p.h > ob.y && p.y < ob.y + ob.h) {
-        if (ob.type === "spike") {
-          die();
-          return;
-        } else {
+        if (ob.type === "spike") { die(); return; }
+        else {
           p.vy = -8;
           p.vx = (p.x < ob.x ? -3 : 3);
           ob.alive = false;
@@ -1055,10 +1133,7 @@ function renderDireJumper() {
       state.maxHeight = Math.max(state.maxHeight, state.cameraY * -1);
       state.score = Math.floor(state.maxHeight);
     }
-    if (p.y > state.cameraY + H + 50) {
-      die();
-      return;
-    }
+    if (p.y > state.cameraY + H + 50) { die(); return; }
 
     state.lastSpawn += dt * 16.67;
     if (state.lastSpawn > state.spawnCooldown) {
@@ -1066,19 +1141,13 @@ function renderDireJumper() {
       spawnPlatform(state.cameraY - 40);
     }
     for (var di = state.platforms.length - 1; di >= 0; di--) {
-      if (state.platforms[di].y > state.cameraY + H + 100) {
-        state.platforms.splice(di, 1);
-      }
+      if (state.platforms[di].y > state.cameraY + H + 100) state.platforms.splice(di, 1);
     }
     for (var di2 = state.obstacles.length - 1; di2 >= 0; di2--) {
-      if (state.obstacles[di2].y > state.cameraY + H + 100) {
-        state.obstacles.splice(di2, 1);
-      }
+      if (state.obstacles[di2].y > state.cameraY + H + 100) state.obstacles.splice(di2, 1);
     }
     for (var di3 = state.powerups.length - 1; di3 >= 0; di3--) {
-      if (state.powerups[di3].y > state.cameraY + H + 100) {
-        state.powerups.splice(di3, 1);
-      }
+      if (state.powerups[di3].y > state.cameraY + H + 100) state.powerups.splice(di3, 1);
     }
 
     for (var qi = state.particles.length - 1; qi >= 0; qi--) {
@@ -1094,31 +1163,186 @@ function renderDireJumper() {
     rafId = requestAnimationFrame(loop);
   }
 
+  /* ─── НОВЫЙ РИСУНОК СЛАРКА ─── */
+  function drawSlark(ctx, cx, cy, w, h, facing, animT, vy) {
+    // Лёгкое покачивание
+    var sway = Math.sin(animT * 0.15) * 1.5;
+    var squash = 1 + Math.max(-0.15, Math.min(0.15, -vy * 0.01));
+
+    ctx.save();
+    ctx.translate(cx, cy + sway);
+
+    var rw = (w / 2) * (2 - squash);  // растяжение по ширине при падении
+    var rh = (h / 2) * squash;
+
+    // Хвост (сзади, по направлению)
+    var tailDir = facing === 1 ? -1 : 1;
+    ctx.fillStyle = "#1e6eb8";
+    ctx.beginPath();
+    ctx.moveTo(tailDir * rw * 0.9, 0);
+    ctx.quadraticCurveTo(tailDir * rw * 1.8, -rh * 0.4 + Math.sin(animT * 0.2) * 3, tailDir * rw * 1.6, -rh * 1.2);
+    ctx.quadraticCurveTo(tailDir * rw * 1.2, -rh * 0.8, tailDir * rw * 0.7, -rh * 0.3);
+    ctx.closePath();
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(tailDir * rw * 0.9, 0);
+    ctx.quadraticCurveTo(tailDir * rw * 1.8, rh * 0.4 + Math.sin(animT * 0.2) * 3, tailDir * rw * 1.6, rh * 1.2);
+    ctx.quadraticCurveTo(tailDir * rw * 1.2, rh * 0.8, tailDir * rw * 0.7, rh * 0.3);
+    ctx.closePath();
+    ctx.fill();
+
+    // Нижние плавники-ножки
+    ctx.fillStyle = "#1e6eb8";
+    ctx.beginPath();
+    ctx.moveTo(-rw * 0.5, rh * 0.7);
+    ctx.lineTo(-rw * 0.7, rh * 1.2);
+    ctx.lineTo(-rw * 0.1, rh * 0.9);
+    ctx.closePath();
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(rw * 0.5, rh * 0.7);
+    ctx.lineTo(rw * 0.7, rh * 1.2);
+    ctx.lineTo(rw * 0.1, rh * 0.9);
+    ctx.closePath();
+    ctx.fill();
+
+    // Основное тело — капля
+    var bodyGrad = ctx.createRadialGradient(-rw * 0.3, -rh * 0.3, 2, 0, 0, rw * 1.1);
+    bodyGrad.addColorStop(0, "#7dd3fc");
+    bodyGrad.addColorStop(0.5, "#38bdf8");
+    bodyGrad.addColorStop(1, "#0369a1");
+    ctx.fillStyle = bodyGrad;
+    ctx.beginPath();
+    ctx.moveTo(0, -rh * 1.05);
+    ctx.bezierCurveTo(rw * 0.9, -rh * 0.9, rw * 1.0, rh * 0.6, 0, rh * 1.0);
+    ctx.bezierCurveTo(-rw * 1.0, rh * 0.6, -rw * 0.9, -rh * 0.9, 0, -rh * 1.05);
+    ctx.closePath();
+    ctx.fill();
+
+    // Тёмный контур
+    ctx.strokeStyle = "#0c4a6e";
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // Спинной плавник
+    ctx.fillStyle = "#0369a1";
+    ctx.beginPath();
+    ctx.moveTo(-rw * 0.3, -rh * 0.9);
+    ctx.lineTo(0, -rh * 1.55);
+    ctx.lineTo(rw * 0.35, -rh * 0.9);
+    ctx.quadraticCurveTo(0, -rh * 0.75, -rw * 0.3, -rh * 0.9);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = "#0c4a6e";
+    ctx.stroke();
+
+    // Глаза
+    var eyeOff = facing * rw * 0.25;
+    var eyeY = -rh * 0.15;
+    var eyeR = rw * 0.32;
+
+    // Левый глаз
+    ctx.fillStyle = "#fff8dc";
+    ctx.beginPath();
+    ctx.arc(-rw * 0.35 + eyeOff, eyeY, eyeR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "#0c4a6e";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // Правый глаз
+    ctx.beginPath();
+    ctx.arc(rw * 0.35 + eyeOff, eyeY, eyeR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    // Зрачки (смотрят в сторону движения)
+    var pupilOff = facing * rw * 0.08;
+    ctx.fillStyle = "#0c4a6e";
+    ctx.beginPath();
+    ctx.arc(-rw * 0.35 + eyeOff + pupilOff, eyeY, eyeR * 0.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(rw * 0.35 + eyeOff + pupilOff, eyeY, eyeR * 0.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Блики
+    ctx.fillStyle = "rgba(255,255,255,0.9)";
+    ctx.beginPath();
+    ctx.arc(-rw * 0.35 + eyeOff + pupilOff - eyeR * 0.2, eyeY - eyeR * 0.2, eyeR * 0.18, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(rw * 0.35 + eyeOff + pupilOff - eyeR * 0.2, eyeY - eyeR * 0.2, eyeR * 0.18, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Рот с зубами (внизу тела)
+    var mouthY = rh * 0.55;
+    ctx.fillStyle = "#0c1e2e";
+    ctx.beginPath();
+    ctx.moveTo(-rw * 0.4, mouthY);
+    ctx.quadraticCurveTo(0, mouthY + rh * 0.45, rw * 0.4, mouthY);
+    ctx.quadraticCurveTo(0, mouthY + rh * 0.2, -rw * 0.4, mouthY);
+    ctx.closePath();
+    ctx.fill();
+
+    // Зубы
+    ctx.fillStyle = "#f8fafc";
+    ctx.beginPath();
+    ctx.moveTo(-rw * 0.25, mouthY + rh * 0.05);
+    ctx.lineTo(-rw * 0.15, mouthY + rh * 0.28);
+    ctx.lineTo(-rw * 0.05, mouthY + rh * 0.05);
+    ctx.closePath();
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(rw * 0.05, mouthY + rh * 0.05);
+    ctx.lineTo(rw * 0.15, mouthY + rh * 0.28);
+    ctx.lineTo(rw * 0.25, mouthY + rh * 0.05);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.restore();
+  }
+
   function draw() {
     var ctx = canvas.getContext("2d");
     ctx.clearRect(0, 0, W, H);
 
+    // Фон
     var bgGrad = ctx.createLinearGradient(0, 0, 0, H);
     bgGrad.addColorStop(0, "#0a0c12");
     bgGrad.addColorStop(1, "#12161f");
     ctx.fillStyle = bgGrad;
     ctx.fillRect(0, 0, W, H);
 
+    // Звёзды (немного)
+    ctx.fillStyle = "rgba(255,255,255,0.2)";
+    for (var st = 0; st < 20; st++) {
+      var sx = (st * 47) % W;
+      var sy = (st * 83 - state.cameraY * 0.2) % H;
+      if (sy < 0) sy += H;
+      ctx.fillRect(sx, sy, 1, 1);
+    }
+
+    // Платформы
     for (var i = 0; i < state.platforms.length; i++) {
       var pl = state.platforms[i];
       var sy = pl.y - state.cameraY;
       if (sy < -30 || sy > H + 30) continue;
       var color = "#2a2f3e";
-      if (pl.type === "moving") color = "#3a7a6a";
-      else if (pl.type === "fragile") color = "#6a3a5a";
-      else if (pl.type === "bouncy") color = "#5a4a2a";
+      var topColor = "#4a5064";
+      if (pl.type === "moving") { color = "#2a5a52"; topColor = "#3a8a7a"; }
+      else if (pl.type === "fragile") { color = "#5a2a4a"; topColor = "#8a3a6a"; }
+      else if (pl.type === "bouncy") { color = "#5a4a2a"; topColor = "#8a7a3a"; }
       ctx.fillStyle = color;
       ctx.fillRect(pl.x, sy, pl.w, pl.h);
+      ctx.fillStyle = topColor;
+      ctx.fillRect(pl.x, sy, pl.w, 2);
       ctx.strokeStyle = "rgba(255,255,255,0.15)";
       ctx.lineWidth = 1;
       ctx.strokeRect(pl.x, sy, pl.w, pl.h);
     }
 
+    // Ускорители
     for (var j = 0; j < state.powerups.length; j++) {
       var pu = state.powerups[j];
       var sy2 = pu.y - state.cameraY;
@@ -1127,8 +1351,12 @@ function renderDireJumper() {
       ctx.beginPath();
       ctx.arc(pu.x + pu.w / 2, sy2 + pu.h / 2, pu.w / 2, 0, Math.PI * 2);
       ctx.fill();
+      ctx.strokeStyle = "rgba(255,255,255,0.5)";
+      ctx.lineWidth = 1;
+      ctx.stroke();
     }
 
+    // Препятствия
     for (var k = 0; k < state.obstacles.length; k++) {
       var ob = state.obstacles[k];
       if (!ob.alive) continue;
@@ -1142,14 +1370,25 @@ function renderDireJumper() {
         ctx.lineTo(ob.x + ob.w, sy3 + ob.h);
         ctx.closePath();
         ctx.fill();
+        ctx.strokeStyle = "#7f1d1d";
+        ctx.lineWidth = 1;
+        ctx.stroke();
       } else {
         ctx.fillStyle = "#eab308";
         ctx.beginPath();
         ctx.arc(ob.x + ob.w / 2, sy3 + ob.h / 2, ob.w / 2, 0, Math.PI * 2);
         ctx.fill();
+        ctx.fillStyle = "#0a0a0a";
+        ctx.beginPath();
+        ctx.arc(ob.x + ob.w / 2 - 3, sy3 + ob.h / 2 - 2, 1.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(ob.x + ob.w / 2 + 3, sy3 + ob.h / 2 - 2, 1.5, 0, Math.PI * 2);
+        ctx.fill();
       }
     }
 
+    // Заточки
     for (var l = 0; l < state.projectiles.length; l++) {
       var pr = state.projectiles[l];
       var sy4 = pr.y - state.cameraY;
@@ -1161,29 +1400,12 @@ function renderDireJumper() {
       ctx.lineTo(pr.x, sy4 - 6);
       ctx.closePath();
       ctx.fill();
+      ctx.strokeStyle = "#6d28d9";
+      ctx.lineWidth = 0.8;
+      ctx.stroke();
     }
 
-    var p = state.player;
-    var py = p.y - state.cameraY;
-    var cx = p.x + p.w / 2;
-    var cy = py + p.h / 2;
-    ctx.fillStyle = "#38bdf8";
-    ctx.beginPath();
-    ctx.ellipse(cx, cy, p.w / 2, p.h / 2, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = "#0a0a0a";
-    var eyeOff = p.facing * 3;
-    ctx.beginPath(); ctx.arc(cx - 5 + eyeOff, cy - 4, 3, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(cx + 5 + eyeOff, cy - 4, 3, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = "#fff";
-    ctx.beginPath(); ctx.arc(cx - 5 + eyeOff, cy - 4, 1.2, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(cx + 5 + eyeOff, cy - 4, 1.2, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = "#0a0a0a";
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.arc(cx, cy + 4, 5, 0, Math.PI);
-    ctx.stroke();
-
+    // Частицы
     for (var q2 = 0; q2 < state.particles.length; q2++) {
       var pt = state.particles[q2];
       var sy5 = pt.y - state.cameraY;
@@ -1193,22 +1415,22 @@ function renderDireJumper() {
       ctx.globalAlpha = 1;
     }
 
+    // Игрок — Сларк
+    var p = state.player;
+    var py = p.y - state.cameraY;
+    drawSlark(ctx, p.x + p.w / 2, py + p.h / 2, p.w, p.h, p.facing, p.animT, p.vy);
+
+    // Прогресс по высоте
     var progress = Math.min(1, state.maxHeight / 30000);
     ctx.fillStyle = "rgba(139,92,246,0.15)";
     ctx.fillRect(4, H - 4, W - 8, 3);
     ctx.fillStyle = "#8b5cf6";
     ctx.fillRect(4, H - 4, (W - 8) * progress, 3);
-
-    if (state.flash) {
-      ctx.fillStyle = state.flash.color;
-      ctx.globalAlpha = state.flash.alpha;
-      ctx.fillRect(0, 0, W, H);
-      ctx.globalAlpha = 1;
-    }
   }
 
   function die() {
-    stop();
+    state.running = false;
+    if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
     _snd("fail");
     var isRecord = state.score > state.best;
     if (isRecord) {
@@ -1240,37 +1462,14 @@ function renderDireJumper() {
   function start() {
     reset();
     state.running = true;
+    attachListeners();
+    canvas.focus();
     state.lastFrame = performance.now();
     rafId = requestAnimationFrame(loop);
   }
-
-  function onKeyDown(e) {
-    if (!state.running) return;
-    if (e.key === "ArrowLeft" || e.key === "a" || e.key === "A") state.keys.left = true;
-    if (e.key === "ArrowRight" || e.key === "d" || e.key === "D") state.keys.right = true;
-    if (e.key === "ArrowUp" || e.key === "w" || e.key === "W") {
-      e.preventDefault();
-      state.projectiles.push({ x: state.player.x + state.player.w / 2, y: state.player.y, vx: 0, vy: -12 });
-      _snd("hit");
-    }
-  }
-  function onKeyUp(e) {
-    if (e.key === "ArrowLeft" || e.key === "a" || e.key === "A") state.keys.left = false;
-    if (e.key === "ArrowRight" || e.key === "d" || e.key === "D") state.keys.right = false;
-  }
-  document.addEventListener("keydown", onKeyDown);
-  document.addEventListener("keyup", onKeyUp);
-
-  var _origStop = stop;
-  stop = function () {
-    _origStop();
-    document.removeEventListener("keydown", onKeyDown);
-    document.removeEventListener("keyup", onKeyUp);
-  };
-  _activeDireJumper.stop = stop;
 
   setTimeout(function () { start(); }, 100);
   return card;
 }
 
-console.log("games v9.0 ready (Dire Jumper added)");
+console.log("games v9.1 ready (Dire Jumper fixed: e.code, screen buttons, new Slark)");
