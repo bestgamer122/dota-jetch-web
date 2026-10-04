@@ -1,8 +1,9 @@
-/* DOTA JETCH — MINI-GAMES v8.3
-   - «Атака автоматонов»: переработан баланс, игра стала легче
+/* DOTA JETCH — MINI-GAMES v8.4
+   - Плавная прогрессия сложности по времени в обеих играх
+   - Lockpick: скорость растёт линейно за 20 сек (+ бонус за попадания)
+   - Automaton: скорость слов и темп спавна растут линейно за 60 сек
    - Fix: multiplier сбрасывается при неверном вводе
-   - Fix: lockpick останавливается при уходе со страницы
-   - Fix: quiz перезапускается корректно */
+   - Fix: lockpick/automaton останавливаются при уходе со страницы */
 
 var QUIZ = [
   { q: "Какая способность у Juggernaut даёт неуязвимость во время каста?", a: "Omnislash", opts: ["Omnislash", "Blade Fury", "Blade Dance", "Healing Ward"] },
@@ -161,7 +162,7 @@ function buildLockpickIntro() {
     "ЛКМ — кликнуть когда стрелка в жёлтой или синей зоне",
     "Жёлтая зона = 1 000 очков",
     "Синяя зона = +1.5 секунды",
-    "После каждого попадания стрелка меняет направление",
+    "Скорость плавно растёт со временем",
     "ПКМ (удерживай) — ускорить стрелку",
     "Промах — стрелка замедляется на 0.6 сек",
     "Цель — 6 000 очков"
@@ -181,7 +182,7 @@ function buildAutomatonIntro() {
     "Правильно напечатал — слово сбито, +очки",
     "Пропустил слово — сброс множителя",
     "Комбо-множитель до x5 за серию",
-    "Очки зависят от длины слова",
+    "Скорость слов плавно растёт со временем",
     "Всего 60 секунд"
   ]));
   card.appendChild(buildPlayButton("🎮 Играть", "automaton"));
@@ -204,7 +205,7 @@ function buildQuizIntro() {
   return card;
 }
 
-/* ─── LOCKPICK ─── */
+/* ─── LOCKPICK: плавная прогрессия ─── */
 function renderLockpick() {
   var card = UI.card("🔓 Взлом замка");
   var topRow = el("div", { style: "display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;" });
@@ -245,8 +246,8 @@ function renderLockpick() {
   hud.appendChild(timeBox);
 
   var dirBox = el("div", { style: "text-align:center;padding:8px;background:var(--bg-elev);border:1px solid var(--border);border-radius:10px;" });
-  dirBox.appendChild(el("div", { class: "dim", style: "font-size:9px;text-transform:uppercase;letter-spacing:0.1em;" }, "Направление"));
-  var dirVal = el("div", { style: "font-size:14px;font-weight:900;font-family:'JetBrains Mono',monospace;color:var(--text);" }, "→");
+  dirBox.appendChild(el("div", { class: "dim", style: "font-size:9px;text-transform:uppercase;letter-spacing:0.1em;" }, "Скорость"));
+  var dirVal = el("div", { style: "font-size:14px;font-weight:900;font-family:'JetBrains Mono',monospace;color:var(--text);" }, "1.0x");
   dirBox.appendChild(dirVal);
   hud.appendChild(dirBox);
   card.appendChild(hud);
@@ -256,7 +257,8 @@ function renderLockpick() {
 
   var state = {
     score: 0, timeLeft: 20, running: false,
-    angle: -Math.PI / 2, speed: 1.8, direction: 1, baseSpeed: 1.8,
+    angle: -Math.PI / 2, direction: 1,
+    baseSpeed: 1.6, speedMultiplier: 1,
     lastFrame: 0, zones: [], flash: null, missCount: 0, hitCount: 0,
     missLockUntil: 0, boosting: false
   };
@@ -382,8 +384,6 @@ function renderLockpick() {
         if (z.blue) { state.timeLeft = Math.min(60, state.timeLeft + 1.5); state.flash = { color: "rgba(34,211,238,0.20)", alpha: 0.5 }; statusEl.textContent = "⚡ Синяя зона! +1.5 сек"; statusEl.style.color = "var(--cyan)"; }
         else { state.score += 1000; state.hitCount++; state.flash = { color: "rgba(251,191,36,0.18)", alpha: 0.4 }; statusEl.textContent = "✓ Жёлтая! +1 000"; statusEl.style.color = "var(--gold)"; }
         state.direction *= -1;
-        dirVal.textContent = state.direction === 1 ? "→" : "←";
-        state.baseSpeed = Math.min(3.6, 1.8 + state.hitCount * 0.08);
         spawnZones();
         break;
       }
@@ -399,6 +399,20 @@ function renderLockpick() {
     updateHUD();
   }
 
+  /* ─── ГЛАВНОЕ: плавная прогрессия по времени ─── */
+  function updateSpeed() {
+    // progress: 0 в начале, 1 в конце (20 сек)
+    var elapsed = 20 - state.timeLeft;
+    var progress = Math.max(0, Math.min(1, elapsed / 20));
+    // Базовый множитель: 1.0 → 2.2 (линейно)
+    var timeMultiplier = 1.0 + progress * 1.2;
+    // Бонус за попадания: +3% за каждое, но не больше +50%
+    var hitBonus = Math.min(0.5, state.hitCount * 0.03);
+    state.speedMultiplier = timeMultiplier + hitBonus;
+    state.baseSpeed = 1.6 * state.speedMultiplier;
+    dirVal.textContent = state.speedMultiplier.toFixed(1) + "x";
+  }
+
   function updateHUD() {
     scoreVal.textContent = state.score.toLocaleString();
     timeVal.textContent = Math.max(0, state.timeLeft).toFixed(1);
@@ -412,7 +426,8 @@ function renderLockpick() {
     if (!state.running) return;
     var dt = Math.min((ts - state.lastFrame) / 1000, 0.1);
     state.lastFrame = ts;
-    var curSpeed = state.baseSpeed + (state.boosting ? 2.5 : 0);
+    updateSpeed();
+    var curSpeed = state.baseSpeed + (state.boosting ? 2.0 : 0);
     state.angle += curSpeed * state.direction * dt;
     state.timeLeft -= dt;
     if (state.flash) { state.flash.alpha -= dt * 1.5; if (state.flash.alpha <= 0) state.flash = null; }
@@ -423,11 +438,11 @@ function renderLockpick() {
   }
 
   function start() {
-    state = { score: 0, timeLeft: 20, running: true, angle: -Math.PI / 2, speed: 1.8, direction: 1, baseSpeed: 1.8, lastFrame: performance.now(), zones: [], flash: null, missCount: 0, hitCount: 0, missLockUntil: 0, boosting: false };
+    state = { score: 0, timeLeft: 20, running: true, angle: -Math.PI / 2, direction: 1, baseSpeed: 1.6, speedMultiplier: 1, lastFrame: performance.now(), zones: [], flash: null, missCount: 0, hitCount: 0, missLockUntil: 0, boosting: false };
     spawnZones();
     statusEl.textContent = "ЛКМ — удар. ПКМ — ускорение.";
     statusEl.style.color = "var(--text-muted)";
-    dirVal.textContent = "→";
+    dirVal.textContent = "1.0x";
     updateHUD();
     draw();
     rafId = requestAnimationFrame(loop);
@@ -467,7 +482,7 @@ function renderLockpick() {
   return card;
 }
 
-/* ─── AUTOMATON (упрощённая версия) ─── */
+/* ─── AUTOMATON: плавная прогрессия ─── */
 function renderAutomaton() {
   var card = UI.card("⌨️ Атака автоматонов");
   var topRow = el("div", { style: "display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;" });
@@ -520,7 +535,7 @@ function renderAutomaton() {
   var statusEl = el("div", { style: "text-align:center;margin-top:12px;font-size:13px;font-weight:600;color:var(--text-muted);min-height:20px;" }, "");
   card.appendChild(statusEl);
 
-  var st = { score: 0, timeLeft: 60, multiplier: 1, hits: 0, running: false, words: [], lastFrame: 0, spawnTimer: 0, misses: 0 };
+  var st = { score: 0, timeLeft: 60, multiplier: 1, hits: 0, running: false, words: [], lastFrame: 0, spawnTimer: 0, misses: 0, difficulty: 1.0 };
   var rafId = null;
 
   function stop() {
@@ -544,7 +559,17 @@ function renderAutomaton() {
     else timeH.val.style.color = "var(--cyan)";
   }
 
+  /* ─── ГЛАВНОЕ: расчёт сложности по прогрессу ─── */
+  function computeDifficulty() {
+    // progress: 0 в начале, 1 в конце (60 сек)
+    var elapsed = 60 - st.timeLeft;
+    var progress = Math.max(0, Math.min(1, elapsed / 60));
+    st.difficulty = 1.0 + progress * 1.5; // 1.0 → 2.5
+    return progress;
+  }
+
   function spawnWord() {
+    var progress = computeDifficulty();
     var word = WORD_BANK[Math.floor(Math.random() * WORD_BANK.length)];
     var el_ = document.createElement("div");
     el_.style.cssText = "position:absolute;background:rgba(139,92,246,0.14);border:1px solid rgba(139,92,246,0.4);border-radius:8px;padding:7px 13px;font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:700;color:var(--accent-light);white-space:nowrap;transition:background 0.1s, border-color 0.1s;";
@@ -554,7 +579,8 @@ function renderAutomaton() {
     el_.style.left = x + "px";
     el_.style.top = "-40px";
     wordsLayer.appendChild(el_);
-    var speed = 40 + Math.random() * 30 + (60 - st.timeLeft) * 0.5;
+    // Скорость слов: 45 → 105 (плавно за 60 сек), + небольшой рандом
+    var speed = 45 + progress * 60 + Math.random() * 15;
     st.words.push({ el: el_, word: word, y: -40, speed: speed });
   }
 
@@ -634,10 +660,12 @@ function renderAutomaton() {
     st.lastFrame = ts;
     st.timeLeft -= dt;
     st.spawnTimer -= dt;
+    var progress = computeDifficulty();
     if (st.spawnTimer <= 0) {
       spawnWord();
-      var baseRate = 1.9 - (st.hits * 0.01) - ((60 - st.timeLeft) * 0.005);
-      st.spawnTimer = Math.max(0.8, baseRate + Math.random() * 0.3);
+      // Интервал спавна: 2.0 → 0.85 (плавно за 60 сек)
+      var baseRate = 2.0 - progress * 1.15;
+      st.spawnTimer = Math.max(0.75, baseRate + Math.random() * 0.25);
     }
     updateWords(dt);
     renderHUD();
@@ -647,8 +675,8 @@ function renderAutomaton() {
 
   function start() {
     stopAutomaton();
-    st.score = 0; st.timeLeft = 60; st.multiplier = 1; st.hits = 0; st.misses = 0;
-    st.running = true; st.words = []; st.spawnTimer = 0.8; st.lastFrame = performance.now();
+    st.score = 0; st.timeLeft = 60; st.multiplier = 1; st.hits = 0; st.misses = 0; st.difficulty = 1.0;
+    st.running = true; st.words = []; st.spawnTimer = 1.2; st.lastFrame = performance.now();
     wordsLayer.innerHTML = "";
     botEmoji.textContent = "🤖";
     inp.disabled = false; inp.value = ""; inp.focus();
@@ -771,4 +799,4 @@ function renderQuiz() {
   return card;
 }
 
-console.log("games v8.3 ready (automaton easier)");
+console.log("games v8.4 ready (smooth difficulty progression)");
