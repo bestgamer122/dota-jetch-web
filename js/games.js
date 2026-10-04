@@ -1,8 +1,6 @@
-/* DOTA JETCH — MINI-GAMES v8.5
-   - Звуки: попадание, промах, победа, ответы в quiz
-   - Плавная прогрессия сложности по времени
-   - Fix: multiplier сбрасывается при неверном вводе
-   - Fix: lockpick/automaton останавливаются при уходе со страницы */
+/* DOTA JETCH — MINI-GAMES v9.0
+   - НОВАЯ ИГРА: Дири-Джампер
+   - Плавная прогрессия сложности */
 
 var QUIZ = [
   { q: "Какая способность у Juggernaut даёт неуязвимость во время каста?", a: "Omnislash", opts: ["Omnislash", "Blade Fury", "Blade Dance", "Healing Ward"] },
@@ -55,6 +53,7 @@ function _snd(name) {
 var CURRENT_GAME = "lockpick";
 var _activeLockpick = null;
 var _activeAutomaton = null;
+var _activeDireJumper = null;
 
 function renderGames() {
   var frag = document.createDocumentFragment();
@@ -64,6 +63,7 @@ function renderGames() {
   var tabDefs = [
     { id: "lockpick", label: "🔓 Взлом замка" },
     { id: "automaton", label: "⌨️ Атака автоматонов" },
+    { id: "direjumper", label: "🎪 Дири-Джампер" },
     { id: "quiz", label: "🧠 Викторина" }
   ];
   for (var t = 0; t < tabDefs.length; t++) {
@@ -73,7 +73,7 @@ function renderGames() {
       b.addEventListener("click", function () {
         stopActiveGames();
         CURRENT_GAME = tab.id;
-        qsa("#gameTab_lockpick, #gameTab_automaton, #gameTab_quiz").forEach(function (btn) {
+        qsa("#gameTab_lockpick, #gameTab_automaton, #gameTab_direjumper, #gameTab_quiz").forEach(function (btn) {
           btn.classList.remove("active");
           btn.classList.add("btn-ghost");
         });
@@ -93,9 +93,11 @@ function renderGames() {
   var stats = el("div", { class: "stat-grid" });
   var lpBest = Store.get("lockpickbest", 0) || 0;
   var autoBest = Store.get("automatonbest", 0) || 0;
+  var djBest = Store.get("direjumperbest", 0) || 0;
   var q = Store.get("quizbest", 0) || 0;
   stats.appendChild(UI.statCard("🔓", "var(--yellow)", "var(--yellow-bg)", "Взлом замка", lpBest ? lpBest.toLocaleString() : "—", "лучший"));
   stats.appendChild(UI.statCard("⌨️", "var(--cyan)", "var(--cyan-bg)", "Автоматоны", autoBest ? autoBest.toLocaleString() : "—", "лучший"));
+  stats.appendChild(UI.statCard("🎪", "var(--accent-light)", "var(--accent-bg)", "Дири-Джампер", djBest ? djBest.toLocaleString() : "—", "лучший"));
   stats.appendChild(UI.statCard("🧠", "var(--green)", "var(--green-bg)", "Викторина", q ? q + "/10" : "—", "лучший"));
   frag.appendChild(stats);
 
@@ -109,8 +111,10 @@ function renderGames() {
 function stopActiveGames() {
   if (_activeLockpick && typeof _activeLockpick.stop === "function") { try { _activeLockpick.stop(); } catch (e) {} }
   if (_activeAutomaton && typeof _activeAutomaton.stop === "function") { try { _activeAutomaton.stop(); } catch (e) {} }
+  if (_activeDireJumper && typeof _activeDireJumper.stop === "function") { try { _activeDireJumper.stop(); } catch (e) {} }
   _activeLockpick = null;
   _activeAutomaton = null;
+  _activeDireJumper = null;
 }
 
 function showIntro(kind) {
@@ -120,6 +124,7 @@ function showIntro(kind) {
   area.innerHTML = "";
   if (kind === "lockpick") area.appendChild(buildLockpickIntro());
   else if (kind === "automaton") area.appendChild(buildAutomatonIntro());
+  else if (kind === "direjumper") area.appendChild(buildDireJumperIntro());
   else if (kind === "quiz") area.appendChild(buildQuizIntro());
 }
 
@@ -129,6 +134,7 @@ function startGame(kind) {
   area.innerHTML = "";
   if (kind === "lockpick") { var c = renderLockpick(); area.appendChild(c); }
   else if (kind === "automaton") { var c2 = renderAutomaton(); area.appendChild(c2); }
+  else if (kind === "direjumper") { var c3 = renderDireJumper(); area.appendChild(c3); }
   else if (kind === "quiz") area.appendChild(renderQuiz());
 
   Store.set("gamesplayed", (Store.get("gamesplayed", 0) || 0) + 1);
@@ -192,6 +198,25 @@ function buildAutomatonIntro() {
   return card;
 }
 
+function buildDireJumperIntro() {
+  var card = UI.card("🎪 Дири-Джампер");
+  var visual = el("div", { style: "text-align:center;padding:24px 0 8px;" });
+  visual.appendChild(el("div", { style: "font-size:90px;line-height:1;filter:drop-shadow(0 0 20px rgba(139,92,246,0.4));" }, "🐟"));
+  visual.appendChild(el("div", { class: "dim", style: "font-size:12px;margin-top:14px;letter-spacing:0.08em;text-transform:uppercase;" }, "Сларк · Прыжки · Заточки"));
+  card.appendChild(visual);
+  card.appendChild(buildRulesBlock("Как играть", [
+    "A / D или ← → — двигать Сларка влево/вправо",
+    "W или ↑ — метнуть заточку вверх (уничтожает врагов)",
+    "Прыгай по платформам как можно выше",
+    "Экран зациклен по горизонтали",
+    "Избегай шипов, шариков, голов шутов и птиц",
+    "Собирай ускорители: ракеты и пружины",
+    "Цель — набрать максимум очков за высоту"
+  ]));
+  card.appendChild(buildPlayButton("🎮 Играть", "direjumper"));
+  return card;
+}
+
 function buildQuizIntro() {
   var card = UI.card("🧠 Викторина");
   var visual = el("div", { style: "text-align:center;padding:24px 0 8px;" });
@@ -208,7 +233,6 @@ function buildQuizIntro() {
   return card;
 }
 
-/* ─── LOCKPICK ─── */
 function renderLockpick() {
   var card = UI.card("🔓 Взлом замка");
   var topRow = el("div", { style: "display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;" });
@@ -495,7 +519,6 @@ function renderLockpick() {
   return card;
 }
 
-/* ─── AUTOMATON ─── */
 function renderAutomaton() {
   var card = UI.card("⌨️ Атака автоматонов");
   var topRow = el("div", { style: "display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;" });
@@ -619,7 +642,6 @@ function renderAutomaton() {
     if (!st.running) return;
     var typed = String(rawVal || "").toLowerCase().replace(/[^a-z0-9]/g, "");
     if (!typed) return;
-
     var matched = false;
     for (var i = 0; i < st.words.length; i++) {
       var w = st.words[i];
@@ -734,7 +756,6 @@ function renderAutomaton() {
   return card;
 }
 
-/* ─── QUIZ ─── */
 function renderQuiz() {
   var card = UI.card("🧠 Викторина");
   var topRow = el("div", { style: "display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;" });
@@ -814,4 +835,442 @@ function renderQuiz() {
   return card;
 }
 
-console.log("games v8.5 ready (sounds)");
+/* ─── DIRE JUMPER ─── */
+function renderDireJumper() {
+  var card = UI.card("🎪 Дири-Джампер");
+  var topRow = el("div", { style: "display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;" });
+  topRow.appendChild(el("div", { class: "dim", style: "font-size:11px;text-transform:uppercase;letter-spacing:0.08em;" }, "Сларк · Прыжки · Заточки"));
+  var menuBtn = UI.btn("← В меню", { variant: "ghost" });
+  menuBtn.style.cssText = "font-size:11px;padding:6px 12px;";
+  menuBtn.addEventListener("click", function () { stopDireJumper(); showIntro("direjumper"); });
+  topRow.appendChild(menuBtn);
+  card.appendChild(topRow);
+
+  var hud = el("div", { style: "display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px;" });
+  function hudBox(label, color) {
+    var b = el("div", { style: "text-align:center;padding:8px;background:var(--bg-elev);border:1px solid var(--border);border-radius:10px;" });
+    b.appendChild(el("div", { class: "dim", style: "font-size:9px;text-transform:uppercase;letter-spacing:0.1em;" }, label));
+    var v = el("div", { style: "font-size:18px;font-weight:900;font-family:'JetBrains Mono',monospace;color:" + color + ";margin-top:2px;" }, "—");
+    b.appendChild(v);
+    return { box: b, val: v };
+  }
+  var scoreH = hudBox("Очки", "var(--gold)");
+  var heightH = hudBox("Высота", "var(--cyan)");
+  var bestH = hudBox("Рекорд", "var(--accent-light)");
+  hud.appendChild(scoreH.box); hud.appendChild(heightH.box); hud.appendChild(bestH.box);
+  card.appendChild(hud);
+
+  var canvasWrap = el("div", { style: "position:relative;max-width:420px;margin:0 auto;" });
+  var canvas = document.createElement("canvas");
+  canvas.width = 420;
+  canvas.height = 500;
+  canvas.style.cssText = "display:block;width:100%;border-radius:16px;background:#0c0e14;border:1px solid var(--border);user-select:none;";
+  canvasWrap.appendChild(canvas);
+  card.appendChild(canvasWrap);
+
+  var statusEl = el("div", { style: "text-align:center;margin-top:12px;font-size:12px;font-weight:600;color:var(--text-muted);min-height:20px;max-width:420px;margin-left:auto;margin-right:auto;" }, "A / D — двигать, W — заточка.");
+  card.appendChild(statusEl);
+
+  var W = canvas.width, H = canvas.height;
+  var state = {
+    running: false, score: 0, best: Store.get("direjumperbest", 0) || 0,
+    cameraY: 0, maxHeight: 0,
+    player: { x: W / 2, y: H - 60, vx: 0, vy: 0, w: 30, h: 30, facing: 1, onGround: false, jumpPower: -12, gravity: 0.5 },
+    platforms: [], obstacles: [], projectiles: [], particles: [], powerups: [],
+    keys: { left: false, right: false },
+    lastFrame: 0, lastSpawn: 0, spawnCooldown: 60,
+    flash: null
+  };
+  var rafId = null;
+
+  function stop() {
+    state.running = false;
+    if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+  }
+  _activeDireJumper = { stop: stop };
+
+  function stopDireJumper() { stop(); _activeDireJumper = null; }
+  window._stopDireJumper = stopDireJumper;
+
+  function reset() {
+    state.score = 0;
+    state.cameraY = 0;
+    state.maxHeight = 0;
+    state.player = { x: W / 2, y: H - 60, vx: 0, vy: 0, w: 30, h: 30, facing: 1, onGround: false, jumpPower: -12, gravity: 0.5 };
+    state.platforms = [];
+    state.obstacles = [];
+    state.projectiles = [];
+    state.particles = [];
+    state.powerups = [];
+    state.keys = { left: false, right: false };
+    state.lastFrame = performance.now();
+    state.lastSpawn = 0;
+    state.spawnCooldown = 60;
+    state.flash = null;
+
+    state.platforms.push({ x: W / 2 - 40, y: H - 30, w: 80, h: 10, type: "static" });
+    for (var i = 0; i < 20; i++) {
+      spawnPlatform(H - 100 - i * 40);
+    }
+    updateHUD();
+  }
+
+  function spawnPlatform(y) {
+    var margin = 10;
+    var w = 60 + Math.random() * 40;
+    var x = margin + Math.random() * (W - w - margin * 2);
+    var type = "static";
+    var r = Math.random();
+    if (r < 0.15) type = "moving";
+    else if (r < 0.25) type = "fragile";
+    else if (r < 0.35) type = "bouncy";
+    var p = { x: x, y: y, w: w, h: 10, type: type, dir: Math.random() < 0.5 ? 1 : -1, speed: 0.5 + Math.random() * 0.8 };
+    state.platforms.push(p);
+
+    if (Math.random() < 0.25 && y > 100) {
+      var obs = {
+        x: x + 10 + Math.random() * (w - 20),
+        y: y - 20,
+        w: 18, h: 18,
+        type: Math.random() < 0.6 ? "spike" : "enemy",
+        vx: (Math.random() - 0.5) * 1.2,
+        vy: 0,
+        alive: true
+      };
+      state.obstacles.push(obs);
+    }
+    if (Math.random() < 0.06 && y > 150) {
+      state.powerups.push({ x: x + w / 2 - 8, y: y - 20, w: 16, h: 16, type: "spring" });
+    } else if (Math.random() < 0.02 && y > 200) {
+      state.powerups.push({ x: x + w / 2 - 10, y: y - 24, w: 20, h: 24, type: "rocket" });
+    }
+  }
+
+  function updateHUD() {
+    scoreH.val.textContent = state.score.toLocaleString();
+    var h = Math.max(0, Math.floor(state.maxHeight / 10));
+    heightH.val.textContent = h + " м";
+    bestH.val.textContent = state.best.toLocaleString();
+  }
+
+  function loop(ts) {
+    if (!state.running) return;
+    var dt = Math.min((ts - state.lastFrame) / 16.67, 3);
+    state.lastFrame = ts;
+
+    var p = state.player;
+    var accel = 0.7;
+    if (state.keys.left) p.vx -= accel;
+    if (state.keys.right) p.vx += accel;
+    p.vx *= 0.82;
+    if (Math.abs(p.vx) < 0.05) p.vx = 0;
+    if (p.vx > 0.1) p.facing = 1;
+    else if (p.vx < -0.1) p.facing = -1;
+    p.x += p.vx * dt;
+    if (p.x < -p.w) p.x = W;
+    if (p.x > W) p.x = -p.w;
+
+    p.vy += p.gravity * dt;
+    if (p.vy > 18) p.vy = 18;
+    p.y += p.vy * dt;
+
+    for (var i = 0; i < state.platforms.length; i++) {
+      var pl = state.platforms[i];
+      if (pl.type === "moving") {
+        pl.x += pl.dir * pl.speed * dt;
+        if (pl.x < 0) { pl.x = 0; pl.dir = 1; }
+        if (pl.x + pl.w > W) { pl.x = W - pl.w; pl.dir = -1; }
+      }
+      if (p.vy > 0 && p.y + p.h > pl.y && p.y + p.h < pl.y + pl.h + 20 && p.x + p.w > pl.x && p.x < pl.x + pl.w) {
+        p.y = pl.y - p.h;
+        if (pl.type === "fragile") {
+          state.platforms.splice(i, 1);
+          i--;
+          for (var k = 0; k < 6; k++) {
+            state.particles.push({ x: pl.x + Math.random() * pl.w, y: pl.y + Math.random() * pl.h, vx: (Math.random() - 0.5) * 3, vy: (Math.random() - 0.5) * 3, life: 20, color: "#8b5cf6" });
+          }
+          continue;
+        }
+        if (pl.type === "bouncy") {
+          p.vy = p.jumpPower * 1.8;
+          _snd("hit");
+        } else {
+          p.vy = p.jumpPower;
+        }
+        p.onGround = true;
+        break;
+      }
+    }
+
+    for (var j = state.powerups.length - 1; j >= 0; j--) {
+      var pu = state.powerups[j];
+      if (p.x + p.w > pu.x && p.x < pu.x + pu.w && p.y + p.h > pu.y && p.y < pu.y + pu.h) {
+        if (pu.type === "spring") { p.vy = -22; }
+        else if (pu.type === "rocket") { p.vy = -30; }
+        state.powerups.splice(j, 1);
+        _snd("hit");
+      }
+    }
+
+    for (var oi = state.obstacles.length - 1; oi >= 0; oi--) {
+      var ob = state.obstacles[oi];
+      if (!ob.alive) continue;
+      ob.x += ob.vx * dt;
+      if (ob.x < 0 || ob.x + ob.w > W) ob.vx *= -1;
+      if (p.x + p.w > ob.x && p.x < ob.x + ob.w && p.y + p.h > ob.y && p.y < ob.y + ob.h) {
+        if (ob.type === "spike") {
+          die();
+          return;
+        } else {
+          p.vy = -8;
+          p.vx = (p.x < ob.x ? -3 : 3);
+          ob.alive = false;
+          state.obstacles.splice(oi, 1);
+          _snd("hit");
+        }
+      }
+    }
+
+    for (var pi = state.projectiles.length - 1; pi >= 0; pi--) {
+      var pr = state.projectiles[pi];
+      pr.y -= 12 * dt;
+      if (pr.y < -20) { state.projectiles.splice(pi, 1); continue; }
+      for (var oi2 = state.obstacles.length - 1; oi2 >= 0; oi2--) {
+        var ob2 = state.obstacles[oi2];
+        if (!ob2.alive) continue;
+        if (pr.x > ob2.x && pr.x < ob2.x + ob2.w && pr.y > ob2.y && pr.y < ob2.y + ob2.h) {
+          ob2.alive = false;
+          state.obstacles.splice(oi2, 1);
+          state.projectiles.splice(pi, 1);
+          _snd("hit");
+          break;
+        }
+      }
+    }
+
+    var targetCam = p.y - H * 0.5;
+    if (targetCam < state.cameraY) {
+      var diff = state.cameraY - targetCam;
+      state.cameraY -= diff * 0.08 * dt;
+      state.maxHeight = Math.max(state.maxHeight, state.cameraY * -1);
+      state.score = Math.floor(state.maxHeight);
+    }
+    if (p.y > state.cameraY + H + 50) {
+      die();
+      return;
+    }
+
+    state.lastSpawn += dt * 16.67;
+    if (state.lastSpawn > state.spawnCooldown) {
+      state.lastSpawn = 0;
+      spawnPlatform(state.cameraY - 40);
+    }
+    for (var di = state.platforms.length - 1; di >= 0; di--) {
+      if (state.platforms[di].y > state.cameraY + H + 100) {
+        state.platforms.splice(di, 1);
+      }
+    }
+    for (var di2 = state.obstacles.length - 1; di2 >= 0; di2--) {
+      if (state.obstacles[di2].y > state.cameraY + H + 100) {
+        state.obstacles.splice(di2, 1);
+      }
+    }
+    for (var di3 = state.powerups.length - 1; di3 >= 0; di3--) {
+      if (state.powerups[di3].y > state.cameraY + H + 100) {
+        state.powerups.splice(di3, 1);
+      }
+    }
+
+    for (var qi = state.particles.length - 1; qi >= 0; qi--) {
+      var q = state.particles[qi];
+      q.x += q.vx * dt;
+      q.y += q.vy * dt;
+      q.life -= dt;
+      if (q.life <= 0) state.particles.splice(qi, 1);
+    }
+
+    draw();
+    updateHUD();
+    rafId = requestAnimationFrame(loop);
+  }
+
+  function draw() {
+    var ctx = canvas.getContext("2d");
+    ctx.clearRect(0, 0, W, H);
+
+    var bgGrad = ctx.createLinearGradient(0, 0, 0, H);
+    bgGrad.addColorStop(0, "#0a0c12");
+    bgGrad.addColorStop(1, "#12161f");
+    ctx.fillStyle = bgGrad;
+    ctx.fillRect(0, 0, W, H);
+
+    for (var i = 0; i < state.platforms.length; i++) {
+      var pl = state.platforms[i];
+      var sy = pl.y - state.cameraY;
+      if (sy < -30 || sy > H + 30) continue;
+      var color = "#2a2f3e";
+      if (pl.type === "moving") color = "#3a7a6a";
+      else if (pl.type === "fragile") color = "#6a3a5a";
+      else if (pl.type === "bouncy") color = "#5a4a2a";
+      ctx.fillStyle = color;
+      ctx.fillRect(pl.x, sy, pl.w, pl.h);
+      ctx.strokeStyle = "rgba(255,255,255,0.15)";
+      ctx.lineWidth = 1;
+      ctx.strokeRect(pl.x, sy, pl.w, pl.h);
+    }
+
+    for (var j = 0; j < state.powerups.length; j++) {
+      var pu = state.powerups[j];
+      var sy2 = pu.y - state.cameraY;
+      if (sy2 < -30 || sy2 > H + 30) continue;
+      ctx.fillStyle = pu.type === "rocket" ? "#ef4444" : "#22c55e";
+      ctx.beginPath();
+      ctx.arc(pu.x + pu.w / 2, sy2 + pu.h / 2, pu.w / 2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    for (var k = 0; k < state.obstacles.length; k++) {
+      var ob = state.obstacles[k];
+      if (!ob.alive) continue;
+      var sy3 = ob.y - state.cameraY;
+      if (sy3 < -30 || sy3 > H + 30) continue;
+      if (ob.type === "spike") {
+        ctx.fillStyle = "#ef4444";
+        ctx.beginPath();
+        ctx.moveTo(ob.x, sy3 + ob.h);
+        ctx.lineTo(ob.x + ob.w / 2, sy3);
+        ctx.lineTo(ob.x + ob.w, sy3 + ob.h);
+        ctx.closePath();
+        ctx.fill();
+      } else {
+        ctx.fillStyle = "#eab308";
+        ctx.beginPath();
+        ctx.arc(ob.x + ob.w / 2, sy3 + ob.h / 2, ob.w / 2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    for (var l = 0; l < state.projectiles.length; l++) {
+      var pr = state.projectiles[l];
+      var sy4 = pr.y - state.cameraY;
+      ctx.fillStyle = "#c4b5fd";
+      ctx.fillRect(pr.x - 1, sy4, 2, 12);
+      ctx.beginPath();
+      ctx.moveTo(pr.x - 3, sy4);
+      ctx.lineTo(pr.x + 3, sy4);
+      ctx.lineTo(pr.x, sy4 - 6);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    var p = state.player;
+    var py = p.y - state.cameraY;
+    var cx = p.x + p.w / 2;
+    var cy = py + p.h / 2;
+    ctx.fillStyle = "#38bdf8";
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, p.w / 2, p.h / 2, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#0a0a0a";
+    var eyeOff = p.facing * 3;
+    ctx.beginPath(); ctx.arc(cx - 5 + eyeOff, cy - 4, 3, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(cx + 5 + eyeOff, cy - 4, 3, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#fff";
+    ctx.beginPath(); ctx.arc(cx - 5 + eyeOff, cy - 4, 1.2, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(cx + 5 + eyeOff, cy - 4, 1.2, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = "#0a0a0a";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(cx, cy + 4, 5, 0, Math.PI);
+    ctx.stroke();
+
+    for (var q2 = 0; q2 < state.particles.length; q2++) {
+      var pt = state.particles[q2];
+      var sy5 = pt.y - state.cameraY;
+      ctx.fillStyle = pt.color;
+      ctx.globalAlpha = Math.max(0, pt.life / 20);
+      ctx.fillRect(pt.x, sy5, 3, 3);
+      ctx.globalAlpha = 1;
+    }
+
+    var progress = Math.min(1, state.maxHeight / 30000);
+    ctx.fillStyle = "rgba(139,92,246,0.15)";
+    ctx.fillRect(4, H - 4, W - 8, 3);
+    ctx.fillStyle = "#8b5cf6";
+    ctx.fillRect(4, H - 4, (W - 8) * progress, 3);
+
+    if (state.flash) {
+      ctx.fillStyle = state.flash.color;
+      ctx.globalAlpha = state.flash.alpha;
+      ctx.fillRect(0, 0, W, H);
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  function die() {
+    stop();
+    _snd("fail");
+    var isRecord = state.score > state.best;
+    if (isRecord) {
+      state.best = state.score;
+      Store.set("direjumperbest", state.score);
+    }
+    var games = (Store.get("direjumpergames", 0) || 0) + 1;
+    Store.set("direjumpergames", games);
+    if (typeof window.submitGameScore === "function") {
+      try { window.submitGameScore("direjumper", state.score); } catch (e) {}
+    }
+    if (isRecord) _snd("win");
+    var overlay = el("div", { style: "position:absolute;inset:0;background:rgba(2,3,8,0.92);display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:16px;padding:20px;text-align:center;z-index:20;" });
+    overlay.appendChild(el("div", { style: "font-size:46px;margin-bottom:6px;" }, isRecord ? "🏆" : "🐟"));
+    overlay.appendChild(el("div", { style: "font-size:15px;font-weight:700;color:var(--text);margin-bottom:2px;" }, isRecord ? "Новый рекорд!" : "Сларк упал"));
+    overlay.appendChild(el("div", { style: "font-size:32px;font-weight:900;font-family:'JetBrains Mono',monospace;color:var(--gold);margin:12px 0 4px;" }, state.score.toLocaleString()));
+    overlay.appendChild(el("div", { class: "dim", style: "font-size:10.5px;margin-bottom:16px;" }, "Высота: " + Math.floor(state.maxHeight / 10) + " м"));
+    var btnRow = el("div", { style: "display:flex;gap:8px;" });
+    var retryBtn = UI.btn("🔄 Ещё раз");
+    retryBtn.addEventListener("click", function () { overlay.remove(); start(); });
+    btnRow.appendChild(retryBtn);
+    var menuBtn2 = UI.btn("← В меню", { variant: "ghost" });
+    menuBtn2.addEventListener("click", function () { overlay.remove(); showIntro("direjumper"); });
+    btnRow.appendChild(menuBtn2);
+    overlay.appendChild(btnRow);
+    canvasWrap.appendChild(overlay);
+  }
+
+  function start() {
+    reset();
+    state.running = true;
+    state.lastFrame = performance.now();
+    rafId = requestAnimationFrame(loop);
+  }
+
+  function onKeyDown(e) {
+    if (!state.running) return;
+    if (e.key === "ArrowLeft" || e.key === "a" || e.key === "A") state.keys.left = true;
+    if (e.key === "ArrowRight" || e.key === "d" || e.key === "D") state.keys.right = true;
+    if (e.key === "ArrowUp" || e.key === "w" || e.key === "W") {
+      e.preventDefault();
+      state.projectiles.push({ x: state.player.x + state.player.w / 2, y: state.player.y, vx: 0, vy: -12 });
+      _snd("hit");
+    }
+  }
+  function onKeyUp(e) {
+    if (e.key === "ArrowLeft" || e.key === "a" || e.key === "A") state.keys.left = false;
+    if (e.key === "ArrowRight" || e.key === "d" || e.key === "D") state.keys.right = false;
+  }
+  document.addEventListener("keydown", onKeyDown);
+  document.addEventListener("keyup", onKeyUp);
+
+  var _origStop = stop;
+  stop = function () {
+    _origStop();
+    document.removeEventListener("keydown", onKeyDown);
+    document.removeEventListener("keyup", onKeyUp);
+  };
+  _activeDireJumper.stop = stop;
+
+  setTimeout(function () { start(); }, 100);
+  return card;
+}
+
+console.log("games v9.0 ready (Dire Jumper added)");
