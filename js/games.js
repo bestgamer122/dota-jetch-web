@@ -1,7 +1,6 @@
-/* DOTA JETCH — MINI-GAMES v8.4
-   - Плавная прогрессия сложности по времени в обеих играх
-   - Lockpick: скорость растёт линейно за 20 сек (+ бонус за попадания)
-   - Automaton: скорость слов и темп спавна растут линейно за 60 сек
+/* DOTA JETCH — MINI-GAMES v8.5
+   - Звуки: попадание, промах, победа, ответы в quiz
+   - Плавная прогрессия сложности по времени
    - Fix: multiplier сбрасывается при неверном вводе
    - Fix: lockpick/automaton останавливаются при уходе со страницы */
 
@@ -47,6 +46,10 @@ function shuffle(a) {
     var t = arr[i]; arr[i] = arr[j]; arr[j] = t;
   }
   return arr;
+}
+
+function _snd(name) {
+  try { if (typeof Sound !== "undefined" && Sound[name]) Sound[name](); } catch (e) {}
 }
 
 var CURRENT_GAME = "lockpick";
@@ -205,7 +208,7 @@ function buildQuizIntro() {
   return card;
 }
 
-/* ─── LOCKPICK: плавная прогрессия ─── */
+/* ─── LOCKPICK ─── */
 function renderLockpick() {
   var card = UI.card("🔓 Взлом замка");
   var topRow = el("div", { style: "display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;" });
@@ -381,8 +384,20 @@ function renderLockpick() {
       var z = state.zones[i];
       if (isInZone(state.angle, z)) {
         hit = true;
-        if (z.blue) { state.timeLeft = Math.min(60, state.timeLeft + 1.5); state.flash = { color: "rgba(34,211,238,0.20)", alpha: 0.5 }; statusEl.textContent = "⚡ Синяя зона! +1.5 сек"; statusEl.style.color = "var(--cyan)"; }
-        else { state.score += 1000; state.hitCount++; state.flash = { color: "rgba(251,191,36,0.18)", alpha: 0.4 }; statusEl.textContent = "✓ Жёлтая! +1 000"; statusEl.style.color = "var(--gold)"; }
+        if (z.blue) {
+          state.timeLeft = Math.min(60, state.timeLeft + 1.5);
+          state.flash = { color: "rgba(34,211,238,0.20)", alpha: 0.5 };
+          statusEl.textContent = "⚡ Синяя зона! +1.5 сек";
+          statusEl.style.color = "var(--cyan)";
+          _snd("hit");
+        } else {
+          state.score += 1000;
+          state.hitCount++;
+          state.flash = { color: "rgba(251,191,36,0.18)", alpha: 0.4 };
+          statusEl.textContent = "✓ Жёлтая! +1 000";
+          statusEl.style.color = "var(--gold)";
+          _snd("hit");
+        }
         state.direction *= -1;
         spawnZones();
         break;
@@ -395,18 +410,15 @@ function renderLockpick() {
       state.flash = { color: "rgba(239,68,68,0.20)", alpha: 0.5 };
       statusEl.textContent = "✕ Промах! −0.6 сек";
       statusEl.style.color = "var(--red)";
+      _snd("miss");
     }
     updateHUD();
   }
 
-  /* ─── ГЛАВНОЕ: плавная прогрессия по времени ─── */
   function updateSpeed() {
-    // progress: 0 в начале, 1 в конце (20 сек)
     var elapsed = 20 - state.timeLeft;
     var progress = Math.max(0, Math.min(1, elapsed / 20));
-    // Базовый множитель: 1.0 → 2.2 (линейно)
     var timeMultiplier = 1.0 + progress * 1.2;
-    // Бонус за попадания: +3% за каждое, но не больше +50%
     var hitBonus = Math.min(0.5, state.hitCount * 0.03);
     state.speedMultiplier = timeMultiplier + hitBonus;
     state.baseSpeed = 1.6 * state.speedMultiplier;
@@ -455,6 +467,7 @@ function renderLockpick() {
     if (isRecord) Store.set("lockpickbest", state.score);
     if (typeof window.submitGameScore === "function") { try { window.submitGameScore("lockpick", state.score); } catch (e) {} }
     var passed = state.score >= 6000;
+    if (passed) _snd("win"); else _snd("fail");
     var overlay = el("div", { style: "position:absolute;inset:0;background:rgba(2,3,8,0.92);display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:16px;padding:20px;text-align:center;" });
     overlay.appendChild(el("div", { style: "font-size:46px;margin-bottom:6px;" }, passed ? "🔓" : "🔒"));
     overlay.appendChild(el("div", { style: "font-size:15px;font-weight:700;color:" + (passed ? "var(--green)" : "var(--red)") + ";margin-bottom:2px;" }, passed ? "Замок взломан!" : "Не хватило очков"));
@@ -482,7 +495,7 @@ function renderLockpick() {
   return card;
 }
 
-/* ─── AUTOMATON: плавная прогрессия ─── */
+/* ─── AUTOMATON ─── */
 function renderAutomaton() {
   var card = UI.card("⌨️ Атака автоматонов");
   var topRow = el("div", { style: "display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;" });
@@ -559,12 +572,10 @@ function renderAutomaton() {
     else timeH.val.style.color = "var(--cyan)";
   }
 
-  /* ─── ГЛАВНОЕ: расчёт сложности по прогрессу ─── */
   function computeDifficulty() {
-    // progress: 0 в начале, 1 в конце (60 сек)
     var elapsed = 60 - st.timeLeft;
     var progress = Math.max(0, Math.min(1, elapsed / 60));
-    st.difficulty = 1.0 + progress * 1.5; // 1.0 → 2.5
+    st.difficulty = 1.0 + progress * 1.5;
     return progress;
   }
 
@@ -579,7 +590,6 @@ function renderAutomaton() {
     el_.style.left = x + "px";
     el_.style.top = "-40px";
     wordsLayer.appendChild(el_);
-    // Скорость слов: 45 → 105 (плавно за 60 сек), + небольшой рандом
     var speed = 45 + progress * 60 + Math.random() * 15;
     st.words.push({ el: el_, word: word, y: -40, speed: speed });
   }
@@ -599,6 +609,7 @@ function renderAutomaton() {
         setTimeout(function () { botEmoji.style.transform = "translateX(-50%) scale(1) rotate(0deg)"; }, 160);
         statusEl.textContent = "💥 Пропуск! Множитель сброшен";
         statusEl.style.color = "var(--red)";
+        _snd("miss");
         renderHUD();
       }
     }
@@ -629,6 +640,7 @@ function renderAutomaton() {
         inp.value = "";
         statusEl.textContent = "✓ +" + pts.toLocaleString() + " (x" + st.multiplier + ")";
         statusEl.style.color = "var(--green)";
+        _snd("hit");
         renderHUD();
         return;
       }
@@ -649,6 +661,7 @@ function renderAutomaton() {
       st.multiplier = 1;
       statusEl.textContent = "✕ Не то слово! Множитель сброшен";
       statusEl.style.color = "var(--red)";
+      _snd("error");
       renderHUD();
       inp.value = "";
     }
@@ -663,7 +676,6 @@ function renderAutomaton() {
     var progress = computeDifficulty();
     if (st.spawnTimer <= 0) {
       spawnWord();
-      // Интервал спавна: 2.0 → 0.85 (плавно за 60 сек)
       var baseRate = 2.0 - progress * 1.15;
       st.spawnTimer = Math.max(0.75, baseRate + Math.random() * 0.25);
     }
@@ -697,6 +709,7 @@ function renderAutomaton() {
     var isRecord = st.score > best;
     if (isRecord) Store.set("automatonbest", st.score);
     if (typeof window.submitGameScore === "function") { try { window.submitGameScore("automaton", st.score); } catch (e) {} }
+    if (isRecord) _snd("win"); else _snd("fail");
     var overlay = el("div", { style: "position:absolute;inset:0;background:rgba(2,3,8,0.92);display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:16px;padding:20px;text-align:center;z-index:20;" });
     overlay.appendChild(el("div", { style: "font-size:46px;margin-bottom:6px;" }, isRecord ? "🏆" : "⏱"));
     overlay.appendChild(el("div", { style: "font-size:15px;font-weight:700;color:var(--text);margin-bottom:2px;" }, isRecord ? "Новый рекорд!" : "Время вышло"));
@@ -750,6 +763,7 @@ function renderQuiz() {
       progressFill.style.width = "100%";
       var resultWrap = el("div", { style: "text-align:center;padding:24px 16px;" });
       var emoji = score >= 9 ? "🏆" : score >= 7 ? "🥇" : score >= 5 ? "⭐" : "📘";
+      if (score >= 7) _snd("win"); else if (score < 5) _snd("fail");
       resultWrap.appendChild(el("div", { style: "font-size:56px;margin-bottom:10px;" }, emoji));
       resultWrap.appendChild(el("div", { style: "font-size:16px;font-weight:700;color:var(--text);" }, "Результат"));
       resultWrap.appendChild(el("div", { style: "font-size:44px;font-weight:900;font-family:'JetBrains Mono',monospace;color:var(--gold);margin:14px 0 6px;" }, score + " / " + bank.length));
@@ -786,7 +800,8 @@ function renderQuiz() {
           btn.style.background = ok ? "var(--green-bg)" : "var(--red-bg)";
           btn.style.borderColor = ok ? "var(--green)" : "var(--red)";
           btn.style.color = ok ? "var(--green)" : "var(--red)";
-          if (ok) score++;
+          if (ok) { score++; _snd("success"); }
+          else { _snd("error"); }
           var all = content.querySelectorAll("button");
           for (var k = 0; k < all.length; k++) all[k].disabled = true;
           setTimeout(function () { idx++; show(); }, 620);
@@ -799,4 +814,4 @@ function renderQuiz() {
   return card;
 }
 
-console.log("games v8.4 ready (smooth difficulty progression)");
+console.log("games v8.5 ready (sounds)");

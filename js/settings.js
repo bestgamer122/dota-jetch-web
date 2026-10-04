@@ -1,6 +1,6 @@
-/* DOTA JETCH — SETTINGS v5.0
-   - Убрана карточка «Профиль» (переехала в модалку, см. app.js)
-   - Осталось: подписка, тема, производительность */
+/* DOTA JETCH — SETTINGS v5.1
+   - Добавлена карточка «Звуки» с тумблером и ползунком громкости
+   - Кнопка теста звука */
 
 var FOREVER_KEY = "DANYA8228PRO";
 
@@ -192,6 +192,75 @@ function renderThemeCard(frag) {
   frag.appendChild(theme);
 }
 
+/* ─── НОВАЯ КАРТОЧКА: ЗВУКИ ─── */
+function renderSoundCard(frag) {
+  if (typeof Sound === "undefined") return;
+  var card = UI.card("Звуки");
+
+  // Тумблер вкл/выкл
+  var lbl = el("label", { style: "display:flex;align-items:center;gap:10px;font-size:13px;cursor:pointer;margin-bottom:16px;" });
+  var tgl = el("input", { type: "checkbox" });
+  tgl.style.cssText = "width:18px;height:18px;cursor:pointer;flex-shrink:0;";
+  tgl.checked = Sound.enabled;
+  tgl.addEventListener("change", function () {
+    Sound.setEnabled(tgl.checked);
+    if (tgl.checked) { try { Sound.click(); } catch (e) {} }
+    volRow.style.opacity = tgl.checked ? "1" : "0.4";
+    volRow.style.pointerEvents = tgl.checked ? "auto" : "none";
+    testBtn.style.opacity = tgl.checked ? "1" : "0.4";
+    testBtn.disabled = !tgl.checked;
+  });
+  lbl.appendChild(tgl);
+  lbl.appendChild(document.createTextNode("Включить звуки"));
+  card.appendChild(lbl);
+
+  // Громкость
+  var volRow = el("div", { style: "display:flex;align-items:center;gap:10px;margin-bottom:14px;" });
+  volRow.appendChild(el("span", { class: "dim", style: "font-size:11px;min-width:80px;" }, "Громкость"));
+
+  var volInp = el("input", { type: "range", min: "0", max: "100", value: String(Math.round(Sound.volume * 100)) });
+  volInp.style.cssText = "flex:1;cursor:pointer;";
+  volRow.appendChild(volInp);
+
+  var volVal = el("span", { class: "dim", style: "font-size:11px;min-width:38px;text-align:right;font-family:'JetBrains Mono',monospace;" }, Math.round(Sound.volume * 100) + "%");
+  volRow.appendChild(volVal);
+
+  volInp.addEventListener("input", function () {
+    var v = parseInt(volInp.value, 10) / 100;
+    Sound.setVolume(v);
+    volVal.textContent = volInp.value + "%";
+  });
+  volInp.addEventListener("change", function () {
+    try { Sound.hit(); } catch (e) {}
+  });
+
+  card.appendChild(volRow);
+
+  // Кнопка теста
+  var testBtn = UI.btn("🔊 Проверить звук", { variant: "ghost" });
+  testBtn.style.width = "auto";
+  testBtn.style.minWidth = "180px";
+  testBtn.addEventListener("click", function () {
+    try { Sound.win(); } catch (e) {}
+  });
+  card.appendChild(testBtn);
+
+  // Подсказка
+  var hint = el("div", { class: "dim", style: "font-size:10.5px;margin-top:12px;line-height:1.5;" },
+    "Звуки генерируются в реальном времени через Web Audio API. Не грузят сеть.");
+  card.appendChild(hint);
+
+  // Инициализация выключенного состояния
+  if (!Sound.enabled) {
+    volRow.style.opacity = "0.4";
+    volRow.style.pointerEvents = "none";
+    testBtn.style.opacity = "0.4";
+    testBtn.disabled = true;
+  }
+
+  frag.appendChild(card);
+}
+
 function renderPerfCard(frag) {
   var perf = UI.card("Производительность");
   var lbl = el("label", { style: "display:flex;align-items:center;gap:10px;font-size:13px;cursor:pointer;" });
@@ -209,6 +278,7 @@ function renderSettings() {
   var frag = document.createDocumentFragment();
   renderPlanCard(frag);
   renderThemeCard(frag);
+  renderSoundCard(frag);
   renderPerfCard(frag);
   return frag;
 }
