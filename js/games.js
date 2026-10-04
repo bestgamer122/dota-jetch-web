@@ -1,8 +1,11 @@
-/* DOTA JETCH — MINI-GAMES v9.1
-   - FIX: управление через e.code (работает на русской раскладке!)
-   - FIX: слушатели клавиатуры не удаляются при смерти
-   - NEW: экранные кнопки управления ◀ ▶ ↑
-   - NEW: Сларк переделан — тело-капля, зубы, плавники
+/* DOTA JETCH — MINI-GAMES v9.2
+   - FIX: заточка с cooldown 250ms
+   - FIX: снаряд удаляется по границам ЭКРАНА
+   - FIX: добавлена ЛАВА внизу — игрок умирает
+   - FIX: ачивки — direjumpergames++ при СТАРТЕ
+   - FIX: game останавливается при смене hash / visibility
+   - УБРАНЫ экранные кнопки
+   - Улучшен визуал: платформы 3D, шипы-зазубрины, головы шутов, звёзды
    - Плавная прогрессия сложности */
 
 var QUIZ = [
@@ -209,12 +212,11 @@ function buildDireJumperIntro() {
   card.appendChild(visual);
   card.appendChild(buildRulesBlock("Как играть", [
     "A / D или ← → — двигать Сларка влево/вправо",
-    "W или ↑ — метнуть заточку вверх (убивает врагов)",
-    "Работает на любой раскладке клавиатуры",
-    "Есть экранные кнопки ◀ ▶ ▲ под канвасом",
+    "W / ↑ / SPACE — метнуть заточку (КД 0.25 сек)",
     "Прыгай по платформам как можно выше",
     "Экран зациклен по горизонтали",
-    "Избегай шипов, шариков, голов шутов и птиц",
+    "Избегай шипов и шариков — они убивают",
+    "НЕ КАСАЙСЯ ЛАВЫ внизу — мгновенная смерть",
     "Цель — набрать максимум очков за высоту"
   ]));
   card.appendChild(buildPlayButton("🎮 Играть", "direjumper"));
@@ -237,7 +239,7 @@ function buildQuizIntro() {
   return card;
 }
 
-/* ─── LOCKPICK ─── */
+/* ─── LOCKPICK (без изменений) ─── */
 function renderLockpick() {
   var card = UI.card("🔓 Взлом замка");
   var topRow = el("div", { style: "display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;" });
@@ -524,7 +526,7 @@ function renderLockpick() {
   return card;
 }
 
-/* ─── AUTOMATON ─── */
+/* ─── AUTOMATON (без изменений) ─── */
 function renderAutomaton() {
   var card = UI.card("⌨️ Атака автоматонов");
   var topRow = el("div", { style: "display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;" });
@@ -762,7 +764,7 @@ function renderAutomaton() {
   return card;
 }
 
-/* ─── QUIZ ─── */
+/* ─── QUIZ (без изменений) ─── */
 function renderQuiz() {
   var card = UI.card("🧠 Викторина");
   var topRow = el("div", { style: "display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;" });
@@ -842,7 +844,7 @@ function renderQuiz() {
   return card;
 }
 
-/* ─── DIRE JUMPER (v9.1 — исправлено управление, новый Сларк) ─── */
+/* ─── DIRE JUMPER v9.2 (полностью переделан) ─── */
 function renderDireJumper() {
   var card = UI.card("🎪 Дири-Джампер");
   var topRow = el("div", { style: "display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;" });
@@ -872,39 +874,25 @@ function renderDireJumper() {
   canvas.width = 420;
   canvas.height = 500;
   canvas.tabIndex = 0;
-  canvas.style.cssText = "display:block;width:100%;border-radius:16px 16px 0 0;background:#0c0e14;border:1px solid var(--border);border-bottom:none;user-select:none;outline:none;";
+  canvas.style.cssText = "display:block;width:100%;border-radius:16px;background:#0c0e14;border:1px solid var(--border);user-select:none;outline:none;";
   canvasWrap.appendChild(canvas);
   card.appendChild(canvasWrap);
 
-  // Экранные кнопки управления
-  var controls = el("div", { style: "display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;max-width:420px;margin:0 auto;padding:12px;background:#0c0e14;border:1px solid var(--border);border-radius:0 0 16px 16px;" });
-  function mkBtn(label, dataAttr) {
-    var b = document.createElement("button");
-    b.type = "button";
-    b.setAttribute(dataAttr, "1");
-    b.textContent = label;
-    b.style.cssText = "padding:16px 8px;font-size:22px;font-weight:900;background:var(--bg-elev);color:var(--text);border:1px solid var(--border);border-radius:10px;cursor:pointer;font-family:inherit;touch-action:none;-webkit-tap-highlight-color:transparent;user-select:none;";
-    return b;
-  }
-  var btnLeft = mkBtn("◀", "data-dj-left");
-  var btnUp = mkBtn("▲", "data-dj-up");
-  var btnRight = mkBtn("▶", "data-dj-right");
-  controls.appendChild(btnLeft);
-  controls.appendChild(btnUp);
-  controls.appendChild(btnRight);
-  card.appendChild(controls);
-
-  var statusEl = el("div", { style: "text-align:center;margin-top:12px;font-size:12px;font-weight:600;color:var(--text-muted);min-height:20px;max-width:420px;margin-left:auto;margin-right:auto;" }, "A / D — двигать, W — заточка. Или кнопки под полем.");
+  var statusEl = el("div", { style: "text-align:center;margin-top:12px;font-size:12px;font-weight:600;color:var(--text-muted);min-height:20px;max-width:420px;margin-left:auto;margin-right:auto;" }, "A / D — двигать · W / ↑ / SPACE — заточка");
   card.appendChild(statusEl);
 
   var W = canvas.width, H = canvas.height;
+  var SHOT_COOLDOWN = 250;
+  var lastShotTime = 0;
+
   var state = {
     running: false, score: 0, best: Store.get("direjumperbest", 0) || 0,
     cameraY: 0, maxHeight: 0,
-    player: { x: W / 2 - 15, y: H - 60, vx: 0, vy: 0, w: 30, h: 30, facing: 1, jumpPower: -12, gravity: 0.5, animT: 0 },
+    player: { x: W / 2 - 15, y: H - 90, vx: 0, vy: 0, w: 30, h: 30, facing: 1, jumpPower: -12, gravity: 0.5, animT: 0 },
     platforms: [], obstacles: [], projectiles: [], particles: [], powerups: [],
     keys: { left: false, right: false },
-    lastFrame: 0, lastSpawn: 0, spawnCooldown: 60
+    lastFrame: 0, lastSpawn: 0, spawnCooldown: 60,
+    lavaFlash: 0, lastCheckedScore: 0
   };
   var rafId = null;
   var listenersAttached = false;
@@ -936,7 +924,7 @@ function renderDireJumper() {
     state.score = 0;
     state.cameraY = 0;
     state.maxHeight = 0;
-    state.player = { x: W / 2 - 15, y: H - 60, vx: 0, vy: 0, w: 30, h: 30, facing: 1, jumpPower: -12, gravity: 0.5, animT: 0 };
+    state.player = { x: W / 2 - 15, y: H - 90, vx: 0, vy: 0, w: 30, h: 30, facing: 1, jumpPower: -12, gravity: 0.5, animT: 0 };
     state.platforms = [];
     state.obstacles = [];
     state.projectiles = [];
@@ -946,35 +934,47 @@ function renderDireJumper() {
     state.lastFrame = performance.now();
     state.lastSpawn = 0;
     state.spawnCooldown = 60;
+    state.lavaFlash = 0;
+    state.lastCheckedScore = 0;
+    lastShotTime = 0;
 
-    state.platforms.push({ x: W / 2 - 40, y: H - 30, w: 80, h: 10, type: "static" });
+    // Стартовая платформа под игроком
+    state.platforms.push({ x: W / 2 - 40, y: H - 60, w: 80, h: 10, type: "static" });
+    // Платформы выше с рандомным шагом (90-140)
+    var lastY = H - 60;
     for (var i = 0; i < 20; i++) {
-      spawnPlatform(H - 100 - i * 40);
+      lastY -= 90 + Math.random() * 50;
+      spawnPlatform(lastY);
     }
     updateHUD();
   }
 
   function spawnPlatform(y) {
     var margin = 10;
-    var w = 60 + Math.random() * 40;
+    // Ширина уменьшается с высотой
+    var diff = Math.min(1, Math.max(0, (0 - y) / 15000));
+    var wMin = 60 - diff * 20;
+    var wMax = 90 - diff * 20;
+    var w = wMin + Math.random() * (wMax - wMin);
     var x = margin + Math.random() * (W - w - margin * 2);
     var type = "static";
     var r = Math.random();
     if (r < 0.15) type = "moving";
     else if (r < 0.25) type = "fragile";
     else if (r < 0.35) type = "bouncy";
-    var p = { x: x, y: y, w: w, h: 10, type: type, dir: Math.random() < 0.5 ? 1 : -1, speed: 0.5 + Math.random() * 0.8 };
+    var p = { x: x, y: y, w: w, h: 12, type: type, dir: Math.random() < 0.5 ? 1 : -1, speed: 0.5 + Math.random() * 0.8 };
     state.platforms.push(p);
 
-    if (Math.random() < 0.25 && y > 100) {
+    if (Math.random() < 0.22 && y > 100) {
       var obs = {
-        x: x + 10 + Math.random() * (w - 20),
-        y: y - 20,
-        w: 18, h: 18,
-        type: Math.random() < 0.6 ? "spike" : "enemy",
+        x: x + 12 + Math.random() * Math.max(1, w - 24),
+        y: y - 22,
+        w: 20, h: 20,
+        type: Math.random() < 0.55 ? "spike" : "enemy",
         vx: (Math.random() - 0.5) * 1.2,
         vy: 0,
-        alive: true
+        alive: true,
+        animT: Math.random() * 10
       };
       state.obstacles.push(obs);
     }
@@ -992,7 +992,6 @@ function renderDireJumper() {
     bestH.val.textContent = state.best.toLocaleString();
   }
 
-  /* ─── УПРАВЛЕНИЕ — используем e.code, работает на любой раскладке ─── */
   function onKeyDown(e) {
     if (!state.running) return;
     var code = e.code || "";
@@ -1000,6 +999,7 @@ function renderDireJumper() {
     else if (code === "ArrowRight" || code === "KeyD") { state.keys.right = true; e.preventDefault(); }
     else if (code === "ArrowUp" || code === "KeyW" || code === "Space") {
       e.preventDefault();
+      if (e.repeat) return; // игнорируем автоповтор
       fireProjectile();
     }
   }
@@ -1010,27 +1010,12 @@ function renderDireJumper() {
   }
 
   function fireProjectile() {
-    state.projectiles.push({ x: state.player.x + state.player.w / 2, y: state.player.y, vx: 0, vy: -12 });
+    var now = performance.now();
+    if (now - lastShotTime < SHOT_COOLDOWN) return;
+    lastShotTime = now;
+    state.projectiles.push({ x: state.player.x + state.player.w / 2, y: state.player.y, vy: -12, animT: 0 });
     _snd("hit");
   }
-
-  /* ─── Экранные кнопки ─── */
-  function bindControl(btn, action) {
-    function start(e) { e.preventDefault(); e.stopPropagation(); if (!state.running) return; action(true); }
-    function end(e) { e.preventDefault(); e.stopPropagation(); action(false); }
-    btn.addEventListener("mousedown", start);
-    btn.addEventListener("mouseup", end);
-    btn.addEventListener("mouseleave", end);
-    btn.addEventListener("touchstart", start, { passive: false });
-    btn.addEventListener("touchend", end, { passive: false });
-    btn.addEventListener("touchcancel", end, { passive: false });
-    btn.addEventListener("contextmenu", function (e) { e.preventDefault(); });
-  }
-  bindControl(btnLeft, function (on) { state.keys.left = on; });
-  bindControl(btnRight, function (on) { state.keys.right = on; });
-  bindControl(btnUp, function (on) {
-    if (on && state.running) fireProjectile();
-  });
 
   function loop(ts) {
     if (!state.running) return;
@@ -1055,6 +1040,7 @@ function renderDireJumper() {
     if (p.vy > 18) p.vy = 18;
     p.y += p.vy * dt;
 
+    // Платформы
     for (var i = 0; i < state.platforms.length; i++) {
       var pl = state.platforms[i];
       if (pl.type === "moving") {
@@ -1082,6 +1068,7 @@ function renderDireJumper() {
       }
     }
 
+    // Ускорители
     for (var j = state.powerups.length - 1; j >= 0; j--) {
       var pu = state.powerups[j];
       if (p.x + p.w > pu.x && p.x < pu.x + pu.w && p.y + p.h > pu.y && p.y < pu.y + pu.h) {
@@ -1092,13 +1079,15 @@ function renderDireJumper() {
       }
     }
 
+    // Препятствия
     for (var oi = state.obstacles.length - 1; oi >= 0; oi--) {
       var ob = state.obstacles[oi];
       if (!ob.alive) continue;
+      ob.animT = (ob.animT || 0) + dt;
       ob.x += ob.vx * dt;
       if (ob.x < 0 || ob.x + ob.w > W) ob.vx *= -1;
       if (p.x + p.w > ob.x && p.x < ob.x + ob.w && p.y + p.h > ob.y && p.y < ob.y + ob.h) {
-        if (ob.type === "spike") { die(); return; }
+        if (ob.type === "spike") { die("spike"); return; }
         else {
           p.vy = -8;
           p.vx = (p.x < ob.x ? -3 : 3);
@@ -1109,10 +1098,17 @@ function renderDireJumper() {
       }
     }
 
+    // Заточки
     for (var pi = state.projectiles.length - 1; pi >= 0; pi--) {
       var pr = state.projectiles[pi];
       pr.y -= 12 * dt;
-      if (pr.y < -20) { state.projectiles.splice(pi, 1); continue; }
+      pr.animT = (pr.animT || 0) + dt;
+      // Удаляем если за пределами ЭКРАНА
+      var screenY = pr.y - state.cameraY;
+      if (screenY < -40 || screenY > H + 40) {
+        state.projectiles.splice(pi, 1);
+        continue;
+      }
       for (var oi2 = state.obstacles.length - 1; oi2 >= 0; oi2--) {
         var ob2 = state.obstacles[oi2];
         if (!ob2.alive) continue;
@@ -1126,6 +1122,7 @@ function renderDireJumper() {
       }
     }
 
+    // Камера
     var targetCam = p.y - H * 0.5;
     if (targetCam < state.cameraY) {
       var diff = state.cameraY - targetCam;
@@ -1133,13 +1130,28 @@ function renderDireJumper() {
       state.maxHeight = Math.max(state.maxHeight, state.cameraY * -1);
       state.score = Math.floor(state.maxHeight);
     }
-    if (p.y > state.cameraY + H + 50) { die(); return; }
 
+    // ЛАВА внизу экрана
+    var lavaY = state.cameraY + H - 10;
+    if (p.y + p.h >= lavaY) {
+      die("lava");
+      return;
+    }
+
+    // Проверка ачивок по очкам
+    if (state.score > state.lastCheckedScore + 1000) {
+      state.lastCheckedScore = state.score;
+      if (typeof Achievements !== "undefined") Achievements.check();
+    }
+
+    // Спавн новых платформ
     state.lastSpawn += dt * 16.67;
     if (state.lastSpawn > state.spawnCooldown) {
       state.lastSpawn = 0;
-      spawnPlatform(state.cameraY - 40);
+      var topY = state.platforms.length > 0 ? state.platforms[state.platforms.length - 1].y : state.cameraY;
+      spawnPlatform(state.cameraY - 100 - Math.random() * 40);
     }
+    // Удаление платформ, ушедших вниз
     for (var di = state.platforms.length - 1; di >= 0; di--) {
       if (state.platforms[di].y > state.cameraY + H + 100) state.platforms.splice(di, 1);
     }
@@ -1150,6 +1162,7 @@ function renderDireJumper() {
       if (state.powerups[di3].y > state.cameraY + H + 100) state.powerups.splice(di3, 1);
     }
 
+    // Частицы
     for (var qi = state.particles.length - 1; qi >= 0; qi--) {
       var q = state.particles[qi];
       q.x += q.vx * dt;
@@ -1163,52 +1176,338 @@ function renderDireJumper() {
     rafId = requestAnimationFrame(loop);
   }
 
-  /* ─── НОВЫЙ РИСУНОК СЛАРКА ─── */
+  /* ─── РИСОВАНИЕ ─── */
+  function drawBackground(ctx) {
+    var bgGrad = ctx.createLinearGradient(0, 0, 0, H);
+    bgGrad.addColorStop(0, "#080a10");
+    bgGrad.addColorStop(0.7, "#0e1420");
+    bgGrad.addColorStop(1, "#1a0f14");
+    ctx.fillStyle = bgGrad;
+    ctx.fillRect(0, 0, W, H);
+
+    // Звёзды (параллакс по вертикали)
+    var starOffset = state.cameraY * 0.15;
+    for (var i = 0; i < 40; i++) {
+      var sx = (i * 137) % W;
+      var sy = (i * 89 + starOffset) % (H * 2);
+      if (sy < 0) sy += H * 2;
+      if (sy > H) continue;
+      var brightness = 0.15 + ((i * 31) % 100) / 400;
+      ctx.fillStyle = "rgba(200,220,255," + brightness + ")";
+      var size = i % 5 === 0 ? 2 : 1;
+      ctx.fillRect(sx, sy, size, size);
+    }
+  }
+
+  function drawLava(ctx) {
+    var lavaTop = state.cameraY + H - 10;
+    var screenY = lavaTop - state.cameraY;
+    // Свечение над лавой
+    var grad = ctx.createLinearGradient(0, screenY - 30, 0, screenY + 20);
+    grad.addColorStop(0, "rgba(220,38,38,0)");
+    grad.addColorStop(1, "rgba(220,38,38,0.4)");
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, screenY - 30, W, 40);
+    // Лава
+    ctx.fillStyle = "#dc2626";
+    ctx.fillRect(0, screenY, W, H - screenY + 5);
+    // Пульсация
+    var t = performance.now() / 300;
+    for (var x = 0; x < W; x += 12) {
+      var h = 3 + Math.sin(t + x * 0.1) * 2;
+      ctx.fillStyle = "rgba(251,146,60,0.9)";
+      ctx.fillRect(x, screenY - h, 12, h);
+    }
+    ctx.fillStyle = "#fbbf24";
+    for (var x2 = 0; x2 < W; x2 += 20) {
+      var h2 = 1 + Math.sin(t * 1.3 + x2 * 0.15) * 1.5;
+      ctx.fillRect(x2, screenY - h2, 20, h2);
+    }
+  }
+
+  function drawPlatform(ctx, pl) {
+    var sy = pl.y - state.cameraY;
+    if (sy < -30 || sy > H + 30) return;
+
+    var colors = {
+      static: { base: "#3a4256", top: "#6b7593", shadow: "#1a1f2e" },
+      moving: { base: "#2a5a52", top: "#4a9a8a", shadow: "#15302c" },
+      fragile: { base: "#5a2a4a", top: "#9a4a78", shadow: "#2d1524" },
+      bouncy: { base: "#5a4a2a", top: "#9a8a4a", shadow: "#2d2515" }
+    };
+    var c = colors[pl.type] || colors.static;
+
+    // Тень снизу
+    ctx.fillStyle = c.shadow;
+    ctx.fillRect(pl.x + 2, sy + pl.h, pl.w - 4, 3);
+
+    // Основа
+    ctx.fillStyle = c.base;
+    ctx.fillRect(pl.x, sy, pl.w, pl.h);
+
+    // Верхняя грань
+    ctx.fillStyle = c.top;
+    ctx.fillRect(pl.x, sy, pl.w, 3);
+
+    // Тонкая обводка
+    ctx.strokeStyle = "rgba(255,255,255,0.12)";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(pl.x + 0.5, sy + 0.5, pl.w - 1, pl.h - 1);
+
+    // Детали по типам
+    if (pl.type === "moving") {
+      ctx.fillStyle = "rgba(255,255,255,0.35)";
+      var offset = (performance.now() / 30) % 12;
+      for (var x = pl.x - offset; x < pl.x + pl.w; x += 12) {
+        if (x < pl.x) continue;
+        ctx.fillRect(x, sy + 6, 4, 2);
+      }
+    } else if (pl.type === "fragile") {
+      ctx.strokeStyle = "rgba(255,255,255,0.4)";
+      ctx.lineWidth = 1;
+      var seeds = [0.15, 0.4, 0.65, 0.85];
+      for (var s = 0; s < seeds.length; s++) {
+        var cx = pl.x + pl.w * seeds[s];
+        ctx.beginPath();
+        ctx.moveTo(cx, sy + 3);
+        ctx.lineTo(cx + 2, sy + 6);
+        ctx.lineTo(cx - 1, sy + 10);
+        ctx.stroke();
+      }
+    } else if (pl.type === "bouncy") {
+      ctx.strokeStyle = "rgba(255,255,255,0.55)";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(pl.x + pl.w / 2 - 6, sy + pl.h - 3);
+      ctx.lineTo(pl.x + pl.w / 2, sy + 4);
+      ctx.lineTo(pl.x + pl.w / 2 + 6, sy + pl.h - 3);
+      ctx.stroke();
+    }
+  }
+
+  function drawObstacle(ctx, ob) {
+    var sy = ob.y - state.cameraY;
+    if (sy < -30 || sy > H + 30) return;
+    if (ob.type === "spike") {
+      // Тень
+      ctx.fillStyle = "rgba(0,0,0,0.4)";
+      ctx.beginPath();
+      ctx.moveTo(ob.x + 1, sy + ob.h + 2);
+      ctx.lineTo(ob.x + ob.w / 2 + 1, sy + 3);
+      ctx.lineTo(ob.x + ob.w + 1, sy + ob.h + 2);
+      ctx.closePath();
+      ctx.fill();
+      // Шип с градиентом
+      var g = ctx.createLinearGradient(ob.x, sy, ob.x, sy + ob.h);
+      g.addColorStop(0, "#fef08a");
+      g.addColorStop(0.4, "#f97316");
+      g.addColorStop(1, "#7f1d1d");
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.moveTo(ob.x, sy + ob.h);
+      ctx.lineTo(ob.x + ob.w / 2, sy);
+      ctx.lineTo(ob.x + ob.w, sy + ob.h);
+      ctx.closePath();
+      ctx.fill();
+      // Зазубрины
+      ctx.fillStyle = "#fef9c3";
+      ctx.beginPath();
+      ctx.moveTo(ob.x + ob.w / 2, sy);
+      ctx.lineTo(ob.x + ob.w / 2 - 2, sy + 6);
+      ctx.lineTo(ob.x + ob.w / 2, sy + 4);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = "rgba(0,0,0,0.5)";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    } else {
+      // Голова шута — круг с глазами
+      var cx = ob.x + ob.w / 2, cy = sy + ob.h / 2;
+      var r = ob.w / 2;
+      // Тень
+      ctx.fillStyle = "rgba(0,0,0,0.35)";
+      ctx.beginPath();
+      ctx.arc(cx + 2, cy + 2, r, 0, Math.PI * 2);
+      ctx.fill();
+      // Тело
+      var g2 = ctx.createRadialGradient(cx - r * 0.4, cy - r * 0.4, r * 0.2, cx, cy, r);
+      g2.addColorStop(0, "#fde047");
+      g2.addColorStop(0.6, "#eab308");
+      g2.addColorStop(1, "#854d0e");
+      ctx.fillStyle = g2;
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "#451a03";
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+      // Глаза
+      ctx.fillStyle = "#0a0a0a";
+      ctx.beginPath();
+      ctx.arc(cx - r * 0.35, cy - r * 0.15, r * 0.18, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(cx + r * 0.35, cy - r * 0.15, r * 0.18, 0, Math.PI * 2);
+      ctx.fill();
+      // Зрачки
+      ctx.fillStyle = "#dc2626";
+      ctx.beginPath();
+      ctx.arc(cx - r * 0.35, cy - r * 0.15, r * 0.09, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(cx + r * 0.35, cy - r * 0.15, r * 0.09, 0, Math.PI * 2);
+      ctx.fill();
+      // Улыбка-оскал
+      ctx.strokeStyle = "#0a0a0a";
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.arc(cx, cy + r * 0.05, r * 0.5, 0.15 * Math.PI, 0.85 * Math.PI);
+      ctx.stroke();
+      // Зубы
+      ctx.fillStyle = "#fafafa";
+      ctx.fillRect(cx - r * 0.28, cy + r * 0.35, 2, 3);
+      ctx.fillRect(cx - r * 0.08, cy + r * 0.42, 2, 3);
+      ctx.fillRect(cx + r * 0.12, cy + r * 0.42, 2, 3);
+    }
+  }
+
+  function drawPowerup(ctx, pu) {
+    var sy = pu.y - state.cameraY;
+    if (sy < -30 || sy > H + 30) return;
+    var cx = pu.x + pu.w / 2, cy = sy + pu.h / 2;
+    var t = performance.now() / 200;
+    var pulse = 1 + Math.sin(t) * 0.15;
+    var r = (pu.w / 2) * pulse;
+    if (pu.type === "rocket") {
+      ctx.fillStyle = "rgba(239,68,68,0.3)";
+      ctx.beginPath();
+      ctx.arc(cx, cy, r * 1.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#ef4444";
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "#7f1d1d";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.fillStyle = "#fff";
+      ctx.font = "bold 12px sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("🚀", cx, cy + 1);
+    } else {
+      ctx.fillStyle = "rgba(34,197,94,0.3)";
+      ctx.beginPath();
+      ctx.arc(cx, cy, r * 1.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#22c55e";
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "#14532d";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.fillStyle = "#fff";
+      ctx.font = "bold 11px sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("⚡", cx, cy + 1);
+    }
+  }
+
+  function drawProjectile(ctx, pr) {
+    var sy = pr.y - state.cameraY;
+    if (sy < -40 || sy > H + 40) return;
+    // Тень/след
+    ctx.fillStyle = "rgba(196,181,253,0.3)";
+    ctx.fillRect(pr.x - 1, sy + 6, 2, 10);
+    // Древко
+    ctx.fillStyle = "#c4b5fd";
+    ctx.fillRect(pr.x - 1.5, sy, 3, 14);
+    // Наконечник
+    ctx.fillStyle = "#e9d5ff";
+    ctx.beginPath();
+    ctx.moveTo(pr.x - 4, sy + 2);
+    ctx.lineTo(pr.x + 4, sy + 2);
+    ctx.lineTo(pr.x, sy - 8);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = "#7c3aed";
+    ctx.lineWidth = 0.8;
+    ctx.stroke();
+    // Хвост-оперение
+    ctx.fillStyle = "#a855f7";
+    ctx.beginPath();
+    ctx.moveTo(pr.x - 3, sy + 10);
+    ctx.lineTo(pr.x - 4, sy + 16);
+    ctx.lineTo(pr.x, sy + 14);
+    ctx.lineTo(pr.x + 4, sy + 16);
+    ctx.lineTo(pr.x + 3, sy + 10);
+    ctx.closePath();
+    ctx.fill();
+  }
+
   function drawSlark(ctx, cx, cy, w, h, facing, animT, vy) {
-    // Лёгкое покачивание
-    var sway = Math.sin(animT * 0.15) * 1.5;
-    var squash = 1 + Math.max(-0.15, Math.min(0.15, -vy * 0.01));
+    var sway = Math.sin(animT * 0.15) * 1.2;
+    var squash = 1 + Math.max(-0.15, Math.min(0.15, -vy * 0.012));
+    var rw = (w / 2);
+    var rh = (h / 2);
 
     ctx.save();
     ctx.translate(cx, cy + sway);
+    ctx.scale(2 - squash, squash);
 
-    var rw = (w / 2) * (2 - squash);  // растяжение по ширине при падении
-    var rh = (h / 2) * squash;
-
-    // Хвост (сзади, по направлению)
     var tailDir = facing === 1 ? -1 : 1;
-    ctx.fillStyle = "#1e6eb8";
+
+    // Тень под игроком (когда близко к платформе — не знаем, но всё равно рисуем)
+    // Убрано — работает плохо
+
+    // Хвост
+    ctx.fillStyle = "#0e5a8a";
     ctx.beginPath();
-    ctx.moveTo(tailDir * rw * 0.9, 0);
-    ctx.quadraticCurveTo(tailDir * rw * 1.8, -rh * 0.4 + Math.sin(animT * 0.2) * 3, tailDir * rw * 1.6, -rh * 1.2);
+    ctx.moveTo(tailDir * rw * 0.85, 0);
+    ctx.quadraticCurveTo(tailDir * rw * 1.9, -rh * 0.5 + Math.sin(animT * 0.2) * 2, tailDir * rw * 1.7, -rh * 1.3);
     ctx.quadraticCurveTo(tailDir * rw * 1.2, -rh * 0.8, tailDir * rw * 0.7, -rh * 0.3);
     ctx.closePath();
     ctx.fill();
     ctx.beginPath();
-    ctx.moveTo(tailDir * rw * 0.9, 0);
-    ctx.quadraticCurveTo(tailDir * rw * 1.8, rh * 0.4 + Math.sin(animT * 0.2) * 3, tailDir * rw * 1.6, rh * 1.2);
+    ctx.moveTo(tailDir * rw * 0.85, 0);
+    ctx.quadraticCurveTo(tailDir * rw * 1.9, rh * 0.5 + Math.sin(animT * 0.2) * 2, tailDir * rw * 1.7, rh * 1.3);
     ctx.quadraticCurveTo(tailDir * rw * 1.2, rh * 0.8, tailDir * rw * 0.7, rh * 0.3);
     ctx.closePath();
     ctx.fill();
 
-    // Нижние плавники-ножки
-    ctx.fillStyle = "#1e6eb8";
+    // Плавники-ножки
+    ctx.fillStyle = "#0e5a8a";
     ctx.beginPath();
     ctx.moveTo(-rw * 0.5, rh * 0.7);
-    ctx.lineTo(-rw * 0.7, rh * 1.2);
+    ctx.lineTo(-rw * 0.75, rh * 1.25);
     ctx.lineTo(-rw * 0.1, rh * 0.9);
     ctx.closePath();
     ctx.fill();
     ctx.beginPath();
     ctx.moveTo(rw * 0.5, rh * 0.7);
-    ctx.lineTo(rw * 0.7, rh * 1.2);
+    ctx.lineTo(rw * 0.75, rh * 1.25);
     ctx.lineTo(rw * 0.1, rh * 0.9);
     ctx.closePath();
     ctx.fill();
 
-    // Основное тело — капля
-    var bodyGrad = ctx.createRadialGradient(-rw * 0.3, -rh * 0.3, 2, 0, 0, rw * 1.1);
-    bodyGrad.addColorStop(0, "#7dd3fc");
+    // Спинной плавник
+    ctx.fillStyle = "#0e5a8a";
+    ctx.beginPath();
+    ctx.moveTo(-rw * 0.35, -rh * 0.9);
+    ctx.lineTo(0, -rh * 1.6);
+    ctx.lineTo(rw * 0.4, -rh * 0.9);
+    ctx.quadraticCurveTo(0, -rh * 0.75, -rw * 0.35, -rh * 0.9);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = "#082f49";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // Тело
+    var bodyGrad = ctx.createRadialGradient(-rw * 0.35, -rh * 0.35, 2, 0, 0, rw * 1.2);
+    bodyGrad.addColorStop(0, "#93e0ff");
     bodyGrad.addColorStop(0.5, "#38bdf8");
     bodyGrad.addColorStop(1, "#0369a1");
     ctx.fillStyle = bodyGrad;
@@ -1218,85 +1517,64 @@ function renderDireJumper() {
     ctx.bezierCurveTo(-rw * 1.0, rh * 0.6, -rw * 0.9, -rh * 0.9, 0, -rh * 1.05);
     ctx.closePath();
     ctx.fill();
-
-    // Тёмный контур
-    ctx.strokeStyle = "#0c4a6e";
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-
-    // Спинной плавник
-    ctx.fillStyle = "#0369a1";
-    ctx.beginPath();
-    ctx.moveTo(-rw * 0.3, -rh * 0.9);
-    ctx.lineTo(0, -rh * 1.55);
-    ctx.lineTo(rw * 0.35, -rh * 0.9);
-    ctx.quadraticCurveTo(0, -rh * 0.75, -rw * 0.3, -rh * 0.9);
-    ctx.closePath();
-    ctx.fill();
-    ctx.strokeStyle = "#0c4a6e";
+    ctx.strokeStyle = "#082f49";
+    ctx.lineWidth = 1.4;
     ctx.stroke();
 
     // Глаза
-    var eyeOff = facing * rw * 0.25;
-    var eyeY = -rh * 0.15;
-    var eyeR = rw * 0.32;
+    var eyeOff = facing * rw * 0.28;
+    var eyeY = -rh * 0.2;
+    var eyeR = rw * 0.3;
 
-    // Левый глаз
-    ctx.fillStyle = "#fff8dc";
+    ctx.fillStyle = "#fef9c3";
     ctx.beginPath();
     ctx.arc(-rw * 0.35 + eyeOff, eyeY, eyeR, 0, Math.PI * 2);
     ctx.fill();
-    ctx.strokeStyle = "#0c4a6e";
-    ctx.lineWidth = 1;
-    ctx.stroke();
-
-    // Правый глаз
     ctx.beginPath();
     ctx.arc(rw * 0.35 + eyeOff, eyeY, eyeR, 0, Math.PI * 2);
     ctx.fill();
+    ctx.strokeStyle = "#082f49";
+    ctx.lineWidth = 1;
     ctx.stroke();
 
-    // Зрачки (смотрят в сторону движения)
     var pupilOff = facing * rw * 0.08;
-    ctx.fillStyle = "#0c4a6e";
+    ctx.fillStyle = "#082f49";
     ctx.beginPath();
-    ctx.arc(-rw * 0.35 + eyeOff + pupilOff, eyeY, eyeR * 0.5, 0, Math.PI * 2);
+    ctx.arc(-rw * 0.35 + eyeOff + pupilOff, eyeY, eyeR * 0.55, 0, Math.PI * 2);
     ctx.fill();
     ctx.beginPath();
-    ctx.arc(rw * 0.35 + eyeOff + pupilOff, eyeY, eyeR * 0.5, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Блики
-    ctx.fillStyle = "rgba(255,255,255,0.9)";
-    ctx.beginPath();
-    ctx.arc(-rw * 0.35 + eyeOff + pupilOff - eyeR * 0.2, eyeY - eyeR * 0.2, eyeR * 0.18, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.beginPath();
-    ctx.arc(rw * 0.35 + eyeOff + pupilOff - eyeR * 0.2, eyeY - eyeR * 0.2, eyeR * 0.18, 0, Math.PI * 2);
+    ctx.arc(rw * 0.35 + eyeOff + pupilOff, eyeY, eyeR * 0.55, 0, Math.PI * 2);
     ctx.fill();
 
-    // Рот с зубами (внизу тела)
-    var mouthY = rh * 0.55;
-    ctx.fillStyle = "#0c1e2e";
+    ctx.fillStyle = "rgba(255,255,255,0.95)";
     ctx.beginPath();
-    ctx.moveTo(-rw * 0.4, mouthY);
-    ctx.quadraticCurveTo(0, mouthY + rh * 0.45, rw * 0.4, mouthY);
-    ctx.quadraticCurveTo(0, mouthY + rh * 0.2, -rw * 0.4, mouthY);
+    ctx.arc(-rw * 0.35 + eyeOff + pupilOff - eyeR * 0.2, eyeY - eyeR * 0.25, eyeR * 0.22, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(rw * 0.35 + eyeOff + pupilOff - eyeR * 0.2, eyeY - eyeR * 0.25, eyeR * 0.22, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Рот с зубами
+    var mouthY = rh * 0.5;
+    ctx.fillStyle = "#082f49";
+    ctx.beginPath();
+    ctx.moveTo(-rw * 0.45, mouthY);
+    ctx.quadraticCurveTo(0, mouthY + rh * 0.5, rw * 0.45, mouthY);
+    ctx.quadraticCurveTo(0, mouthY + rh * 0.25, -rw * 0.45, mouthY);
     ctx.closePath();
     ctx.fill();
 
-    // Зубы
     ctx.fillStyle = "#f8fafc";
     ctx.beginPath();
-    ctx.moveTo(-rw * 0.25, mouthY + rh * 0.05);
-    ctx.lineTo(-rw * 0.15, mouthY + rh * 0.28);
-    ctx.lineTo(-rw * 0.05, mouthY + rh * 0.05);
+    ctx.moveTo(-rw * 0.3, mouthY + rh * 0.08);
+    ctx.lineTo(-rw * 0.18, mouthY + rh * 0.33);
+    ctx.lineTo(-rw * 0.06, mouthY + rh * 0.08);
     ctx.closePath();
     ctx.fill();
     ctx.beginPath();
-    ctx.moveTo(rw * 0.05, mouthY + rh * 0.05);
-    ctx.lineTo(rw * 0.15, mouthY + rh * 0.28);
-    ctx.lineTo(rw * 0.25, mouthY + rh * 0.05);
+    ctx.moveTo(rw * 0.06, mouthY + rh * 0.08);
+    ctx.lineTo(rw * 0.18, mouthY + rh * 0.33);
+    ctx.lineTo(rw * 0.3, mouthY + rh * 0.08);
     ctx.closePath();
     ctx.fill();
 
@@ -1307,145 +1585,68 @@ function renderDireJumper() {
     var ctx = canvas.getContext("2d");
     ctx.clearRect(0, 0, W, H);
 
-    // Фон
-    var bgGrad = ctx.createLinearGradient(0, 0, 0, H);
-    bgGrad.addColorStop(0, "#0a0c12");
-    bgGrad.addColorStop(1, "#12161f");
-    ctx.fillStyle = bgGrad;
-    ctx.fillRect(0, 0, W, H);
-
-    // Звёзды (немного)
-    ctx.fillStyle = "rgba(255,255,255,0.2)";
-    for (var st = 0; st < 20; st++) {
-      var sx = (st * 47) % W;
-      var sy = (st * 83 - state.cameraY * 0.2) % H;
-      if (sy < 0) sy += H;
-      ctx.fillRect(sx, sy, 1, 1);
-    }
+    drawBackground(ctx);
 
     // Платформы
-    for (var i = 0; i < state.platforms.length; i++) {
-      var pl = state.platforms[i];
-      var sy = pl.y - state.cameraY;
-      if (sy < -30 || sy > H + 30) continue;
-      var color = "#2a2f3e";
-      var topColor = "#4a5064";
-      if (pl.type === "moving") { color = "#2a5a52"; topColor = "#3a8a7a"; }
-      else if (pl.type === "fragile") { color = "#5a2a4a"; topColor = "#8a3a6a"; }
-      else if (pl.type === "bouncy") { color = "#5a4a2a"; topColor = "#8a7a3a"; }
-      ctx.fillStyle = color;
-      ctx.fillRect(pl.x, sy, pl.w, pl.h);
-      ctx.fillStyle = topColor;
-      ctx.fillRect(pl.x, sy, pl.w, 2);
-      ctx.strokeStyle = "rgba(255,255,255,0.15)";
-      ctx.lineWidth = 1;
-      ctx.strokeRect(pl.x, sy, pl.w, pl.h);
-    }
-
+    for (var i = 0; i < state.platforms.length; i++) drawPlatform(ctx, state.platforms[i]);
     // Ускорители
-    for (var j = 0; j < state.powerups.length; j++) {
-      var pu = state.powerups[j];
-      var sy2 = pu.y - state.cameraY;
-      if (sy2 < -30 || sy2 > H + 30) continue;
-      ctx.fillStyle = pu.type === "rocket" ? "#ef4444" : "#22c55e";
-      ctx.beginPath();
-      ctx.arc(pu.x + pu.w / 2, sy2 + pu.h / 2, pu.w / 2, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = "rgba(255,255,255,0.5)";
-      ctx.lineWidth = 1;
-      ctx.stroke();
-    }
-
+    for (var j = 0; j < state.powerups.length; j++) drawPowerup(ctx, state.powerups[j]);
     // Препятствия
-    for (var k = 0; k < state.obstacles.length; k++) {
-      var ob = state.obstacles[k];
-      if (!ob.alive) continue;
-      var sy3 = ob.y - state.cameraY;
-      if (sy3 < -30 || sy3 > H + 30) continue;
-      if (ob.type === "spike") {
-        ctx.fillStyle = "#ef4444";
-        ctx.beginPath();
-        ctx.moveTo(ob.x, sy3 + ob.h);
-        ctx.lineTo(ob.x + ob.w / 2, sy3);
-        ctx.lineTo(ob.x + ob.w, sy3 + ob.h);
-        ctx.closePath();
-        ctx.fill();
-        ctx.strokeStyle = "#7f1d1d";
-        ctx.lineWidth = 1;
-        ctx.stroke();
-      } else {
-        ctx.fillStyle = "#eab308";
-        ctx.beginPath();
-        ctx.arc(ob.x + ob.w / 2, sy3 + ob.h / 2, ob.w / 2, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = "#0a0a0a";
-        ctx.beginPath();
-        ctx.arc(ob.x + ob.w / 2 - 3, sy3 + ob.h / 2 - 2, 1.5, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.beginPath();
-        ctx.arc(ob.x + ob.w / 2 + 3, sy3 + ob.h / 2 - 2, 1.5, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    }
-
+    for (var k = 0; k < state.obstacles.length; k++) drawObstacle(ctx, state.obstacles[k]);
     // Заточки
-    for (var l = 0; l < state.projectiles.length; l++) {
-      var pr = state.projectiles[l];
-      var sy4 = pr.y - state.cameraY;
-      ctx.fillStyle = "#c4b5fd";
-      ctx.fillRect(pr.x - 1, sy4, 2, 12);
-      ctx.beginPath();
-      ctx.moveTo(pr.x - 3, sy4);
-      ctx.lineTo(pr.x + 3, sy4);
-      ctx.lineTo(pr.x, sy4 - 6);
-      ctx.closePath();
-      ctx.fill();
-      ctx.strokeStyle = "#6d28d9";
-      ctx.lineWidth = 0.8;
-      ctx.stroke();
-    }
+    for (var l = 0; l < state.projectiles.length; l++) drawProjectile(ctx, state.projectiles[l]);
 
     // Частицы
-    for (var q2 = 0; q2 < state.particles.length; q2++) {
-      var pt = state.particles[q2];
-      var sy5 = pt.y - state.cameraY;
+    for (var q = 0; q < state.particles.length; q++) {
+      var pt = state.particles[q];
+      var sy = pt.y - state.cameraY;
       ctx.fillStyle = pt.color;
       ctx.globalAlpha = Math.max(0, pt.life / 20);
-      ctx.fillRect(pt.x, sy5, 3, 3);
+      ctx.beginPath();
+      ctx.arc(pt.x, sy, 2, 0, Math.PI * 2);
+      ctx.fill();
       ctx.globalAlpha = 1;
     }
 
-    // Игрок — Сларк
+    // Игрок
     var p = state.player;
     var py = p.y - state.cameraY;
     drawSlark(ctx, p.x + p.w / 2, py + p.h / 2, p.w, p.h, p.facing, p.animT, p.vy);
 
+    // Лава
+    drawLava(ctx);
+
     // Прогресс по высоте
     var progress = Math.min(1, state.maxHeight / 30000);
     ctx.fillStyle = "rgba(139,92,246,0.15)";
-    ctx.fillRect(4, H - 4, W - 8, 3);
+    ctx.fillRect(4, 4, 6, H - 8);
     ctx.fillStyle = "#8b5cf6";
-    ctx.fillRect(4, H - 4, (W - 8) * progress, 3);
+    ctx.fillRect(4, 4 + (H - 8) * (1 - progress), 6, (H - 8) * progress);
   }
 
-  function die() {
+  function die(reason) {
     state.running = false;
     if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
-    _snd("fail");
+    detachListeners();
+
     var isRecord = state.score > state.best;
     if (isRecord) {
       state.best = state.score;
       Store.set("direjumperbest", state.score);
     }
-    var games = (Store.get("direjumpergames", 0) || 0) + 1;
-    Store.set("direjumpergames", games);
     if (typeof window.submitGameScore === "function") {
       try { window.submitGameScore("direjumper", state.score); } catch (e) {}
     }
-    if (isRecord) _snd("win");
+    if (isRecord) _snd("win"); else _snd("fail");
+
+    // Проверяем ачивки
+    if (typeof Achievements !== "undefined") Achievements.check();
+
     var overlay = el("div", { style: "position:absolute;inset:0;background:rgba(2,3,8,0.92);display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:16px;padding:20px;text-align:center;z-index:20;" });
-    overlay.appendChild(el("div", { style: "font-size:46px;margin-bottom:6px;" }, isRecord ? "🏆" : "🐟"));
-    overlay.appendChild(el("div", { style: "font-size:15px;font-weight:700;color:var(--text);margin-bottom:2px;" }, isRecord ? "Новый рекорд!" : "Сларк упал"));
+    var emoji = isRecord ? "🏆" : (reason === "lava" ? "🔥" : "💀");
+    var title = isRecord ? "Новый рекорд!" : (reason === "lava" ? "Сларк сгорел в лаве" : "Сларк напоролся на шип");
+    overlay.appendChild(el("div", { style: "font-size:52px;margin-bottom:6px;" }, emoji));
+    overlay.appendChild(el("div", { style: "font-size:15px;font-weight:700;color:var(--text);margin-bottom:2px;" }, title));
     overlay.appendChild(el("div", { style: "font-size:32px;font-weight:900;font-family:'JetBrains Mono',monospace;color:var(--gold);margin:12px 0 4px;" }, state.score.toLocaleString()));
     overlay.appendChild(el("div", { class: "dim", style: "font-size:10.5px;margin-bottom:16px;" }, "Высота: " + Math.floor(state.maxHeight / 10) + " м"));
     var btnRow = el("div", { style: "display:flex;gap:8px;" });
@@ -1460,10 +1661,20 @@ function renderDireJumper() {
   }
 
   function start() {
+    // Удаляем старую overlay если есть
+    var oldOverlay = canvasWrap.querySelector("div[style*='position:absolute'][style*='inset:0']");
+    if (oldOverlay) oldOverlay.remove();
+
     reset();
     state.running = true;
     attachListeners();
     canvas.focus();
+
+    // ИНКРЕМЕНТ games ПРИ СТАРТЕ (для ачивки "Первый прыжок")
+    var games = (Store.get("direjumpergames", 0) || 0) + 1;
+    Store.set("direjumpergames", games);
+    if (typeof Achievements !== "undefined") Achievements.check();
+
     state.lastFrame = performance.now();
     rafId = requestAnimationFrame(loop);
   }
@@ -1472,4 +1683,32 @@ function renderDireJumper() {
   return card;
 }
 
-console.log("games v9.1 ready (Dire Jumper fixed: e.code, screen buttons, new Slark)");
+/* ─── ГЛОБАЛЬНЫЕ СЛУШАТЕЛИ (для остановки игр в фоне) ─── */
+if (!window._gamesGlobalListeners) {
+  window._gamesGlobalListeners = true;
+
+  // Останавливать игры при смене страницы
+  window.addEventListener("hashchange", function () {
+    var page = (location.hash || "").slice(1) || "dashboard";
+    if (page !== "games") {
+      stopActiveGames();
+    }
+  });
+
+  // Останавливать при скрытии вкладки
+  document.addEventListener("visibilitychange", function () {
+    if (document.hidden) {
+      stopActiveGames();
+    }
+  });
+
+  // Останавливать при переходе назад/вперёд
+  window.addEventListener("popstate", function () {
+    var page = (location.hash || "").slice(1) || "dashboard";
+    if (page !== "games") {
+      stopActiveGames();
+    }
+  });
+}
+
+console.log("games v9.2 ready (Dire Jumper fixed: cooldown, lava, screen-space projectiles)");
