@@ -1,12 +1,8 @@
-/* DOTA JETCH — MINI-GAMES v9.2
-   - FIX: заточка с cooldown 250ms
-   - FIX: снаряд удаляется по границам ЭКРАНА
-   - FIX: добавлена ЛАВА внизу — игрок умирает
-   - FIX: ачивки — direjumpergames++ при СТАРТЕ
-   - FIX: game останавливается при смене hash / visibility
-   - УБРАНЫ экранные кнопки
-   - Улучшен визуал: платформы 3D, шипы-зазубрины, головы шутов, звёзды
-   - Плавная прогрессия сложности */
+/* DOTA JETCH — MINI-GAMES v10.0
+   - Dire Jumper: swept-коллизия, умный спавн, статичные шипы, лава
+   - Заточка с cooldown 300ms
+   - Игры останавливаются при смене вкладки сайта
+   - Плавная прогрессия сложности в автоматонах и замке */
 
 var QUIZ = [
   { q: "Какая способность у Juggernaut даёт неуязвимость во время каста?", a: "Omnislash", opts: ["Omnislash", "Blade Fury", "Blade Dance", "Healing Ward"] },
@@ -212,10 +208,10 @@ function buildDireJumperIntro() {
   card.appendChild(visual);
   card.appendChild(buildRulesBlock("Как играть", [
     "A / D или ← → — двигать Сларка влево/вправо",
-    "W / ↑ / SPACE — метнуть заточку (КД 0.25 сек)",
+    "W / ↑ / SPACE — метнуть заточку (КД 0.3 сек)",
     "Прыгай по платформам как можно выше",
     "Экран зациклен по горизонтали",
-    "Избегай шипов и шариков — они убивают",
+    "Избегай шипов и голов шутов — они убивают",
     "НЕ КАСАЙСЯ ЛАВЫ внизу — мгновенная смерть",
     "Цель — набрать максимум очков за высоту"
   ]));
@@ -239,7 +235,7 @@ function buildQuizIntro() {
   return card;
 }
 
-/* ─── LOCKPICK (без изменений) ─── */
+/* ─── LOCKPICK ─── */
 function renderLockpick() {
   var card = UI.card("🔓 Взлом замка");
   var topRow = el("div", { style: "display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;" });
@@ -526,7 +522,7 @@ function renderLockpick() {
   return card;
 }
 
-/* ─── AUTOMATON (без изменений) ─── */
+/* ─── AUTOMATON ─── */
 function renderAutomaton() {
   var card = UI.card("⌨️ Атака автоматонов");
   var topRow = el("div", { style: "display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;" });
@@ -764,7 +760,7 @@ function renderAutomaton() {
   return card;
 }
 
-/* ─── QUIZ (без изменений) ─── */
+/* ─── QUIZ ─── */
 function renderQuiz() {
   var card = UI.card("🧠 Викторина");
   var topRow = el("div", { style: "display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;" });
@@ -844,7 +840,7 @@ function renderQuiz() {
   return card;
 }
 
-/* ─── DIRE JUMPER v9.2 (полностью переделан) ─── */
+/* ─── DIRE JUMPER v10.0 ─── */
 function renderDireJumper() {
   var card = UI.card("🎪 Дири-Джампер");
   var topRow = el("div", { style: "display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;" });
@@ -882,17 +878,26 @@ function renderDireJumper() {
   card.appendChild(statusEl);
 
   var W = canvas.width, H = canvas.height;
-  var SHOT_COOLDOWN = 250;
-  var lastShotTime = 0;
+  var LAVA_HEIGHT = 30;
+  var SHOT_COOLDOWN = 300;
+  var JUMP_POWER = -13;
+  var GRAVITY = 0.5;
+  var MAX_VY = 16;
+  var STEP_MIN = 65;
+  var STEP_MAX = 105;
+  var PLATFORM_MIN_W = 70;
+  var PLATFORM_MAX_W = 110;
 
+  var lastShotTime = 0;
   var state = {
     running: false, score: 0, best: Store.get("direjumperbest", 0) || 0,
     cameraY: 0, maxHeight: 0,
-    player: { x: W / 2 - 15, y: H - 90, vx: 0, vy: 0, w: 30, h: 30, facing: 1, jumpPower: -12, gravity: 0.5, animT: 0 },
+    player: { x: 0, y: 0, vx: 0, vy: 0, w: 30, h: 30, facing: 1, animT: 0, prevY: 0 },
     platforms: [], obstacles: [], projectiles: [], particles: [], powerups: [],
     keys: { left: false, right: false },
-    lastFrame: 0, lastSpawn: 0, spawnCooldown: 60,
-    lavaFlash: 0, lastCheckedScore: 0
+    lastFrame: 0, spawnAcc: 0,
+    lastCheckedScore: 0,
+    deathReason: ""
   };
   var rafId = null;
   var listenersAttached = false;
@@ -920,11 +925,66 @@ function renderDireJumper() {
   function stopDireJumper() { stop(); _activeDireJumper = null; }
   window._stopDireJumper = stopDireJumper;
 
+  function findSpawnSpot(baseX, baseY) {
+    for (var attempt = 0; attempt < 15; attempt++) {
+      var w = PLATFORM_MIN_W + Math.random() * (PLATFORM_MAX_W - PLATFORM_MIN_W);
+      var step = STEP_MIN + Math.random() * (STEP_MAX - STEP_MIN);
+      var y = baseY - step;
+      var xRange = 130;
+      var minX = Math.max(10, baseX - xRange);
+      var maxX = Math.min(W - w - 10, baseX + xRange);
+      if (maxX < minX) { minX = 10; maxX = W - w - 10; }
+      var x = minX + Math.random() * (maxX - minX);
+      var overlaps = false;
+      for (var i = 0; i < state.platforms.length; i++) {
+        var p = state.platforms[i];
+        if (Math.abs(p.y - y) < 25) {
+          if (x < p.x + p.w + 10 && x + w + 10 > p.x) { overlaps = true; break; }
+        }
+      }
+      if (!overlaps) return { x: x, y: y, w: w };
+    }
+    var wf = 80;
+    var xf = Math.max(10, Math.min(W - wf - 10, baseX + (Math.random() - 0.5) * 100));
+    return { x: xf, y: baseY - 90, w: wf };
+  }
+
+  function spawnPlatformAbove(baseX, baseY) {
+    var spot = findSpawnSpot(baseX, baseY);
+    var type = "static";
+    var r = Math.random();
+    if (r < 0.15) type = "moving";
+    else if (r < 0.25) type = "fragile";
+    else if (r < 0.32) type = "bouncy";
+
+    var p = {
+      x: spot.x, y: spot.y, w: spot.w, h: 12,
+      type: type,
+      dir: Math.random() < 0.5 ? 1 : -1,
+      speed: 0.6 + Math.random() * 0.6,
+      baseX: spot.x
+    };
+    state.platforms.push(p);
+
+    if (type !== "bouncy" && Math.random() < 0.18 && spot.y < -200) {
+      var obsW = 20;
+      var obsX = spot.x + 5 + Math.random() * Math.max(1, spot.w - obsW - 10);
+      state.obstacles.push({ x: obsX, y: spot.y - 20, w: obsW, h: 20, type: "spike", alive: true });
+    } else if (type === "static" && Math.random() < 0.10 && spot.y < -400) {
+      state.obstacles.push({ x: spot.x + spot.w / 2 - 11, y: spot.y - 22, w: 22, h: 22, type: "enemy", alive: true });
+    }
+    if (Math.random() < 0.05 && spot.y < -300) {
+      state.powerups.push({ x: spot.x + spot.w / 2 - 8, y: spot.y - 20, w: 16, h: 16, type: "spring" });
+    } else if (Math.random() < 0.02 && spot.y < -800) {
+      state.powerups.push({ x: spot.x + spot.w / 2 - 10, y: spot.y - 24, w: 20, h: 24, type: "rocket" });
+    }
+    return p;
+  }
+
   function reset() {
     state.score = 0;
     state.cameraY = 0;
     state.maxHeight = 0;
-    state.player = { x: W / 2 - 15, y: H - 90, vx: 0, vy: 0, w: 30, h: 30, facing: 1, jumpPower: -12, gravity: 0.5, animT: 0 };
     state.platforms = [];
     state.obstacles = [];
     state.projectiles = [];
@@ -932,57 +992,25 @@ function renderDireJumper() {
     state.powerups = [];
     state.keys = { left: false, right: false };
     state.lastFrame = performance.now();
-    state.lastSpawn = 0;
-    state.spawnCooldown = 60;
-    state.lavaFlash = 0;
+    state.spawnAcc = 0;
     state.lastCheckedScore = 0;
+    state.deathReason = "";
     lastShotTime = 0;
 
-    // Стартовая платформа под игроком
-    state.platforms.push({ x: W / 2 - 40, y: H - 60, w: 80, h: 10, type: "static" });
-    // Платформы выше с рандомным шагом (90-140)
-    var lastY = H - 60;
-    for (var i = 0; i < 20; i++) {
-      lastY -= 90 + Math.random() * 50;
-      spawnPlatform(lastY);
+    var startX = W / 2 - 15;
+    var startY = H - LAVA_HEIGHT - 70;
+    state.player = { x: startX, y: startY, vx: 0, vy: 0, w: 30, h: 30, facing: 1, animT: 0, prevY: startY };
+
+    state.platforms.push({ x: W / 2 - 50, y: H - LAVA_HEIGHT - 40, w: 100, h: 12, type: "static", dir: 1, speed: 0, baseX: W / 2 - 50 });
+
+    var lastX = W / 2 - 50;
+    var lastY = H - LAVA_HEIGHT - 40;
+    for (var i = 0; i < 25; i++) {
+      var pl = spawnPlatformAbove(lastX, lastY);
+      lastX = pl.x + pl.w / 2;
+      lastY = pl.y;
     }
     updateHUD();
-  }
-
-  function spawnPlatform(y) {
-    var margin = 10;
-    // Ширина уменьшается с высотой
-    var diff = Math.min(1, Math.max(0, (0 - y) / 15000));
-    var wMin = 60 - diff * 20;
-    var wMax = 90 - diff * 20;
-    var w = wMin + Math.random() * (wMax - wMin);
-    var x = margin + Math.random() * (W - w - margin * 2);
-    var type = "static";
-    var r = Math.random();
-    if (r < 0.15) type = "moving";
-    else if (r < 0.25) type = "fragile";
-    else if (r < 0.35) type = "bouncy";
-    var p = { x: x, y: y, w: w, h: 12, type: type, dir: Math.random() < 0.5 ? 1 : -1, speed: 0.5 + Math.random() * 0.8 };
-    state.platforms.push(p);
-
-    if (Math.random() < 0.22 && y > 100) {
-      var obs = {
-        x: x + 12 + Math.random() * Math.max(1, w - 24),
-        y: y - 22,
-        w: 20, h: 20,
-        type: Math.random() < 0.55 ? "spike" : "enemy",
-        vx: (Math.random() - 0.5) * 1.2,
-        vy: 0,
-        alive: true,
-        animT: Math.random() * 10
-      };
-      state.obstacles.push(obs);
-    }
-    if (Math.random() < 0.06 && y > 150) {
-      state.powerups.push({ x: x + w / 2 - 8, y: y - 20, w: 16, h: 16, type: "spring" });
-    } else if (Math.random() < 0.02 && y > 200) {
-      state.powerups.push({ x: x + w / 2 - 10, y: y - 24, w: 20, h: 24, type: "rocket" });
-    }
   }
 
   function updateHUD() {
@@ -999,7 +1027,7 @@ function renderDireJumper() {
     else if (code === "ArrowRight" || code === "KeyD") { state.keys.right = true; e.preventDefault(); }
     else if (code === "ArrowUp" || code === "KeyW" || code === "Space") {
       e.preventDefault();
-      if (e.repeat) return; // игнорируем автоповтор
+      if (e.repeat) return;
       fireProjectile();
     }
   }
@@ -1013,17 +1041,37 @@ function renderDireJumper() {
     var now = performance.now();
     if (now - lastShotTime < SHOT_COOLDOWN) return;
     lastShotTime = now;
-    state.projectiles.push({ x: state.player.x + state.player.w / 2, y: state.player.y, vy: -12, animT: 0 });
+    state.projectiles.push({
+      x: state.player.x + state.player.w / 2,
+      y: state.player.y,
+      vy: -12, animT: 0
+    });
     _snd("hit");
+  }
+
+  function checkPlatformCollision(p) {
+    if (p.vy <= 0) return null;
+    var prevBottom = p.prevY + p.h;
+    var currBottom = p.y + p.h;
+    for (var i = 0; i < state.platforms.length; i++) {
+      var pl = state.platforms[i];
+      var plTop = pl.y;
+      if (prevBottom <= plTop + 1 && currBottom >= plTop) {
+        if (p.x + p.w > pl.x && p.x < pl.x + pl.w) return pl;
+      }
+    }
+    return null;
   }
 
   function loop(ts) {
     if (!state.running) return;
-    var dt = Math.min((ts - state.lastFrame) / 16.67, 3);
+    var dt = Math.min((ts - state.lastFrame) / 16.67, 1.5);
+    if (dt < 0) dt = 0;
     state.lastFrame = ts;
 
     var p = state.player;
     p.animT += dt;
+    p.prevY = p.y;
 
     var accel = 0.7;
     if (state.keys.left) p.vx -= accel;
@@ -1036,39 +1084,42 @@ function renderDireJumper() {
     if (p.x < -p.w) p.x = W;
     if (p.x > W) p.x = -p.w;
 
-    p.vy += p.gravity * dt;
-    if (p.vy > 18) p.vy = 18;
+    p.vy += GRAVITY * dt;
+    if (p.vy > MAX_VY) p.vy = MAX_VY;
     p.y += p.vy * dt;
 
-    // Платформы
     for (var i = 0; i < state.platforms.length; i++) {
       var pl = state.platforms[i];
       if (pl.type === "moving") {
         pl.x += pl.dir * pl.speed * dt;
-        if (pl.x < 0) { pl.x = 0; pl.dir = 1; }
-        if (pl.x + pl.w > W) { pl.x = W - pl.w; pl.dir = -1; }
-      }
-      if (p.vy > 0 && p.y + p.h > pl.y && p.y + p.h < pl.y + pl.h + 20 && p.x + p.w > pl.x && p.x < pl.x + pl.w) {
-        p.y = pl.y - p.h;
-        if (pl.type === "fragile") {
-          state.platforms.splice(i, 1);
-          i--;
-          for (var k = 0; k < 6; k++) {
-            state.particles.push({ x: pl.x + Math.random() * pl.w, y: pl.y + Math.random() * pl.h, vx: (Math.random() - 0.5) * 3, vy: (Math.random() - 0.5) * 3, life: 20, color: "#8b5cf6" });
-          }
-          continue;
-        }
-        if (pl.type === "bouncy") {
-          p.vy = p.jumpPower * 1.8;
-          _snd("hit");
-        } else {
-          p.vy = p.jumpPower;
-        }
-        break;
+        if (pl.x < 5) { pl.x = 5; pl.dir = 1; }
+        if (pl.x + pl.w > W - 5) { pl.x = W - 5 - pl.w; pl.dir = -1; }
       }
     }
 
-    // Ускорители
+    var hitPlatform = checkPlatformCollision(p);
+    if (hitPlatform) {
+      p.y = hitPlatform.y - p.h;
+      if (hitPlatform.type === "fragile") {
+        var idx = state.platforms.indexOf(hitPlatform);
+        if (idx >= 0) state.platforms.splice(idx, 1);
+        for (var k = 0; k < 8; k++) {
+          state.particles.push({
+            x: hitPlatform.x + Math.random() * hitPlatform.w,
+            y: hitPlatform.y + Math.random() * hitPlatform.h,
+            vx: (Math.random() - 0.5) * 4,
+            vy: (Math.random() - 0.5) * 4,
+            life: 22, color: "#9a4a78"
+          });
+        }
+      } else if (hitPlatform.type === "bouncy") {
+        p.vy = JUMP_POWER * 1.7;
+        _snd("hit");
+      } else {
+        p.vy = JUMP_POWER;
+      }
+    }
+
     for (var j = state.powerups.length - 1; j >= 0; j--) {
       var pu = state.powerups[j];
       if (p.x + p.w > pu.x && p.x < pu.x + pu.w && p.y + p.h > pu.y && p.y < pu.y + pu.h) {
@@ -1079,33 +1130,24 @@ function renderDireJumper() {
       }
     }
 
-    // Препятствия
     for (var oi = state.obstacles.length - 1; oi >= 0; oi--) {
       var ob = state.obstacles[oi];
       if (!ob.alive) continue;
-      ob.animT = (ob.animT || 0) + dt;
-      ob.x += ob.vx * dt;
-      if (ob.x < 0 || ob.x + ob.w > W) ob.vx *= -1;
-      if (p.x + p.w > ob.x && p.x < ob.x + ob.w && p.y + p.h > ob.y && p.y < ob.y + ob.h) {
+      if (p.x + p.w > ob.x + 3 && p.x < ob.x + ob.w - 3 && p.y + p.h > ob.y + 3 && p.y < ob.y + ob.h - 3) {
         if (ob.type === "spike") { die("spike"); return; }
         else {
-          p.vy = -8;
-          p.vx = (p.x < ob.x ? -3 : 3);
-          ob.alive = false;
-          state.obstacles.splice(oi, 1);
+          p.vy = -9;
+          p.vx = (p.x < ob.x ? -3.5 : 3.5);
+          state.particles.push({ x: ob.x + ob.w / 2, y: ob.y + ob.h / 2, vx: 0, vy: 0, life: 15, color: "#eab308" });
           _snd("hit");
         }
       }
     }
 
-    // Заточки
     for (var pi = state.projectiles.length - 1; pi >= 0; pi--) {
       var pr = state.projectiles[pi];
       pr.y -= 12 * dt;
-      pr.animT = (pr.animT || 0) + dt;
-      // Удаляем если за пределами ЭКРАНА
-      var screenY = pr.y - state.cameraY;
-      if (screenY < -40 || screenY > H + 40) {
+      if (pr.y < state.cameraY - 40 || pr.y > state.cameraY + H + 40) {
         state.projectiles.splice(pi, 1);
         continue;
       }
@@ -1122,36 +1164,35 @@ function renderDireJumper() {
       }
     }
 
-    // Камера
-    var targetCam = p.y - H * 0.5;
+    var targetCam = p.y - H * 0.55;
     if (targetCam < state.cameraY) {
       var diff = state.cameraY - targetCam;
       state.cameraY -= diff * 0.08 * dt;
-      state.maxHeight = Math.max(state.maxHeight, state.cameraY * -1);
+      if (state.maxHeight < state.cameraY * -1) state.maxHeight = state.cameraY * -1;
       state.score = Math.floor(state.maxHeight);
     }
 
-    // ЛАВА внизу экрана
-    var lavaY = state.cameraY + H - 10;
-    if (p.y + p.h >= lavaY) {
+    var lavaTopWorld = state.cameraY + H - LAVA_HEIGHT;
+    if (p.y + p.h >= lavaTopWorld) {
       die("lava");
       return;
     }
 
-    // Проверка ачивок по очкам
-    if (state.score > state.lastCheckedScore + 1000) {
+    if (state.score > state.lastCheckedScore + 500) {
       state.lastCheckedScore = state.score;
       if (typeof Achievements !== "undefined") Achievements.check();
     }
 
-    // Спавн новых платформ
-    state.lastSpawn += dt * 16.67;
-    if (state.lastSpawn > state.spawnCooldown) {
-      state.lastSpawn = 0;
-      var topY = state.platforms.length > 0 ? state.platforms[state.platforms.length - 1].y : state.cameraY;
-      spawnPlatform(state.cameraY - 100 - Math.random() * 40);
+    state.spawnAcc += dt;
+    if (state.spawnAcc > 40) {
+      state.spawnAcc = 0;
+      var topPlatform = null;
+      for (var tp = 0; tp < state.platforms.length; tp++) {
+        if (!topPlatform || state.platforms[tp].y < topPlatform.y) topPlatform = state.platforms[tp];
+      }
+      if (topPlatform) spawnPlatformAbove(topPlatform.x + topPlatform.w / 2, topPlatform.y);
     }
-    // Удаление платформ, ушедших вниз
+
     for (var di = state.platforms.length - 1; di >= 0; di--) {
       if (state.platforms[di].y > state.cameraY + H + 100) state.platforms.splice(di, 1);
     }
@@ -1162,7 +1203,6 @@ function renderDireJumper() {
       if (state.powerups[di3].y > state.cameraY + H + 100) state.powerups.splice(di3, 1);
     }
 
-    // Частицы
     for (var qi = state.particles.length - 1; qi >= 0; qi--) {
       var q = state.particles[qi];
       q.x += q.vx * dt;
@@ -1176,111 +1216,100 @@ function renderDireJumper() {
     rafId = requestAnimationFrame(loop);
   }
 
-  /* ─── РИСОВАНИЕ ─── */
   function drawBackground(ctx) {
     var bgGrad = ctx.createLinearGradient(0, 0, 0, H);
     bgGrad.addColorStop(0, "#080a10");
-    bgGrad.addColorStop(0.7, "#0e1420");
+    bgGrad.addColorStop(0.6, "#0e1420");
     bgGrad.addColorStop(1, "#1a0f14");
     ctx.fillStyle = bgGrad;
     ctx.fillRect(0, 0, W, H);
-
-    // Звёзды (параллакс по вертикали)
     var starOffset = state.cameraY * 0.15;
-    for (var i = 0; i < 40; i++) {
+    for (var i = 0; i < 50; i++) {
       var sx = (i * 137) % W;
       var sy = (i * 89 + starOffset) % (H * 2);
       if (sy < 0) sy += H * 2;
       if (sy > H) continue;
-      var brightness = 0.15 + ((i * 31) % 100) / 400;
-      ctx.fillStyle = "rgba(200,220,255," + brightness + ")";
-      var size = i % 5 === 0 ? 2 : 1;
+      var brightness = 0.2 + ((i * 31) % 100) / 300;
+      ctx.fillStyle = "rgba(200,220,255," + brightness.toFixed(2) + ")";
+      var size = i % 7 === 0 ? 2 : 1;
       ctx.fillRect(sx, sy, size, size);
     }
   }
 
   function drawLava(ctx) {
-    var lavaTop = state.cameraY + H - 10;
-    var screenY = lavaTop - state.cameraY;
-    // Свечение над лавой
-    var grad = ctx.createLinearGradient(0, screenY - 30, 0, screenY + 20);
+    var screenY = H - LAVA_HEIGHT;
+    var grad = ctx.createLinearGradient(0, screenY - 40, 0, screenY);
     grad.addColorStop(0, "rgba(220,38,38,0)");
-    grad.addColorStop(1, "rgba(220,38,38,0.4)");
+    grad.addColorStop(1, "rgba(220,38,38,0.6)");
     ctx.fillStyle = grad;
-    ctx.fillRect(0, screenY - 30, W, 40);
-    // Лава
-    ctx.fillStyle = "#dc2626";
-    ctx.fillRect(0, screenY, W, H - screenY + 5);
-    // Пульсация
-    var t = performance.now() / 300;
-    for (var x = 0; x < W; x += 12) {
-      var h = 3 + Math.sin(t + x * 0.1) * 2;
-      ctx.fillStyle = "rgba(251,146,60,0.9)";
-      ctx.fillRect(x, screenY - h, 12, h);
+    ctx.fillRect(0, screenY - 40, W, 40);
+    var lavaGrad = ctx.createLinearGradient(0, screenY, 0, H);
+    lavaGrad.addColorStop(0, "#f97316");
+    lavaGrad.addColorStop(0.3, "#dc2626");
+    lavaGrad.addColorStop(1, "#7f1d1d");
+    ctx.fillStyle = lavaGrad;
+    ctx.fillRect(0, screenY, W, LAVA_HEIGHT);
+    var t = performance.now() / 250;
+    for (var x = 0; x < W; x += 10) {
+      var waveH = 3 + Math.sin(t + x * 0.08) * 3;
+      ctx.fillStyle = "#fbbf24";
+      ctx.fillRect(x, screenY - waveH, 10, waveH);
     }
-    ctx.fillStyle = "#fbbf24";
-    for (var x2 = 0; x2 < W; x2 += 20) {
-      var h2 = 1 + Math.sin(t * 1.3 + x2 * 0.15) * 1.5;
-      ctx.fillRect(x2, screenY - h2, 20, h2);
+    for (var b = 0; b < 8; b++) {
+      var bx = (b * 53 + performance.now() / 50) % W;
+      var by = screenY + 5 + (b * 3) % (LAVA_HEIGHT - 10);
+      ctx.fillStyle = "rgba(251,191,36,0.6)";
+      ctx.beginPath();
+      ctx.arc(bx, by, 1.5, 0, Math.PI * 2);
+      ctx.fill();
     }
   }
 
   function drawPlatform(ctx, pl) {
     var sy = pl.y - state.cameraY;
     if (sy < -30 || sy > H + 30) return;
-
     var colors = {
       static: { base: "#3a4256", top: "#6b7593", shadow: "#1a1f2e" },
       moving: { base: "#2a5a52", top: "#4a9a8a", shadow: "#15302c" },
       fragile: { base: "#5a2a4a", top: "#9a4a78", shadow: "#2d1524" },
-      bouncy: { base: "#5a4a2a", top: "#9a8a4a", shadow: "#2d2515" }
+      bouncy: { base: "#5a4a2a", top: "#c8a84a", shadow: "#2d2515" }
     };
     var c = colors[pl.type] || colors.static;
-
-    // Тень снизу
     ctx.fillStyle = c.shadow;
-    ctx.fillRect(pl.x + 2, sy + pl.h, pl.w - 4, 3);
-
-    // Основа
+    ctx.fillRect(pl.x + 3, sy + pl.h, pl.w - 6, 4);
     ctx.fillStyle = c.base;
     ctx.fillRect(pl.x, sy, pl.w, pl.h);
-
-    // Верхняя грань
     ctx.fillStyle = c.top;
-    ctx.fillRect(pl.x, sy, pl.w, 3);
-
-    // Тонкая обводка
-    ctx.strokeStyle = "rgba(255,255,255,0.12)";
+    ctx.fillRect(pl.x, sy, pl.w, 4);
+    ctx.strokeStyle = "rgba(255,255,255,0.15)";
     ctx.lineWidth = 1;
     ctx.strokeRect(pl.x + 0.5, sy + 0.5, pl.w - 1, pl.h - 1);
-
-    // Детали по типам
     if (pl.type === "moving") {
-      ctx.fillStyle = "rgba(255,255,255,0.35)";
-      var offset = (performance.now() / 30) % 12;
-      for (var x = pl.x - offset; x < pl.x + pl.w; x += 12) {
-        if (x < pl.x) continue;
-        ctx.fillRect(x, sy + 6, 4, 2);
+      var offset = (performance.now() / 25) % 14;
+      ctx.fillStyle = "rgba(255,255,255,0.4)";
+      for (var x = pl.x + offset; x < pl.x + pl.w; x += 14) {
+        if (x < pl.x + 3) continue;
+        ctx.fillRect(x, sy + 7, 5, 2);
       }
     } else if (pl.type === "fragile") {
-      ctx.strokeStyle = "rgba(255,255,255,0.4)";
+      ctx.strokeStyle = "rgba(255,200,220,0.5)";
       ctx.lineWidth = 1;
-      var seeds = [0.15, 0.4, 0.65, 0.85];
-      for (var s = 0; s < seeds.length; s++) {
-        var cx = pl.x + pl.w * seeds[s];
+      var cracks = [0.2, 0.45, 0.7, 0.9];
+      for (var s = 0; s < cracks.length; s++) {
+        var cx = pl.x + pl.w * cracks[s];
         ctx.beginPath();
-        ctx.moveTo(cx, sy + 3);
-        ctx.lineTo(cx + 2, sy + 6);
-        ctx.lineTo(cx - 1, sy + 10);
+        ctx.moveTo(cx, sy + 4);
+        ctx.lineTo(cx + 2, sy + 7);
+        ctx.lineTo(cx - 2, sy + 10);
         ctx.stroke();
       }
     } else if (pl.type === "bouncy") {
-      ctx.strokeStyle = "rgba(255,255,255,0.55)";
-      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = "rgba(255,220,120,0.9)";
+      ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.moveTo(pl.x + pl.w / 2 - 6, sy + pl.h - 3);
-      ctx.lineTo(pl.x + pl.w / 2, sy + 4);
-      ctx.lineTo(pl.x + pl.w / 2 + 6, sy + pl.h - 3);
+      ctx.moveTo(pl.x + pl.w / 2 - 8, sy + pl.h - 3);
+      ctx.lineTo(pl.x + pl.w / 2, sy + 5);
+      ctx.lineTo(pl.x + pl.w / 2 + 8, sy + pl.h - 3);
       ctx.stroke();
     }
   }
@@ -1289,18 +1318,16 @@ function renderDireJumper() {
     var sy = ob.y - state.cameraY;
     if (sy < -30 || sy > H + 30) return;
     if (ob.type === "spike") {
-      // Тень
-      ctx.fillStyle = "rgba(0,0,0,0.4)";
+      ctx.fillStyle = "rgba(0,0,0,0.45)";
       ctx.beginPath();
-      ctx.moveTo(ob.x + 1, sy + ob.h + 2);
-      ctx.lineTo(ob.x + ob.w / 2 + 1, sy + 3);
-      ctx.lineTo(ob.x + ob.w + 1, sy + ob.h + 2);
+      ctx.moveTo(ob.x + 2, sy + ob.h + 1);
+      ctx.lineTo(ob.x + ob.w / 2 + 2, sy + 2);
+      ctx.lineTo(ob.x + ob.w + 2, sy + ob.h + 1);
       ctx.closePath();
       ctx.fill();
-      // Шип с градиентом
       var g = ctx.createLinearGradient(ob.x, sy, ob.x, sy + ob.h);
-      g.addColorStop(0, "#fef08a");
-      g.addColorStop(0.4, "#f97316");
+      g.addColorStop(0, "#fef9c3");
+      g.addColorStop(0.35, "#f97316");
       g.addColorStop(1, "#7f1d1d");
       ctx.fillStyle = g;
       ctx.beginPath();
@@ -1309,65 +1336,58 @@ function renderDireJumper() {
       ctx.lineTo(ob.x + ob.w, sy + ob.h);
       ctx.closePath();
       ctx.fill();
-      // Зазубрины
-      ctx.fillStyle = "#fef9c3";
-      ctx.beginPath();
-      ctx.moveTo(ob.x + ob.w / 2, sy);
-      ctx.lineTo(ob.x + ob.w / 2 - 2, sy + 6);
-      ctx.lineTo(ob.x + ob.w / 2, sy + 4);
-      ctx.closePath();
-      ctx.fill();
-      ctx.strokeStyle = "rgba(0,0,0,0.5)";
+      ctx.strokeStyle = "#450a0a";
       ctx.lineWidth = 1;
       ctx.stroke();
+      ctx.fillStyle = "rgba(255,255,255,0.6)";
+      ctx.beginPath();
+      ctx.moveTo(ob.x + ob.w / 2, sy + 2);
+      ctx.lineTo(ob.x + ob.w / 2 - 2, sy + 8);
+      ctx.lineTo(ob.x + ob.w / 2 - 1, sy + 8);
+      ctx.closePath();
+      ctx.fill();
     } else {
-      // Голова шута — круг с глазами
       var cx = ob.x + ob.w / 2, cy = sy + ob.h / 2;
       var r = ob.w / 2;
-      // Тень
-      ctx.fillStyle = "rgba(0,0,0,0.35)";
+      ctx.fillStyle = "rgba(0,0,0,0.4)";
       ctx.beginPath();
       ctx.arc(cx + 2, cy + 2, r, 0, Math.PI * 2);
       ctx.fill();
-      // Тело
       var g2 = ctx.createRadialGradient(cx - r * 0.4, cy - r * 0.4, r * 0.2, cx, cy, r);
-      g2.addColorStop(0, "#fde047");
-      g2.addColorStop(0.6, "#eab308");
+      g2.addColorStop(0, "#fef08a");
+      g2.addColorStop(0.5, "#eab308");
       g2.addColorStop(1, "#854d0e");
       ctx.fillStyle = g2;
       ctx.beginPath();
       ctx.arc(cx, cy, r, 0, Math.PI * 2);
       ctx.fill();
       ctx.strokeStyle = "#451a03";
-      ctx.lineWidth = 1.2;
+      ctx.lineWidth = 1.3;
       ctx.stroke();
-      // Глаза
+      ctx.fillStyle = "#fff";
+      ctx.beginPath();
+      ctx.arc(cx - r * 0.35, cy - r * 0.15, r * 0.22, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(cx + r * 0.35, cy - r * 0.15, r * 0.22, 0, Math.PI * 2);
+      ctx.fill();
       ctx.fillStyle = "#0a0a0a";
       ctx.beginPath();
-      ctx.arc(cx - r * 0.35, cy - r * 0.15, r * 0.18, 0, Math.PI * 2);
+      ctx.arc(cx - r * 0.35, cy - r * 0.15, r * 0.11, 0, Math.PI * 2);
       ctx.fill();
       ctx.beginPath();
-      ctx.arc(cx + r * 0.35, cy - r * 0.15, r * 0.18, 0, Math.PI * 2);
+      ctx.arc(cx + r * 0.35, cy - r * 0.15, r * 0.11, 0, Math.PI * 2);
       ctx.fill();
-      // Зрачки
-      ctx.fillStyle = "#dc2626";
+      ctx.strokeStyle = "#451a03";
+      ctx.lineWidth = 1.3;
       ctx.beginPath();
-      ctx.arc(cx - r * 0.35, cy - r * 0.15, r * 0.09, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.beginPath();
-      ctx.arc(cx + r * 0.35, cy - r * 0.15, r * 0.09, 0, Math.PI * 2);
-      ctx.fill();
-      // Улыбка-оскал
-      ctx.strokeStyle = "#0a0a0a";
-      ctx.lineWidth = 1.2;
-      ctx.beginPath();
-      ctx.arc(cx, cy + r * 0.05, r * 0.5, 0.15 * Math.PI, 0.85 * Math.PI);
+      ctx.arc(cx, cy + r * 0.15, r * 0.5, 0.1 * Math.PI, 0.9 * Math.PI);
       ctx.stroke();
-      // Зубы
       ctx.fillStyle = "#fafafa";
-      ctx.fillRect(cx - r * 0.28, cy + r * 0.35, 2, 3);
-      ctx.fillRect(cx - r * 0.08, cy + r * 0.42, 2, 3);
-      ctx.fillRect(cx + r * 0.12, cy + r * 0.42, 2, 3);
+      ctx.fillRect(cx - r * 0.3, cy + r * 0.35, 2, 3);
+      ctx.fillRect(cx - r * 0.1, cy + r * 0.42, 2, 3);
+      ctx.fillRect(cx + r * 0.1, cy + r * 0.42, 2, 3);
+      ctx.fillRect(cx + r * 0.3, cy + r * 0.35, 2, 3);
     }
   }
 
@@ -1379,36 +1399,42 @@ function renderDireJumper() {
     var pulse = 1 + Math.sin(t) * 0.15;
     var r = (pu.w / 2) * pulse;
     if (pu.type === "rocket") {
-      ctx.fillStyle = "rgba(239,68,68,0.3)";
+      ctx.fillStyle = "rgba(239,68,68,0.35)";
       ctx.beginPath();
-      ctx.arc(cx, cy, r * 1.5, 0, Math.PI * 2);
+      ctx.arc(cx, cy, r * 1.6, 0, Math.PI * 2);
       ctx.fill();
-      ctx.fillStyle = "#ef4444";
+      var rg = ctx.createRadialGradient(cx - r * 0.4, cy - r * 0.4, r * 0.2, cx, cy, r);
+      rg.addColorStop(0, "#fca5a5");
+      rg.addColorStop(0.6, "#ef4444");
+      rg.addColorStop(1, "#991b1b");
+      ctx.fillStyle = rg;
       ctx.beginPath();
       ctx.arc(cx, cy, r, 0, Math.PI * 2);
       ctx.fill();
       ctx.strokeStyle = "#7f1d1d";
       ctx.lineWidth = 1;
       ctx.stroke();
-      ctx.fillStyle = "#fff";
-      ctx.font = "bold 12px sans-serif";
+      ctx.font = "bold 13px sans-serif";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.fillText("🚀", cx, cy + 1);
     } else {
-      ctx.fillStyle = "rgba(34,197,94,0.3)";
+      ctx.fillStyle = "rgba(34,197,94,0.35)";
       ctx.beginPath();
-      ctx.arc(cx, cy, r * 1.5, 0, Math.PI * 2);
+      ctx.arc(cx, cy, r * 1.6, 0, Math.PI * 2);
       ctx.fill();
-      ctx.fillStyle = "#22c55e";
+      var gg = ctx.createRadialGradient(cx - r * 0.4, cy - r * 0.4, r * 0.2, cx, cy, r);
+      gg.addColorStop(0, "#86efac");
+      gg.addColorStop(0.6, "#22c55e");
+      gg.addColorStop(1, "#14532d");
+      ctx.fillStyle = gg;
       ctx.beginPath();
       ctx.arc(cx, cy, r, 0, Math.PI * 2);
       ctx.fill();
       ctx.strokeStyle = "#14532d";
       ctx.lineWidth = 1;
       ctx.stroke();
-      ctx.fillStyle = "#fff";
-      ctx.font = "bold 11px sans-serif";
+      ctx.font = "bold 12px sans-serif";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.fillText("⚡", cx, cy + 1);
@@ -1418,13 +1444,10 @@ function renderDireJumper() {
   function drawProjectile(ctx, pr) {
     var sy = pr.y - state.cameraY;
     if (sy < -40 || sy > H + 40) return;
-    // Тень/след
-    ctx.fillStyle = "rgba(196,181,253,0.3)";
-    ctx.fillRect(pr.x - 1, sy + 6, 2, 10);
-    // Древко
+    ctx.fillStyle = "rgba(196,181,253,0.35)";
+    ctx.fillRect(pr.x - 1, sy + 8, 2, 12);
     ctx.fillStyle = "#c4b5fd";
     ctx.fillRect(pr.x - 1.5, sy, 3, 14);
-    // Наконечник
     ctx.fillStyle = "#e9d5ff";
     ctx.beginPath();
     ctx.moveTo(pr.x - 4, sy + 2);
@@ -1435,7 +1458,6 @@ function renderDireJumper() {
     ctx.strokeStyle = "#7c3aed";
     ctx.lineWidth = 0.8;
     ctx.stroke();
-    // Хвост-оперение
     ctx.fillStyle = "#a855f7";
     ctx.beginPath();
     ctx.moveTo(pr.x - 3, sy + 10);
@@ -1450,19 +1472,13 @@ function renderDireJumper() {
   function drawSlark(ctx, cx, cy, w, h, facing, animT, vy) {
     var sway = Math.sin(animT * 0.15) * 1.2;
     var squash = 1 + Math.max(-0.15, Math.min(0.15, -vy * 0.012));
-    var rw = (w / 2);
-    var rh = (h / 2);
-
+    var rw = w / 2;
+    var rh = h / 2;
     ctx.save();
     ctx.translate(cx, cy + sway);
     ctx.scale(2 - squash, squash);
-
     var tailDir = facing === 1 ? -1 : 1;
 
-    // Тень под игроком (когда близко к платформе — не знаем, но всё равно рисуем)
-    // Убрано — работает плохо
-
-    // Хвост
     ctx.fillStyle = "#0e5a8a";
     ctx.beginPath();
     ctx.moveTo(tailDir * rw * 0.85, 0);
@@ -1477,7 +1493,6 @@ function renderDireJumper() {
     ctx.closePath();
     ctx.fill();
 
-    // Плавники-ножки
     ctx.fillStyle = "#0e5a8a";
     ctx.beginPath();
     ctx.moveTo(-rw * 0.5, rh * 0.7);
@@ -1492,7 +1507,6 @@ function renderDireJumper() {
     ctx.closePath();
     ctx.fill();
 
-    // Спинной плавник
     ctx.fillStyle = "#0e5a8a";
     ctx.beginPath();
     ctx.moveTo(-rw * 0.35, -rh * 0.9);
@@ -1505,7 +1519,6 @@ function renderDireJumper() {
     ctx.lineWidth = 1;
     ctx.stroke();
 
-    // Тело
     var bodyGrad = ctx.createRadialGradient(-rw * 0.35, -rh * 0.35, 2, 0, 0, rw * 1.2);
     bodyGrad.addColorStop(0, "#93e0ff");
     bodyGrad.addColorStop(0.5, "#38bdf8");
@@ -1521,11 +1534,9 @@ function renderDireJumper() {
     ctx.lineWidth = 1.4;
     ctx.stroke();
 
-    // Глаза
     var eyeOff = facing * rw * 0.28;
     var eyeY = -rh * 0.2;
     var eyeR = rw * 0.3;
-
     ctx.fillStyle = "#fef9c3";
     ctx.beginPath();
     ctx.arc(-rw * 0.35 + eyeOff, eyeY, eyeR, 0, Math.PI * 2);
@@ -1554,7 +1565,6 @@ function renderDireJumper() {
     ctx.arc(rw * 0.35 + eyeOff + pupilOff - eyeR * 0.2, eyeY - eyeR * 0.25, eyeR * 0.22, 0, Math.PI * 2);
     ctx.fill();
 
-    // Рот с зубами
     var mouthY = rh * 0.5;
     ctx.fillStyle = "#082f49";
     ctx.beginPath();
@@ -1584,48 +1594,39 @@ function renderDireJumper() {
   function draw() {
     var ctx = canvas.getContext("2d");
     ctx.clearRect(0, 0, W, H);
-
     drawBackground(ctx);
-
-    // Платформы
     for (var i = 0; i < state.platforms.length; i++) drawPlatform(ctx, state.platforms[i]);
-    // Ускорители
     for (var j = 0; j < state.powerups.length; j++) drawPowerup(ctx, state.powerups[j]);
-    // Препятствия
     for (var k = 0; k < state.obstacles.length; k++) drawObstacle(ctx, state.obstacles[k]);
-    // Заточки
     for (var l = 0; l < state.projectiles.length; l++) drawProjectile(ctx, state.projectiles[l]);
 
-    // Частицы
     for (var q = 0; q < state.particles.length; q++) {
       var pt = state.particles[q];
       var sy = pt.y - state.cameraY;
       ctx.fillStyle = pt.color;
-      ctx.globalAlpha = Math.max(0, pt.life / 20);
+      ctx.globalAlpha = Math.max(0, pt.life / 22);
       ctx.beginPath();
-      ctx.arc(pt.x, sy, 2, 0, Math.PI * 2);
+      ctx.arc(pt.x, sy, 2.5, 0, Math.PI * 2);
       ctx.fill();
       ctx.globalAlpha = 1;
     }
 
-    // Игрок
     var p = state.player;
     var py = p.y - state.cameraY;
     drawSlark(ctx, p.x + p.w / 2, py + p.h / 2, p.w, p.h, p.facing, p.animT, p.vy);
 
-    // Лава
     drawLava(ctx);
 
-    // Прогресс по высоте
     var progress = Math.min(1, state.maxHeight / 30000);
     ctx.fillStyle = "rgba(139,92,246,0.15)";
-    ctx.fillRect(4, 4, 6, H - 8);
+    ctx.fillRect(6, 6, 4, H - 12);
     ctx.fillStyle = "#8b5cf6";
-    ctx.fillRect(4, 4 + (H - 8) * (1 - progress), 6, (H - 8) * progress);
+    ctx.fillRect(6, 6 + (H - 12) * (1 - progress), 4, (H - 12) * progress);
   }
 
   function die(reason) {
     state.running = false;
+    state.deathReason = reason;
     if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
     detachListeners();
 
@@ -1638,17 +1639,21 @@ function renderDireJumper() {
       try { window.submitGameScore("direjumper", state.score); } catch (e) {}
     }
     if (isRecord) _snd("win"); else _snd("fail");
-
-    // Проверяем ачивки
     if (typeof Achievements !== "undefined") Achievements.check();
 
-    var overlay = el("div", { style: "position:absolute;inset:0;background:rgba(2,3,8,0.92);display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:16px;padding:20px;text-align:center;z-index:20;" });
+    var overlay = el("div", { style: "position:absolute;inset:0;background:rgba(2,3,8,0.93);display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:16px;padding:20px;text-align:center;z-index:20;" });
     var emoji = isRecord ? "🏆" : (reason === "lava" ? "🔥" : "💀");
-    var title = isRecord ? "Новый рекорд!" : (reason === "lava" ? "Сларк сгорел в лаве" : "Сларк напоролся на шип");
-    overlay.appendChild(el("div", { style: "font-size:52px;margin-bottom:6px;" }, emoji));
-    overlay.appendChild(el("div", { style: "font-size:15px;font-weight:700;color:var(--text);margin-bottom:2px;" }, title));
-    overlay.appendChild(el("div", { style: "font-size:32px;font-weight:900;font-family:'JetBrains Mono',monospace;color:var(--gold);margin:12px 0 4px;" }, state.score.toLocaleString()));
-    overlay.appendChild(el("div", { class: "dim", style: "font-size:10.5px;margin-bottom:16px;" }, "Высота: " + Math.floor(state.maxHeight / 10) + " м"));
+    var title;
+    if (isRecord) title = "Новый рекорд!";
+    else if (reason === "lava") title = "Сларк сгорел в лаве";
+    else if (reason === "spike") title = "Сларк напоролся на шип";
+    else title = "Сларк упал";
+
+    overlay.appendChild(el("div", { style: "font-size:56px;margin-bottom:8px;" }, emoji));
+    overlay.appendChild(el("div", { style: "font-size:16px;font-weight:700;color:var(--text);margin-bottom:4px;" }, title));
+    overlay.appendChild(el("div", { style: "font-size:36px;font-weight:900;font-family:'JetBrains Mono',monospace;color:var(--gold);margin:14px 0 6px;" }, state.score.toLocaleString()));
+    overlay.appendChild(el("div", { class: "dim", style: "font-size:11px;margin-bottom:20px;" }, "Высота: " + Math.floor(state.maxHeight / 10) + " м · Рекорд: " + state.best.toLocaleString()));
+
     var btnRow = el("div", { style: "display:flex;gap:8px;" });
     var retryBtn = UI.btn("🔄 Ещё раз");
     retryBtn.addEventListener("click", function () { overlay.remove(); start(); });
@@ -1661,7 +1666,6 @@ function renderDireJumper() {
   }
 
   function start() {
-    // Удаляем старую overlay если есть
     var oldOverlay = canvasWrap.querySelector("div[style*='position:absolute'][style*='inset:0']");
     if (oldOverlay) oldOverlay.remove();
 
@@ -1670,7 +1674,6 @@ function renderDireJumper() {
     attachListeners();
     canvas.focus();
 
-    // ИНКРЕМЕНТ games ПРИ СТАРТЕ (для ачивки "Первый прыжок")
     var games = (Store.get("direjumpergames", 0) || 0) + 1;
     Store.set("direjumpergames", games);
     if (typeof Achievements !== "undefined") Achievements.check();
@@ -1683,32 +1686,20 @@ function renderDireJumper() {
   return card;
 }
 
-/* ─── ГЛОБАЛЬНЫЕ СЛУШАТЕЛИ (для остановки игр в фоне) ─── */
+/* ─── ГЛОБАЛЬНЫЕ СЛУШАТЕЛИ ─── */
 if (!window._gamesGlobalListeners) {
   window._gamesGlobalListeners = true;
-
-  // Останавливать игры при смене страницы
   window.addEventListener("hashchange", function () {
     var page = (location.hash || "").slice(1) || "dashboard";
-    if (page !== "games") {
-      stopActiveGames();
-    }
+    if (page !== "games") stopActiveGames();
   });
-
-  // Останавливать при скрытии вкладки
   document.addEventListener("visibilitychange", function () {
-    if (document.hidden) {
-      stopActiveGames();
-    }
+    if (document.hidden) stopActiveGames();
   });
-
-  // Останавливать при переходе назад/вперёд
   window.addEventListener("popstate", function () {
     var page = (location.hash || "").slice(1) || "dashboard";
-    if (page !== "games") {
-      stopActiveGames();
-    }
+    if (page !== "games") stopActiveGames();
   });
 }
 
-console.log("games v9.2 ready (Dire Jumper fixed: cooldown, lava, screen-space projectiles)");
+console.log("games v10.0 ready (Dire Jumper fixed: swept collision, smart spawn, static spikes, lava)");
