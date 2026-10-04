@@ -1,6 +1,7 @@
-/* DOTA JETCH — FIREBASE AUTH v11.1
+/* DOTA JETCH — FIREBASE AUTH v11.2
    - syncPublicProfileMMR: сохраняет MMR в publicProfiles для лидерборда
-   - publicProfiles также хранит nickname, avatar, calibrated */
+   - publicProfiles также хранит nickname, avatar, calibrated
+   - SYNC_KEYS: добавлены sound.enabled и sound.volume */
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.8.0/firebase-app.js";
 import {
@@ -436,7 +437,8 @@ const SYNC_KEYS = [
   "dailyprogress.game","dailyprogress.chart","dailyprogress.theme",
   "dailylastclaimdate","diarynotes",
   "lockpickbest","automatonbest","minigames_mmr","minigames_games",
-  "minigames_calibrated","minigames_calibration_games","minigames_wins"
+  "minigames_calibrated","minigames_calibration_games","minigames_wins",
+  "sound.enabled","sound.volume"
 ];
 
 function collectLocalData() {
