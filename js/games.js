@@ -1,5 +1,6 @@
-/* DOTA JETCH — MINI-GAMES v12.0
-   Dire Jumper: pull-to-center, гарантированная достижимость */
+/* DOTA JETCH — MINI-GAMES v13.0
+   Dire Jumper: coyote time, jump buffer, асимметричная гравитация,
+   hang time, частицы, тряска экрана, pull-to-center */
 
 var QUIZ = [
   { q: "Какая способность у Juggernaut даёт неуязвимость во время каста?", a: "Omnislash", opts: ["Omnislash", "Blade Fury", "Blade Dance", "Healing Ward"] },
@@ -536,6 +537,7 @@ function renderQuiz() {
   return card;
 }
 
+/* ─── DIRE JUMPER v13.0 — FEEL TUNING ─── */
 function renderDireJumper() {
   var card = UI.card("🎪 Дири-Джампер");
   var topRow = el("div", { style: "display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;" });
@@ -566,24 +568,52 @@ function renderDireJumper() {
   var statusEl = el("div", { style: "text-align:center;margin-top:12px;font-size:12px;font-weight:600;color:var(--text-muted);min-height:20px;" }, "A / D — двигать · W / ↑ / SPACE — заточка");
   card.appendChild(statusEl);
   var W = canvas.width, H = canvas.height;
-  var LAVA_HEIGHT = 28, SHOT_COOLDOWN = 300, JUMP_POWER = -14, GRAVITY = 0.5, MAX_VY = 16, MAX_X_OFFSET = 90;
+  var LAVA_HEIGHT = 28, SHOT_COOLDOWN = 300, JUMP_POWER = -14, MAX_VY = 16, MAX_X_OFFSET = 90;
+
+  /* ─── FEEL TUNING ─── */
+  var COYOTE_TIME = 0.10;       /* 6 кадров @ 60fps */
+  var JUMP_BUFFER_TIME = 0.13;  /* окно для прощения раннего нажатия */
+  var RISE_GRAVITY = 0.5;       /* подъём — плавный */
+  var FALL_GRAVITY = 0.85;      /* падение — резкое (1.7x) */
+  var APEX_THRESHOLD = 2.5;     /* за сколько до пика включаем hang time */
+  var APEX_GRAVITY_MULT = 0.45; /* ослабляем гравитацию на пике */
+
   var lastShotTime = 0;
+  var jumpBufferTimer = 0;
   var state = {
     running: false, score: 0, best: Store.get("direjumperbest", 0) || 0,
     cameraY: 0, maxHeight: 0,
     player: { x: 0, y: 0, vx: 0, vy: 0, w: 30, h: 30, facing: 1, animT: 0, prevY: 0 },
     platforms: [], obstacles: [], projectiles: [], particles: [], powerups: [],
-    keys: { left: false, right: false },
-    lastFrame: 0, spawnAcc: 0, lastCheckedScore: 0, deathReason: "", platformCount: 0
+    keys: { left: false, right: false, jumpHeld: false },
+    lastFrame: 0, spawnAcc: 0, lastCheckedScore: 0, deathReason: "",
+    platformCount: 0, wasOnGround: false, coyoteTimer: 0,
+    screenShake: 0, screenShakeDecay: 0.88,
+    totalAirTime: 0, lastPlatformType: ""
   };
   var rafId = null; var listenersAttached = false;
-  function attachListeners() { if (listenersAttached) return; document.addEventListener("keydown", onKeyDown, true); document.addEventListener("keyup", onKeyUp, true); listenersAttached = true; }
-  function detachListeners() { if (!listenersAttached) return; document.removeEventListener("keydown", onKeyDown, true); document.removeEventListener("keyup", onKeyUp, true); listenersAttached = false; }
-  function stop() { state.running = false; if (rafId) { cancelAnimationFrame(rafId); rafId = null; } detachListeners(); }
+  function attachListeners() {
+    if (listenersAttached) return;
+    document.addEventListener("keydown", onKeyDown, true);
+    document.addEventListener("keyup", onKeyUp, true);
+    listenersAttached = true;
+  }
+  function detachListeners() {
+    if (!listenersAttached) return;
+    document.removeEventListener("keydown", onKeyDown, true);
+    document.removeEventListener("keyup", onKeyUp, true);
+    listenersAttached = false;
+  }
+  function stop() {
+    state.running = false;
+    if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+    detachListeners();
+  }
   _activeDireJumper = { stop: stop };
   function stopDireJumper() { stop(); _activeDireJumper = null; }
   window._stopDireJumper = stopDireJumper;
 
+  /* ─── PULL-TO-CENTER + гарантированная достижимость ─── */
   function spawnPlatformAbove(baseX, baseY) {
     var isFirst3 = state.platformCount < 3;
     var pullFactor = isFirst3 ? 0.6 : 0.35;
@@ -631,9 +661,11 @@ function renderDireJumper() {
   function reset() {
     state.score = 0; state.cameraY = 0; state.maxHeight = 0;
     state.platforms = []; state.obstacles = []; state.projectiles = []; state.particles = []; state.powerups = [];
-    state.keys = { left: false, right: false };
+    state.keys = { left: false, right: false, jumpHeld: false };
     state.lastFrame = performance.now(); state.spawnAcc = 0; state.lastCheckedScore = 0;
     state.deathReason = ""; state.platformCount = 0; lastShotTime = 0;
+    state.jumpBufferTimer = 0; state.coyoteTimer = 0; state.wasOnGround = false;
+    state.screenShake = 0; state.totalAirTime = 0;
     var startPlatformY = H - LAVA_HEIGHT - 70;
     var startX = W / 2 - 50;
     var startY = startPlatformY - 30;
@@ -651,12 +683,20 @@ function renderDireJumper() {
     var code = e.code || "";
     if (code === "ArrowLeft" || code === "KeyA") { state.keys.left = true; e.preventDefault(); }
     else if (code === "ArrowRight" || code === "KeyD") { state.keys.right = true; e.preventDefault(); }
-    else if (code === "ArrowUp" || code === "KeyW" || code === "Space") { e.preventDefault(); if (e.repeat) return; fireProjectile(); }
+    else if (code === "ArrowUp" || code === "KeyW" || code === "Space") {
+      e.preventDefault();
+      if (e.repeat) return;
+      state.keys.jumpHeld = true;
+      /* Jump buffer: запоминаем нажатие */
+      state.jumpBufferTimer = JUMP_BUFFER_TIME;
+      fireProjectile();
+    }
   }
   function onKeyUp(e) {
     var code = e.code || "";
     if (code === "ArrowLeft" || code === "KeyA") state.keys.left = false;
     else if (code === "ArrowRight" || code === "KeyD") state.keys.right = false;
+    else if (code === "ArrowUp" || code === "KeyW" || code === "Space") state.keys.jumpHeld = false;
   }
   function fireProjectile() {
     var now = performance.now();
@@ -675,11 +715,28 @@ function renderDireJumper() {
     return null;
   }
 
+  function addParticles(x, y, count, color, speed) {
+    for (var i = 0; i < count; i++) {
+      state.particles.push({
+        x: x, y: y,
+        vx: (Math.random() - 0.5) * speed,
+        vy: (Math.random() - 0.5) * speed - 1,
+        life: 18 + Math.random() * 10,
+        maxLife: 28,
+        color: color,
+        size: 2 + Math.random() * 2
+      });
+    }
+  }
+
   function loop(ts) {
     if (!state.running) return;
     var dt = Math.min((ts - state.lastFrame) / 16.67, 1.5); if (dt < 0) dt = 0;
     state.lastFrame = ts;
     var p = state.player; p.animT += dt; p.prevY = p.y;
+    var wasOnGroundBefore = state.wasOnGround;
+
+    /* Горизонтальное движение с воздушным контролем */
     var accel = 0.7;
     if (state.keys.left) p.vx -= accel;
     if (state.keys.right) p.vx += accel;
@@ -688,43 +745,96 @@ function renderDireJumper() {
     if (p.vx > 0.1) p.facing = 1; else if (p.vx < -0.1) p.facing = -1;
     p.x += p.vx * dt;
     if (p.x < -p.w) p.x = W; if (p.x > W) p.x = -p.w;
-    p.vy += GRAVITY * dt; if (p.vy > MAX_VY) p.vy = MAX_VY; p.y += p.vy * dt;
+
+    /* Jump buffer тикает вниз */
+    if (state.jumpBufferTimer > 0) state.jumpBufferTimer -= dt * (1/60);
+
+    /* Асимметричная гравитация + hang time на пике */
+    var grav = p.vy < 0 ? RISE_GRAVITY : FALL_GRAVITY;
+    if (Math.abs(p.vy) < APEX_THRESHOLD && !state.wasOnGround) {
+      grav *= APEX_GRAVITY_MULT;
+    }
+    p.vy += grav * dt;
+    if (p.vy > MAX_VY) p.vy = MAX_VY;
+    p.y += p.vy * dt;
+
     for (var i = 0; i < state.platforms.length; i++) {
       var pl = state.platforms[i];
       if (pl.type === "moving") { pl.x += pl.dir * pl.speed * dt; if (pl.x < 10) { pl.x = 10; pl.dir = 1; } if (pl.x + pl.w > W - 10) { pl.x = W - 10 - pl.w; pl.dir = -1; } }
     }
+
     var hitPlatform = checkPlatformCollision(p);
+    state.wasOnGround = !!hitPlatform;
+
     if (hitPlatform) {
       p.y = hitPlatform.y - p.h;
+      /* Coyote time: на платформе — сбрасываем */
+      state.coyoteTimer = COYOTE_TIME;
+
       if (hitPlatform.type === "fragile") {
         var idx = state.platforms.indexOf(hitPlatform); if (idx >= 0) state.platforms.splice(idx, 1);
-        for (var k = 0; k < 8; k++) state.particles.push({ x: hitPlatform.x + Math.random() * hitPlatform.w, y: hitPlatform.y + Math.random() * hitPlatform.h, vx: (Math.random() - 0.5) * 4, vy: (Math.random() - 0.5) * 4, life: 22, color: "#9a4a78" });
-      } else if (hitPlatform.type === "bouncy") { p.vy = JUMP_POWER * 1.7; _snd("hit"); } else { p.vy = JUMP_POWER; }
+        addParticles(hitPlatform.x + hitPlatform.w / 2, hitPlatform.y, 12, "#9a4a78", 5);
+        state.screenShake = 3;
+      } else if (hitPlatform.type === "bouncy") {
+        p.vy = JUMP_POWER * 1.7;
+        addParticles(p.x + p.w / 2, p.y + p.h, 8, "#c8a84a", 4);
+        state.screenShake = 2;
+        _snd("hit");
+      } else {
+        /* Приземление: частицы и лёгкая тряска */
+        if (!wasOnGroundBefore) {
+          addParticles(p.x + p.w / 2, p.y + p.h, 6, "#6b7593", 3);
+          state.screenShake = Math.min(4, Math.abs(p.vy) * 0.3);
+        }
+        p.vy = JUMP_POWER;
+      }
+    } else {
+      /* Не на платформе — тикаем coyote time */
+      if (state.coyoteTimer > 0) state.coyoteTimer -= dt * (1/60);
     }
+
     for (var j = state.powerups.length - 1; j >= 0; j--) {
       var pu = state.powerups[j];
       if (p.x + p.w > pu.x && p.x < pu.x + pu.w && p.y + p.h > pu.y && p.y < pu.y + pu.h) {
-        if (pu.type === "spring") p.vy = -22; else if (pu.type === "rocket") p.vy = -30;
+        if (pu.type === "spring") { p.vy = -22; addParticles(pu.x + pu.w / 2, pu.y, 10, "#22c55e", 5); }
+        else if (pu.type === "rocket") { p.vy = -30; addParticles(pu.x + pu.w / 2, pu.y, 14, "#ef4444", 6); }
+        state.screenShake = 3;
         state.powerups.splice(j, 1); _snd("hit");
       }
     }
+
     for (var oi = state.obstacles.length - 1; oi >= 0; oi--) {
       var ob = state.obstacles[oi];
       if (!ob.alive) continue;
       if (p.x + p.w > ob.x + 3 && p.x < ob.x + ob.w - 3 && p.y + p.h > ob.y + 3 && p.y < ob.y + ob.h - 3) {
         if (ob.type === "spike") { die("spike"); return; }
-        else { p.vy = -9; p.vx = (p.x < ob.x ? -3.5 : 3.5); state.particles.push({ x: ob.x + ob.w / 2, y: ob.y + ob.h / 2, vx: 0, vy: 0, life: 15, color: "#eab308" }); _snd("hit"); }
+        else {
+          p.vy = -9;
+          p.vx = (p.x < ob.x ? -3.5 : 3.5);
+          addParticles(ob.x + ob.w / 2, ob.y + ob.h / 2, 10, "#eab308", 5);
+          state.screenShake = 4;
+          _snd("hit");
+        }
       }
     }
+
     for (var pi = state.projectiles.length - 1; pi >= 0; pi--) {
       var pr = state.projectiles[pi];
       pr.y -= 12 * dt;
       if (pr.y < state.cameraY - 40 || pr.y > state.cameraY + H + 40) { state.projectiles.splice(pi, 1); continue; }
       for (var oi2 = state.obstacles.length - 1; oi2 >= 0; oi2--) {
         var ob2 = state.obstacles[oi2]; if (!ob2.alive) continue;
-        if (pr.x > ob2.x && pr.x < ob2.x + ob2.w && pr.y > ob2.y && pr.y < ob2.y + ob2.h) { ob2.alive = false; state.obstacles.splice(oi2, 1); state.projectiles.splice(pi, 1); _snd("hit"); break; }
+        if (pr.x > ob2.x && pr.x < ob2.x + ob2.w && pr.y > ob2.y && pr.y < ob2.y + ob2.h) {
+          ob2.alive = false;
+          addParticles(ob2.x + ob2.w / 2, ob2.y + ob2.h / 2, 10, "#fbbf24", 4);
+          state.obstacles.splice(oi2, 1); state.projectiles.splice(pi, 1);
+          state.screenShake = 3;
+          _snd("hit");
+          break;
+        }
       }
     }
+
     var targetCam = p.y - H * 0.55;
     if (targetCam < state.cameraY) { var diff = state.cameraY - targetCam; state.cameraY -= diff * 0.08 * dt; if (state.maxHeight < state.cameraY * -1) state.maxHeight = state.cameraY * -1; state.score = Math.floor(state.maxHeight); }
     var lavaTopWorld = state.cameraY + H - LAVA_HEIGHT;
@@ -741,6 +851,13 @@ function renderDireJumper() {
     for (var di2 = state.obstacles.length - 1; di2 >= 0; di2--) if (state.obstacles[di2].y > state.cameraY + H + 100) state.obstacles.splice(di2, 1);
     for (var di3 = state.powerups.length - 1; di3 >= 0; di3--) if (state.powerups[di3].y > state.cameraY + H + 100) state.powerups.splice(di3, 1);
     for (var qi = state.particles.length - 1; qi >= 0; qi--) { var q = state.particles[qi]; q.x += q.vx * dt; q.y += q.vy * dt; q.life -= dt; if (q.life <= 0) state.particles.splice(qi, 1); }
+
+    /* Затухание тряски экрана */
+    if (state.screenShake > 0) {
+      state.screenShake *= state.screenShakeDecay;
+      if (state.screenShake < 0.1) state.screenShake = 0;
+    }
+
     draw(); updateHUD();
     rafId = requestAnimationFrame(loop);
   }
@@ -897,27 +1014,47 @@ function renderDireJumper() {
   function draw() {
     var ctx = canvas.getContext("2d");
     ctx.clearRect(0, 0, W, H);
+
+    /* Тряска экрана */
+    if (state.screenShake > 0) {
+      ctx.save();
+      ctx.translate(
+        (Math.random() - 0.5) * state.screenShake,
+        (Math.random() - 0.5) * state.screenShake
+      );
+    }
+
     drawBackground(ctx);
     for (var i = 0; i < state.platforms.length; i++) drawPlatform(ctx, state.platforms[i]);
     for (var j = 0; j < state.powerups.length; j++) drawPowerup(ctx, state.powerups[j]);
     for (var k = 0; k < state.obstacles.length; k++) drawObstacle(ctx, state.obstacles[k]);
     for (var l = 0; l < state.projectiles.length; l++) drawProjectile(ctx, state.projectiles[l]);
+
+    /* Частицы */
     for (var q = 0; q < state.particles.length; q++) {
       var pt = state.particles[q]; var sy = pt.y - state.cameraY;
-      ctx.fillStyle = pt.color; ctx.globalAlpha = Math.max(0, pt.life / 22);
-      ctx.beginPath(); ctx.arc(pt.x, sy, 2.5, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1;
+      ctx.fillStyle = pt.color;
+      ctx.globalAlpha = Math.max(0, pt.life / pt.maxLife);
+      ctx.beginPath();
+      ctx.arc(pt.x, sy, pt.size * (pt.life / pt.maxLife), 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
     }
+
     var p = state.player; var py = p.y - state.cameraY;
     drawSlark(ctx, p.x + p.w / 2, py + p.h / 2, p.w, p.h, p.facing, p.animT, p.vy);
     drawLava(ctx);
     var progress = Math.min(1, state.maxHeight / 30000);
     ctx.fillStyle = "rgba(139,92,246,0.15)"; ctx.fillRect(6, 6, 4, H - 12);
     ctx.fillStyle = "#8b5cf6"; ctx.fillRect(6, 6 + (H - 12) * (1 - progress), 4, (H - 12) * progress);
+
+    if (state.screenShake > 0) ctx.restore();
   }
   function die(reason) {
     state.running = false; state.deathReason = reason;
     if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
     detachListeners();
+    addParticles(state.player.x + state.player.w / 2, state.player.y + state.player.h / 2, 20, "#ef4444", 8);
     var isRecord = state.score > state.best;
     if (isRecord) { state.best = state.score; Store.set("direjumperbest", state.score); }
     if (typeof window.submitGameScore === "function") { try { window.submitGameScore("direjumper", state.score); } catch (e) {} }
@@ -968,4 +1105,4 @@ if (!window._gamesGlobalListeners) {
   });
 }
 
-console.log("games v12.0 ready (Dire Jumper FINAL: pull-to-center, guaranteed reachable)");
+console.log("games v13.0 ready (Dire Jumper: coyote time, jump buffer, asymmetric gravity, hang time, particles, screen shake)");
