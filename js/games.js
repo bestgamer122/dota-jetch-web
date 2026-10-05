@@ -1,5 +1,7 @@
-/* DOTA JETCH — MINI-GAMES v14.0
-   Dire Jumper: РУЧНОЙ прыжок, зигзаг-генерация, coyote time, jump buffer */
+/* DOTA JETCH — MINI-GAMES v15.0
+   - Lockpick: синие зоны дают +1000 очков и +1.5 сек
+   - Dire Jumper: пачечный спавн платформ (нет дыр после 5000м)
+   - Dire Jumper: заряд ломает шипы (визуальное свечение) */
 
 var QUIZ = [
   { q: "Какая способность у Juggernaut даёт неуязвимость во время каста?", a: "Omnislash", opts: ["Omnislash", "Blade Fury", "Blade Dance", "Healing Ward"] },
@@ -155,7 +157,7 @@ function buildLockpickIntro() {
   v.appendChild(el("div", { style: "font-size:90px;line-height:1;" }, "🔒"));
   v.appendChild(el("div", { class: "dim", style: "font-size:12px;margin-top:14px;letter-spacing:0.08em;text-transform:uppercase;" }, "Стрелка · Зоны · Промах"));
   card.appendChild(v);
-  card.appendChild(buildRulesBlock("Как играть", ["ЛКМ — кликнуть когда стрелка в жёлтой или синей зоне", "Жёлтая зона = 1 000 очков", "Синяя зона = +1.5 секунды", "Скорость плавно растёт со временем", "ПКМ (удерживай) — ускорить стрелку", "Промах — стрелка замедляется на 0.6 сек", "Цель — 6 000 очков"]));
+  card.appendChild(buildRulesBlock("Как играть", ["ЛКМ — кликнуть когда стрелка в жёлтой или синей зоне", "Жёлтая зона = 1 000 очков", "Синяя зона = 1 000 очков + 1.5 секунды", "Скорость плавно растёт со временем", "ПКМ (удерживай) — ускорить стрелку", "Промах — стрелка замедляется на 0.6 сек", "Цель — 6 000 очков"]));
   card.appendChild(buildPlayButton("🎮 Играть", "lockpick"));
   return card;
 }
@@ -177,7 +179,16 @@ function buildDireJumperIntro() {
   v.appendChild(el("div", { style: "font-size:90px;line-height:1;" }, "🐟"));
   v.appendChild(el("div", { class: "dim", style: "font-size:12px;margin-top:14px;letter-spacing:0.08em;text-transform:uppercase;" }, "Сларк · Прыжки"));
   card.appendChild(v);
-  card.appendChild(buildRulesBlock("Как играть", ["A / D или ← → — двигать Сларка", "W / ↑ / SPACE — ПРЫЖОК (вручную!)", "Клик по полю или J — метнуть заточку", "Прыгай по платформам выше", "Экран зациклен по горизонтали", "Избегай шипов — они убивают", "НЕ КАСАЙСЯ ЛАВЫ внизу", "Цель — максимум очков за высоту"]));
+  card.appendChild(buildRulesBlock("Как играть", [
+    "A / D или ← → — двигать Сларка",
+    "W / ↑ / SPACE — ПРЫЖОК (вручную!)",
+    "Клик по полю или J — метнуть заточку",
+    "Прыгай по платформам выше",
+    "⚡ Заряд от пружины/ракеты ЛОМАЕТ шипы",
+    "Избегай шипов без заряда — они убивают",
+    "НЕ КАСАЙСЯ ЛАВЫ внизу",
+    "Цель — максимум очков за высоту"
+  ]));
   card.appendChild(buildPlayButton("🎮 Играть", "direjumper"));
   return card;
 }
@@ -283,8 +294,23 @@ function renderLockpick() {
       var z = state.zones[i];
       if (isInZone(state.angle, z)) {
         hit = true;
-        if (z.blue) { state.timeLeft = Math.min(60, state.timeLeft + 1.5); state.flash = { color: "rgba(34,211,238,0.20)", alpha: 0.5 }; statusEl.textContent = "⚡ Синяя зона! +1.5 сек"; statusEl.style.color = "var(--cyan)"; _snd("hit"); }
-        else { state.score += 1000; state.hitCount++; state.flash = { color: "rgba(251,191,36,0.18)", alpha: 0.4 }; statusEl.textContent = "✓ Жёлтая! +1 000"; statusEl.style.color = "var(--gold)"; _snd("hit"); }
+        if (z.blue) {
+          /* ФИКС: синяя зона теперь даёт +1000 очков И +1.5 сек */
+          state.score += 1000;
+          state.hitCount++;
+          state.timeLeft = Math.min(60, state.timeLeft + 1.5);
+          state.flash = { color: "rgba(34,211,238,0.20)", alpha: 0.5 };
+          statusEl.textContent = "⚡ Синяя! +1000 и +1.5 сек";
+          statusEl.style.color = "var(--cyan)";
+          _snd("hit");
+        } else {
+          state.score += 1000;
+          state.hitCount++;
+          state.flash = { color: "rgba(251,191,36,0.18)", alpha: 0.4 };
+          statusEl.textContent = "✓ Жёлтая! +1 000";
+          statusEl.style.color = "var(--gold)";
+          _snd("hit");
+        }
         state.direction *= -1; spawnZones(); break;
       }
     }
@@ -536,7 +562,7 @@ function renderQuiz() {
   return card;
 }
 
-/* ─── DIRE JUMPER v14.0 — РУЧНОЙ ПРЫЖОК ─── */
+/* ─── DIRE JUMPER v15.0 — FEEL + FIXES ─── */
 function renderDireJumper() {
   var card = UI.card("🎪 Дири-Джампер");
   var topRow = el("div", { style: "display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;" });
@@ -570,18 +596,19 @@ function renderDireJumper() {
   var LAVA_HEIGHT = 28, SHOT_COOLDOWN = 300, JUMP_POWER = -14, MAX_VY = 16;
 
   /* FEEL TUNING */
-  var COYOTE_TIME = 0.12;         /* 7 кадров после схода с платформы */
-  var JUMP_BUFFER_TIME = 0.15;    /* 9 кадров до приземления */
+  var COYOTE_TIME = 0.12;
+  var JUMP_BUFFER_TIME = 0.15;
   var RISE_GRAVITY = 0.5;
   var FALL_GRAVITY = 0.85;
   var APEX_THRESHOLD = 2.5;
   var APEX_GRAVITY_MULT = 0.45;
+  var PLATFORMS_ABOVE_CAMERA = 10;
 
   var lastShotTime = 0;
   var state = {
     running: false, score: 0, best: Store.get("direjumperbest", 0) || 0,
     cameraY: 0, maxHeight: 0,
-    player: { x: 0, y: 0, vx: 0, vy: 0, w: 30, h: 30, facing: 1, animT: 0, prevY: 0 },
+    player: { x: 0, y: 0, vx: 0, vy: 0, w: 30, h: 30, facing: 1, animT: 0, prevY: 0, charge: false },
     platforms: [], obstacles: [], projectiles: [], particles: [], powerups: [],
     keys: { left: false, right: false },
     lastFrame: 0, spawnAcc: 0, lastCheckedScore: 0, deathReason: "",
@@ -616,12 +643,10 @@ function renderDireJumper() {
       var step = isFirst3 ? 70 : (70 + Math.random() * 30);
       var y = baseY - step;
 
-      // Зигзаг: чередуем стороны
       var side = (state.platformCount % 2 === 0) ? 1 : -1;
       var dist = isFirst3 ? 30 : (50 + Math.random() * 60);
       var bias = side * dist;
 
-      // Мягкое притяжение к центру если близко к краю
       var pull = 0;
       if (baseX < W * 0.25) pull = 30;
       else if (baseX > W * 0.75) pull = -30;
@@ -629,11 +654,9 @@ function renderDireJumper() {
       var xCenter = baseX + bias + pull;
       var x = xCenter - w / 2;
 
-      // Clamp к краям
       if (x < 15) x = 15;
       if (x + w > W - 15) x = W - 15 - w;
 
-      // Проверка пересечений по X (на близких Y)
       var overlaps = false;
       for (var i = 0; i < state.platforms.length; i++) {
         var p = state.platforms[i];
@@ -661,7 +684,7 @@ function renderDireJumper() {
         } else if (!isFirst3 && type === "static" && Math.random() < 0.08 && y < -600) {
           state.obstacles.push({ x: x + w / 2 - 10, y: y - 20, w: 20, h: 20, type: "enemy", alive: true });
         }
-        if (!isFirst3 && Math.random() < 0.06 && y < -500) {
+        if (!isFirst3 && Math.random() < 0.07 && y < -500) {
           state.powerups.push({ x: x + w / 2 - 8, y: y - 20, w: 16, h: 16, type: "spring" });
         } else if (!isFirst3 && Math.random() < 0.02 && y < -1200) {
           state.powerups.push({ x: x + w / 2 - 10, y: y - 24, w: 20, h: 24, type: "rocket" });
@@ -669,13 +692,29 @@ function renderDireJumper() {
         return p2;
       }
     }
-    // Fallback
     var wf = 90;
     var xf = Math.max(15, Math.min(W - wf - 15, baseX - wf / 2));
     var pf = { x: xf, y: baseY - 70, w: wf, h: 12, type: "static", dir: 1, speed: 0, baseX: xf };
     state.platforms.push(pf);
     state.platformCount++;
     return pf;
+  }
+
+  /* ФИКС: пачечный спавн — всегда поддерживаем N платформ выше камеры */
+  function ensurePlatformsAbove() {
+    var topPlatform = null;
+    var platformsAboveCam = 0;
+    for (var i = 0; i < state.platforms.length; i++) {
+      var pl = state.platforms[i];
+      if (pl.y < state.cameraY) platformsAboveCam++;
+      if (!topPlatform || pl.y < topPlatform.y) topPlatform = pl;
+    }
+    var iterations = 0;
+    while (topPlatform && platformsAboveCam < PLATFORMS_ABOVE_CAMERA && iterations < 20) {
+      topPlatform = spawnPlatformAbove(topPlatform.x + topPlatform.w / 2, topPlatform.y);
+      platformsAboveCam++;
+      iterations++;
+    }
   }
 
   function reset() {
@@ -691,11 +730,10 @@ function renderDireJumper() {
     var startPlatformY = H - LAVA_HEIGHT - 70;
     var startX = W / 2 - 50;
     var startY = startPlatformY - 30;
-    state.player = { x: startX + 35, y: startY, vx: 0, vy: 0, w: 30, h: 30, facing: 1, animT: 0, prevY: startY };
+    state.player = { x: startX + 35, y: startY, vx: 0, vy: 0, w: 30, h: 30, facing: 1, animT: 0, prevY: startY, charge: false };
     state.platforms.push({ x: startX, y: startPlatformY, w: 100, h: 12, type: "static", dir: 1, speed: 0, baseX: startX });
 
-    var lastX = startX + 50; var lastY = startPlatformY;
-    for (var i = 0; i < 30; i++) { var pl = spawnPlatformAbove(lastX, lastY); lastX = pl.x + pl.w / 2; lastY = pl.y; }
+    ensurePlatformsAbove();
     updateHUD();
   }
 
@@ -714,7 +752,6 @@ function renderDireJumper() {
     else if (code === "ArrowUp" || code === "KeyW" || code === "Space") {
       e.preventDefault();
       if (e.repeat) return;
-      /* Jump buffer */
       state.jumpBufferTimer = JUMP_BUFFER_TIME;
     }
     else if (code === "KeyJ" || code === "KeyK") {
@@ -736,7 +773,6 @@ function renderDireJumper() {
     _snd("hit");
   }
 
-  /* Click on canvas = shoot */
   canvas.addEventListener("mousedown", function (e) {
     if (!state.running) return;
     e.preventDefault();
@@ -745,13 +781,12 @@ function renderDireJumper() {
   canvas.addEventListener("contextmenu", function (e) { e.preventDefault(); });
 
   function checkPlatformCollision(p) {
-    if (p.vy < -0.1) return null; /* идёт вверх — пропускаем */
+    if (p.vy < -0.1) return null;
     var prevBottom = p.prevY + p.h;
     var currBottom = p.y + p.h;
     for (var i = 0; i < state.platforms.length; i++) {
       var pl = state.platforms[i];
       var plTop = pl.y;
-      /* Игрок был на уровне платформы или выше, и сейчас на уровне или ниже */
       if (prevBottom <= plTop + 2 && currBottom >= plTop - 1) {
         if (p.x + p.w > pl.x && p.x < pl.x + pl.w) return pl;
       }
@@ -783,7 +818,6 @@ function renderDireJumper() {
     p.prevY = p.y;
     var wasGrounded = state.grounded;
 
-    /* 1. Двигаем платформы */
     for (var i = 0; i < state.platforms.length; i++) {
       var pl = state.platforms[i];
       if (pl.type === "moving") {
@@ -793,14 +827,12 @@ function renderDireJumper() {
       }
     }
 
-    /* 2. Если стоим на движущейся платформе — двигаемся с ней */
     if (state.grounded && state.currentPlatform && state.currentPlatform.type === "moving") {
       p.x += state.currentPlatform.dir * state.currentPlatform.speed * dt;
       if (p.x < -p.w) p.x = W;
       if (p.x > W) p.x = -p.w;
     }
 
-    /* 3. Горизонтальное движение */
     var accel = 0.7;
     if (state.keys.left) p.vx -= accel;
     if (state.keys.right) p.vx += accel;
@@ -812,7 +844,6 @@ function renderDireJumper() {
     if (p.x < -p.w) p.x = W;
     if (p.x > W) p.x = -p.w;
 
-    /* 4. Гравитация */
     var grav = p.vy < 0 ? RISE_GRAVITY : FALL_GRAVITY;
     if (Math.abs(p.vy) < APEX_THRESHOLD && !state.grounded) {
       grav *= APEX_GRAVITY_MULT;
@@ -821,7 +852,6 @@ function renderDireJumper() {
     if (p.vy > MAX_VY) p.vy = MAX_VY;
     p.y += p.vy * dt;
 
-    /* 5. Коллизия с платформой */
     var hitPlatform = checkPlatformCollision(p);
     if (hitPlatform) {
       p.y = hitPlatform.y - p.h;
@@ -843,8 +873,9 @@ function renderDireJumper() {
         _snd("hit");
         state.grounded = false;
       } else {
-        /* Обычная платформа — стоим */
         p.vy = 0;
+        /* ФИКС: приземление на обычную платформу сбрасывает заряд */
+        p.charge = false;
         if (!wasGrounded) {
           addParticles(p.x + p.w / 2, p.y + p.h, 4, "#6b7593", 2);
         }
@@ -854,7 +885,6 @@ function renderDireJumper() {
       state.currentPlatform = null;
     }
 
-    /* 6. Обработка прыжка */
     if (state.jumpBufferTimer > 0 && (state.grounded || state.coyoteTimer > 0)) {
       p.vy = JUMP_POWER;
       state.grounded = false;
@@ -864,29 +894,46 @@ function renderDireJumper() {
       _snd("hit");
     }
 
-    /* 7. Тик jump buffer и coyote time */
     if (state.jumpBufferTimer > 0) state.jumpBufferTimer -= dt * (1/60);
     if (!state.grounded && state.coyoteTimer > 0) state.coyoteTimer -= dt * (1/60);
 
-    /* 8. Ускорители */
+    /* ФИКС: пружина/ракета дают заряд для ломания шипов */
     for (var j = state.powerups.length - 1; j >= 0; j--) {
       var pu = state.powerups[j];
       if (p.x + p.w > pu.x && p.x < pu.x + pu.w && p.y + p.h > pu.y && p.y < pu.y + pu.h) {
-        if (pu.type === "spring") { p.vy = -22; addParticles(pu.x + pu.w / 2, pu.y, 10, "#22c55e", 5); }
-        else if (pu.type === "rocket") { p.vy = -30; addParticles(pu.x + pu.w / 2, pu.y, 14, "#ef4444", 6); }
+        if (pu.type === "spring") {
+          p.vy = -22;
+          p.charge = true;
+          addParticles(pu.x + pu.w / 2, pu.y, 10, "#22c55e", 5);
+        } else if (pu.type === "rocket") {
+          p.vy = -30;
+          p.charge = true;
+          addParticles(pu.x + pu.w / 2, pu.y, 14, "#ef4444", 6);
+        }
         state.screenShake = 3;
         state.powerups.splice(j, 1);
         _snd("hit");
       }
     }
 
-    /* 9. Препятствия */
+    /* ФИКС: с зарядом шипы ломаются, без заряда — смерть */
     for (var oi = state.obstacles.length - 1; oi >= 0; oi--) {
       var ob = state.obstacles[oi];
       if (!ob.alive) continue;
       if (p.x + p.w > ob.x + 3 && p.x < ob.x + ob.w - 3 && p.y + p.h > ob.y + 3 && p.y < ob.y + ob.h - 3) {
-        if (ob.type === "spike") { die("spike"); return; }
-        else {
+        if (ob.type === "spike") {
+          if (p.charge) {
+            /* Ломаем шип */
+            ob.alive = false;
+            addParticles(ob.x + ob.w / 2, ob.y + ob.h / 2, 16, "#fbbf24", 7);
+            state.obstacles.splice(oi, 1);
+            state.screenShake = 5;
+            _snd("hit");
+          } else {
+            die("spike");
+            return;
+          }
+        } else {
           p.vy = -9;
           p.vx = (p.x < ob.x ? -3.5 : 3.5);
           addParticles(ob.x + ob.w / 2, ob.y + ob.h / 2, 10, "#eab308", 5);
@@ -896,7 +943,6 @@ function renderDireJumper() {
       }
     }
 
-    /* 10. Заточки */
     for (var pi = state.projectiles.length - 1; pi >= 0; pi--) {
       var pr = state.projectiles[pi];
       pr.y -= 12 * dt;
@@ -916,7 +962,6 @@ function renderDireJumper() {
       }
     }
 
-    /* 11. Камера */
     var targetCam = p.y - H * 0.55;
     if (targetCam < state.cameraY) {
       var diff = state.cameraY - targetCam;
@@ -925,33 +970,25 @@ function renderDireJumper() {
       state.score = Math.floor(state.maxHeight);
     }
 
-    /* 12. Лава */
     var lavaTopWorld = state.cameraY + H - LAVA_HEIGHT;
     if (p.y + p.h >= lavaTopWorld) { die("lava"); return; }
 
-    /* 13. Ачивки */
     if (state.score > state.lastCheckedScore + 500) {
       state.lastCheckedScore = state.score;
       if (typeof Achievements !== "undefined") Achievements.check();
     }
 
-    /* 14. Спавн новых платформ */
+    /* ФИКС: пачечный спавн вместо одиночного */
     state.spawnAcc += dt;
-    if (state.spawnAcc > 40) {
+    if (state.spawnAcc > 15) {
       state.spawnAcc = 0;
-      var topPlatform = null;
-      for (var tp = 0; tp < state.platforms.length; tp++) {
-        if (!topPlatform || state.platforms[tp].y < topPlatform.y) topPlatform = state.platforms[tp];
-      }
-      if (topPlatform) spawnPlatformAbove(topPlatform.x + topPlatform.w / 2, topPlatform.y);
+      ensurePlatformsAbove();
     }
 
-    /* 15. Удаление ушедших */
     for (var di = state.platforms.length - 1; di >= 0; di--) if (state.platforms[di].y > state.cameraY + H + 100) state.platforms.splice(di, 1);
     for (var di2 = state.obstacles.length - 1; di2 >= 0; di2--) if (state.obstacles[di2].y > state.cameraY + H + 100) state.obstacles.splice(di2, 1);
     for (var di3 = state.powerups.length - 1; di3 >= 0; di3--) if (state.powerups[di3].y > state.cameraY + H + 100) state.powerups.splice(di3, 1);
 
-    /* 16. Частицы */
     for (var qi = state.particles.length - 1; qi >= 0; qi--) {
       var q = state.particles[qi];
       q.x += q.vx * dt;
@@ -960,7 +997,6 @@ function renderDireJumper() {
       if (q.life <= 0) state.particles.splice(qi, 1);
     }
 
-    /* 17. Тряска */
     if (state.screenShake > 0) {
       state.screenShake *= state.screenShakeDecay;
       if (state.screenShake < 0.1) state.screenShake = 0;
@@ -1150,10 +1186,25 @@ function renderDireJumper() {
     ctx.closePath();
     ctx.fill();
   }
-  function drawSlark(ctx, cx, cy, w, h, facing, animT, vy, grounded) {
+  function drawSlark(ctx, cx, cy, w, h, facing, animT, vy, grounded, charged) {
     var sway = grounded ? 0 : Math.sin(animT * 0.15) * 1.2;
     var squash = 1 + Math.max(-0.15, Math.min(0.15, -vy * 0.012));
     var rw = w / 2, rh = h / 2;
+
+    /* ФИКС: свечение при заряде */
+    if (charged) {
+      var glowPulse = 1 + Math.sin(performance.now() / 100) * 0.15;
+      var glowR = rw * 2.2 * glowPulse;
+      var glowGrad = ctx.createRadialGradient(cx, cy, rw * 0.5, cx, cy, glowR);
+      glowGrad.addColorStop(0, "rgba(251,191,36,0.55)");
+      glowGrad.addColorStop(0.5, "rgba(251,146,60,0.35)");
+      glowGrad.addColorStop(1, "rgba(251,191,36,0)");
+      ctx.fillStyle = glowGrad;
+      ctx.beginPath();
+      ctx.arc(cx, cy, glowR, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
     ctx.save();
     ctx.translate(cx, cy + sway);
     ctx.scale(2 - squash, squash);
@@ -1251,7 +1302,7 @@ function renderDireJumper() {
     }
     var p = state.player;
     var py = p.y - state.cameraY;
-    drawSlark(ctx, p.x + p.w / 2, py + p.h / 2, p.w, p.h, p.facing, p.animT, p.vy, state.grounded);
+    drawSlark(ctx, p.x + p.w / 2, py + p.h / 2, p.w, p.h, p.facing, p.animT, p.vy, state.grounded, p.charge);
     drawLava(ctx);
     var progress = Math.min(1, state.maxHeight / 30000);
     ctx.fillStyle = "rgba(139,92,246,0.15)";
@@ -1319,4 +1370,4 @@ if (!window._gamesGlobalListeners) {
   });
 }
 
-console.log("games v14.0 ready (Dire Jumper: manual jump, zigzag generation, coyote time, jump buffer)");
+console.log("games v15.0 ready (Lockpick blue=+1000; DireJumper: batch spawn, charge breaks spikes)");
