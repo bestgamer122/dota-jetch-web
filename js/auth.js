@@ -1,4 +1,4 @@
-/* DOTA JETCH — FIREBASE AUTH v11.3 */
+/* DOTA JETCH — FIREBASE AUTH v11.4 */
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.8.0/firebase-app.js";
 import {
@@ -40,6 +40,24 @@ function decodeKey(k) {
   return String(k).replace(/__DOT__/g, ".").replace(/__SLASH__/g, "/")
                   .replace(/__HASH__/g, "#").replace(/__DOLLAR__/g, "$")
                   .replace(/__LB__/g, "[").replace(/__RB__/g, "]");
+}
+
+/* ─── FIX: очистка И sessionStorage, И localStorage ─── */
+function wipeLocalUserData() {
+  try {
+    let removed = 0;
+    const keys = Object.keys(sessionStorage);
+    for (let i = 0; i < keys.length; i++) {
+      const k = keys[i];
+      if (k.indexOf(STORE_PREFIX) === 0) { sessionStorage.removeItem(k); removed++; }
+    }
+    const lkeys = Object.keys(localStorage);
+    for (let j = 0; j < lkeys.length; j++) {
+      const lk = lkeys[j];
+      if (lk.indexOf(STORE_PREFIX) === 0) { localStorage.removeItem(lk); removed++; }
+    }
+    console.log("🧹 Очищено " + removed + " ключей (sessionStorage + localStorage)");
+  } catch (e) {}
 }
 
 async function syncPublicProfile() {
@@ -470,18 +488,6 @@ document.addEventListener("visibilitychange", function () {
     try { saveUserData(currentUser.uid); } catch (e) {}
   }
 });
-
-function wipeLocalUserData() {
-  try {
-    let removed = 0;
-    const keys = Object.keys(sessionStorage);
-    for (let i = 0; i < keys.length; i++) {
-      const k = keys[i];
-      if (k.indexOf(STORE_PREFIX) === 0) { sessionStorage.removeItem(k); removed++; }
-    }
-    console.log("🧹 Очищено " + removed + " ключей");
-  } catch (e) {}
-}
 
 function translateAuthError(code) {
   const map = {
