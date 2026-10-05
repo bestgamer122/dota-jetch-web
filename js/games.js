@@ -1,6 +1,5 @@
-/* DOTA JETCH — MINI-GAMES v13.0
-   Dire Jumper: coyote time, jump buffer, асимметричная гравитация,
-   hang time, частицы, тряска экрана, pull-to-center */
+/* DOTA JETCH — MINI-GAMES v14.0
+   Dire Jumper: РУЧНОЙ прыжок, зигзаг-генерация, coyote time, jump buffer */
 
 var QUIZ = [
   { q: "Какая способность у Juggernaut даёт неуязвимость во время каста?", a: "Omnislash", opts: ["Omnislash", "Blade Fury", "Blade Dance", "Healing Ward"] },
@@ -178,7 +177,7 @@ function buildDireJumperIntro() {
   v.appendChild(el("div", { style: "font-size:90px;line-height:1;" }, "🐟"));
   v.appendChild(el("div", { class: "dim", style: "font-size:12px;margin-top:14px;letter-spacing:0.08em;text-transform:uppercase;" }, "Сларк · Прыжки"));
   card.appendChild(v);
-  card.appendChild(buildRulesBlock("Как играть", ["A / D или ← → — двигать Сларка", "W / ↑ / SPACE — метнуть заточку (КД 0.3 сек)", "Прыгай по платформам выше", "Экран зациклен по горизонтали", "Избегай шипов — они убивают", "НЕ КАСАЙСЯ ЛАВЫ внизу", "Цель — максимум очков за высоту"]));
+  card.appendChild(buildRulesBlock("Как играть", ["A / D или ← → — двигать Сларка", "W / ↑ / SPACE — ПРЫЖОК (вручную!)", "Клик по полю или J — метнуть заточку", "Прыгай по платформам выше", "Экран зациклен по горизонтали", "Избегай шипов — они убивают", "НЕ КАСАЙСЯ ЛАВЫ внизу", "Цель — максимум очков за высоту"]));
   card.appendChild(buildPlayButton("🎮 Играть", "direjumper"));
   return card;
 }
@@ -537,7 +536,7 @@ function renderQuiz() {
   return card;
 }
 
-/* ─── DIRE JUMPER v13.0 — FEEL TUNING ─── */
+/* ─── DIRE JUMPER v14.0 — РУЧНОЙ ПРЫЖОК ─── */
 function renderDireJumper() {
   var card = UI.card("🎪 Дири-Джампер");
   var topRow = el("div", { style: "display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;" });
@@ -562,36 +561,36 @@ function renderDireJumper() {
   var canvas = document.createElement("canvas");
   canvas.width = 420; canvas.height = 500;
   canvas.tabIndex = 0;
-  canvas.style.cssText = "display:block;width:100%;border-radius:16px;background:#0c0e14;border:1px solid var(--border);user-select:none;outline:none;";
+  canvas.style.cssText = "display:block;width:100%;border-radius:16px;background:#0c0e14;border:1px solid var(--border);user-select:none;outline:none;cursor:crosshair;";
   canvasWrap.appendChild(canvas);
   card.appendChild(canvasWrap);
-  var statusEl = el("div", { style: "text-align:center;margin-top:12px;font-size:12px;font-weight:600;color:var(--text-muted);min-height:20px;" }, "A / D — двигать · W / ↑ / SPACE — заточка");
+  var statusEl = el("div", { style: "text-align:center;margin-top:12px;font-size:12px;font-weight:600;color:var(--text-muted);min-height:20px;" }, "A/D — двигать · W/↑/SPACE — ПРЫЖОК · Клик или J — заточка");
   card.appendChild(statusEl);
   var W = canvas.width, H = canvas.height;
-  var LAVA_HEIGHT = 28, SHOT_COOLDOWN = 300, JUMP_POWER = -14, MAX_VY = 16, MAX_X_OFFSET = 90;
+  var LAVA_HEIGHT = 28, SHOT_COOLDOWN = 300, JUMP_POWER = -14, MAX_VY = 16;
 
-  /* ─── FEEL TUNING ─── */
-  var COYOTE_TIME = 0.10;       /* 6 кадров @ 60fps */
-  var JUMP_BUFFER_TIME = 0.13;  /* окно для прощения раннего нажатия */
-  var RISE_GRAVITY = 0.5;       /* подъём — плавный */
-  var FALL_GRAVITY = 0.85;      /* падение — резкое (1.7x) */
-  var APEX_THRESHOLD = 2.5;     /* за сколько до пика включаем hang time */
-  var APEX_GRAVITY_MULT = 0.45; /* ослабляем гравитацию на пике */
+  /* FEEL TUNING */
+  var COYOTE_TIME = 0.12;         /* 7 кадров после схода с платформы */
+  var JUMP_BUFFER_TIME = 0.15;    /* 9 кадров до приземления */
+  var RISE_GRAVITY = 0.5;
+  var FALL_GRAVITY = 0.85;
+  var APEX_THRESHOLD = 2.5;
+  var APEX_GRAVITY_MULT = 0.45;
 
   var lastShotTime = 0;
-  var jumpBufferTimer = 0;
   var state = {
     running: false, score: 0, best: Store.get("direjumperbest", 0) || 0,
     cameraY: 0, maxHeight: 0,
     player: { x: 0, y: 0, vx: 0, vy: 0, w: 30, h: 30, facing: 1, animT: 0, prevY: 0 },
     platforms: [], obstacles: [], projectiles: [], particles: [], powerups: [],
-    keys: { left: false, right: false, jumpHeld: false },
+    keys: { left: false, right: false },
     lastFrame: 0, spawnAcc: 0, lastCheckedScore: 0, deathReason: "",
-    platformCount: 0, wasOnGround: false, coyoteTimer: 0,
-    screenShake: 0, screenShakeDecay: 0.88,
-    totalAirTime: 0, lastPlatformType: ""
+    platformCount: 0, grounded: false, currentPlatform: null,
+    coyoteTimer: 0, jumpBufferTimer: 0,
+    screenShake: 0, screenShakeDecay: 0.88
   };
   var rafId = null; var listenersAttached = false;
+
   function attachListeners() {
     if (listenersAttached) return;
     document.addEventListener("keydown", onKeyDown, true);
@@ -604,79 +603,108 @@ function renderDireJumper() {
     document.removeEventListener("keyup", onKeyUp, true);
     listenersAttached = false;
   }
-  function stop() {
-    state.running = false;
-    if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
-    detachListeners();
-  }
+  function stop() { state.running = false; if (rafId) { cancelAnimationFrame(rafId); rafId = null; } detachListeners(); }
   _activeDireJumper = { stop: stop };
   function stopDireJumper() { stop(); _activeDireJumper = null; }
   window._stopDireJumper = stopDireJumper;
 
-  /* ─── PULL-TO-CENTER + гарантированная достижимость ─── */
+  /* ─── ЗИГЗАГ-ГЕНЕРАЦИЯ ─── */
   function spawnPlatformAbove(baseX, baseY) {
     var isFirst3 = state.platformCount < 3;
-    var pullFactor = isFirst3 ? 0.6 : 0.35;
-    for (var attempt = 0; attempt < 25; attempt++) {
-      var w = isFirst3 ? 95 : (75 + Math.random() * 35);
-      var step = isFirst3 ? (60 + Math.random() * 20) : (60 + Math.random() * 35);
+    for (var attempt = 0; attempt < 30; attempt++) {
+      var w = isFirst3 ? 100 : (85 + Math.random() * 30);
+      var step = isFirst3 ? 70 : (70 + Math.random() * 30);
       var y = baseY - step;
-      var pull = (W / 2 - baseX) * pullFactor;
-      var randomOffset = (Math.random() - 0.5) * 2 * MAX_X_OFFSET;
-      var xCenter = baseX + pull + randomOffset;
+
+      // Зигзаг: чередуем стороны
+      var side = (state.platformCount % 2 === 0) ? 1 : -1;
+      var dist = isFirst3 ? 30 : (50 + Math.random() * 60);
+      var bias = side * dist;
+
+      // Мягкое притяжение к центру если близко к краю
+      var pull = 0;
+      if (baseX < W * 0.25) pull = 30;
+      else if (baseX > W * 0.75) pull = -30;
+
+      var xCenter = baseX + bias + pull;
       var x = xCenter - w / 2;
+
+      // Clamp к краям
       if (x < 15) x = 15;
       if (x + w > W - 15) x = W - 15 - w;
+
+      // Проверка пересечений по X (на близких Y)
       var overlaps = false;
       for (var i = 0; i < state.platforms.length; i++) {
         var p = state.platforms[i];
-        if (Math.abs(p.y - y) < 25) { if (x < p.x + p.w + 15 && x + w + 15 > p.x) { overlaps = true; break; } }
+        if (Math.abs(p.y - y) < 30) {
+          if (x < p.x + p.w + 20 && x + w + 20 > p.x) { overlaps = true; break; }
+        }
       }
+
       if (!overlaps) {
         var type = "static";
-        if (!isFirst3) { var r = Math.random(); if (r < 0.15) type = "moving"; else if (r < 0.24) type = "fragile"; else if (r < 0.31) type = "bouncy"; }
+        if (!isFirst3) {
+          var r = Math.random();
+          if (r < 0.15) type = "moving";
+          else if (r < 0.24) type = "fragile";
+          else if (r < 0.31) type = "bouncy";
+        }
         var p2 = { x: x, y: y, w: w, h: 12, type: type, dir: Math.random() < 0.5 ? 1 : -1, speed: 0.35 + Math.random() * 0.35, baseX: x };
         state.platforms.push(p2);
         state.platformCount++;
-        if (!isFirst3 && type === "static" && Math.random() < 0.20 && y < -200) {
-          var obsW = 18; var obsX = x + 14 + Math.random() * Math.max(1, w - obsW - 28);
+
+        if (!isFirst3 && type === "static" && Math.random() < 0.18 && y < -300) {
+          var obsW = 18;
+          var obsX = x + 20 + Math.random() * Math.max(1, w - obsW - 40);
           state.obstacles.push({ x: obsX, y: y - 18, w: obsW, h: 18, type: "spike", alive: true });
-        } else if (!isFirst3 && type === "static" && Math.random() < 0.09 && y < -500) {
+        } else if (!isFirst3 && type === "static" && Math.random() < 0.08 && y < -600) {
           state.obstacles.push({ x: x + w / 2 - 10, y: y - 20, w: 20, h: 20, type: "enemy", alive: true });
         }
-        if (!isFirst3 && Math.random() < 0.06 && y < -400) {
+        if (!isFirst3 && Math.random() < 0.06 && y < -500) {
           state.powerups.push({ x: x + w / 2 - 8, y: y - 20, w: 16, h: 16, type: "spring" });
-        } else if (!isFirst3 && Math.random() < 0.02 && y < -1000) {
+        } else if (!isFirst3 && Math.random() < 0.02 && y < -1200) {
           state.powerups.push({ x: x + w / 2 - 10, y: y - 24, w: 20, h: 24, type: "rocket" });
         }
         return p2;
       }
     }
-    var wf = 90; var xf = Math.max(15, Math.min(W - wf - 15, baseX - wf / 2));
+    // Fallback
+    var wf = 90;
+    var xf = Math.max(15, Math.min(W - wf - 15, baseX - wf / 2));
     var pf = { x: xf, y: baseY - 70, w: wf, h: 12, type: "static", dir: 1, speed: 0, baseX: xf };
-    state.platforms.push(pf); state.platformCount++;
+    state.platforms.push(pf);
+    state.platformCount++;
     return pf;
   }
 
   function reset() {
     state.score = 0; state.cameraY = 0; state.maxHeight = 0;
     state.platforms = []; state.obstacles = []; state.projectiles = []; state.particles = []; state.powerups = [];
-    state.keys = { left: false, right: false, jumpHeld: false };
+    state.keys = { left: false, right: false };
     state.lastFrame = performance.now(); state.spawnAcc = 0; state.lastCheckedScore = 0;
     state.deathReason = ""; state.platformCount = 0; lastShotTime = 0;
-    state.jumpBufferTimer = 0; state.coyoteTimer = 0; state.wasOnGround = false;
-    state.screenShake = 0; state.totalAirTime = 0;
+    state.coyoteTimer = 0; state.jumpBufferTimer = 0;
+    state.grounded = false; state.currentPlatform = null;
+    state.screenShake = 0;
+
     var startPlatformY = H - LAVA_HEIGHT - 70;
     var startX = W / 2 - 50;
     var startY = startPlatformY - 30;
     state.player = { x: startX + 35, y: startY, vx: 0, vy: 0, w: 30, h: 30, facing: 1, animT: 0, prevY: startY };
     state.platforms.push({ x: startX, y: startPlatformY, w: 100, h: 12, type: "static", dir: 1, speed: 0, baseX: startX });
+
     var lastX = startX + 50; var lastY = startPlatformY;
-    for (var i = 0; i < 25; i++) { var pl = spawnPlatformAbove(lastX, lastY); lastX = pl.x + pl.w / 2; lastY = pl.y; }
+    for (var i = 0; i < 30; i++) { var pl = spawnPlatformAbove(lastX, lastY); lastX = pl.x + pl.w / 2; lastY = pl.y; }
     updateHUD();
   }
 
-  function updateHUD() { scoreH.val.textContent = state.score.toLocaleString(); var h = Math.max(0, Math.floor(state.maxHeight / 10)); heightH.val.textContent = h + " м"; bestH.val.textContent = state.best.toLocaleString(); }
+  function updateHUD() {
+    scoreH.val.textContent = state.score.toLocaleString();
+    var h = Math.max(0, Math.floor(state.maxHeight / 10));
+    heightH.val.textContent = h + " м";
+    bestH.val.textContent = state.best.toLocaleString();
+  }
 
   function onKeyDown(e) {
     if (!state.running) return;
@@ -686,9 +714,12 @@ function renderDireJumper() {
     else if (code === "ArrowUp" || code === "KeyW" || code === "Space") {
       e.preventDefault();
       if (e.repeat) return;
-      state.keys.jumpHeld = true;
-      /* Jump buffer: запоминаем нажатие */
+      /* Jump buffer */
       state.jumpBufferTimer = JUMP_BUFFER_TIME;
+    }
+    else if (code === "KeyJ" || code === "KeyK") {
+      e.preventDefault();
+      if (e.repeat) return;
       fireProjectile();
     }
   }
@@ -696,7 +727,6 @@ function renderDireJumper() {
     var code = e.code || "";
     if (code === "ArrowLeft" || code === "KeyA") state.keys.left = false;
     else if (code === "ArrowRight" || code === "KeyD") state.keys.right = false;
-    else if (code === "ArrowUp" || code === "KeyW" || code === "Space") state.keys.jumpHeld = false;
   }
   function fireProjectile() {
     var now = performance.now();
@@ -705,12 +735,26 @@ function renderDireJumper() {
     state.projectiles.push({ x: state.player.x + state.player.w / 2, y: state.player.y, vy: -12, animT: 0 });
     _snd("hit");
   }
+
+  /* Click on canvas = shoot */
+  canvas.addEventListener("mousedown", function (e) {
+    if (!state.running) return;
+    e.preventDefault();
+    fireProjectile();
+  });
+  canvas.addEventListener("contextmenu", function (e) { e.preventDefault(); });
+
   function checkPlatformCollision(p) {
-    if (p.vy <= 0) return null;
-    var prevBottom = p.prevY + p.h, currBottom = p.y + p.h;
+    if (p.vy < -0.1) return null; /* идёт вверх — пропускаем */
+    var prevBottom = p.prevY + p.h;
+    var currBottom = p.y + p.h;
     for (var i = 0; i < state.platforms.length; i++) {
-      var pl = state.platforms[i]; var plTop = pl.y;
-      if (prevBottom <= plTop + 1 && currBottom >= plTop) { if (p.x + p.w > pl.x && p.x < pl.x + pl.w) return pl; }
+      var pl = state.platforms[i];
+      var plTop = pl.y;
+      /* Игрок был на уровне платформы или выше, и сейчас на уровне или ниже */
+      if (prevBottom <= plTop + 2 && currBottom >= plTop - 1) {
+        if (p.x + p.w > pl.x && p.x < pl.x + pl.w) return pl;
+      }
     }
     return null;
   }
@@ -731,78 +775,112 @@ function renderDireJumper() {
 
   function loop(ts) {
     if (!state.running) return;
-    var dt = Math.min((ts - state.lastFrame) / 16.67, 1.5); if (dt < 0) dt = 0;
+    var dt = Math.min((ts - state.lastFrame) / 16.67, 1.5);
+    if (dt < 0) dt = 0;
     state.lastFrame = ts;
-    var p = state.player; p.animT += dt; p.prevY = p.y;
-    var wasOnGroundBefore = state.wasOnGround;
+    var p = state.player;
+    p.animT += dt;
+    p.prevY = p.y;
+    var wasGrounded = state.grounded;
 
-    /* Горизонтальное движение с воздушным контролем */
+    /* 1. Двигаем платформы */
+    for (var i = 0; i < state.platforms.length; i++) {
+      var pl = state.platforms[i];
+      if (pl.type === "moving") {
+        pl.x += pl.dir * pl.speed * dt;
+        if (pl.x < 10) { pl.x = 10; pl.dir = 1; }
+        if (pl.x + pl.w > W - 10) { pl.x = W - 10 - pl.w; pl.dir = -1; }
+      }
+    }
+
+    /* 2. Если стоим на движущейся платформе — двигаемся с ней */
+    if (state.grounded && state.currentPlatform && state.currentPlatform.type === "moving") {
+      p.x += state.currentPlatform.dir * state.currentPlatform.speed * dt;
+      if (p.x < -p.w) p.x = W;
+      if (p.x > W) p.x = -p.w;
+    }
+
+    /* 3. Горизонтальное движение */
     var accel = 0.7;
     if (state.keys.left) p.vx -= accel;
     if (state.keys.right) p.vx += accel;
     p.vx *= 0.82;
     if (Math.abs(p.vx) < 0.05) p.vx = 0;
-    if (p.vx > 0.1) p.facing = 1; else if (p.vx < -0.1) p.facing = -1;
+    if (p.vx > 0.1) p.facing = 1;
+    else if (p.vx < -0.1) p.facing = -1;
     p.x += p.vx * dt;
-    if (p.x < -p.w) p.x = W; if (p.x > W) p.x = -p.w;
+    if (p.x < -p.w) p.x = W;
+    if (p.x > W) p.x = -p.w;
 
-    /* Jump buffer тикает вниз */
-    if (state.jumpBufferTimer > 0) state.jumpBufferTimer -= dt * (1/60);
-
-    /* Асимметричная гравитация + hang time на пике */
+    /* 4. Гравитация */
     var grav = p.vy < 0 ? RISE_GRAVITY : FALL_GRAVITY;
-    if (Math.abs(p.vy) < APEX_THRESHOLD && !state.wasOnGround) {
+    if (Math.abs(p.vy) < APEX_THRESHOLD && !state.grounded) {
       grav *= APEX_GRAVITY_MULT;
     }
     p.vy += grav * dt;
     if (p.vy > MAX_VY) p.vy = MAX_VY;
     p.y += p.vy * dt;
 
-    for (var i = 0; i < state.platforms.length; i++) {
-      var pl = state.platforms[i];
-      if (pl.type === "moving") { pl.x += pl.dir * pl.speed * dt; if (pl.x < 10) { pl.x = 10; pl.dir = 1; } if (pl.x + pl.w > W - 10) { pl.x = W - 10 - pl.w; pl.dir = -1; } }
-    }
-
+    /* 5. Коллизия с платформой */
     var hitPlatform = checkPlatformCollision(p);
-    state.wasOnGround = !!hitPlatform;
-
     if (hitPlatform) {
       p.y = hitPlatform.y - p.h;
-      /* Coyote time: на платформе — сбрасываем */
+      state.grounded = true;
       state.coyoteTimer = COYOTE_TIME;
+      state.currentPlatform = hitPlatform;
 
       if (hitPlatform.type === "fragile") {
-        var idx = state.platforms.indexOf(hitPlatform); if (idx >= 0) state.platforms.splice(idx, 1);
-        addParticles(hitPlatform.x + hitPlatform.w / 2, hitPlatform.y, 12, "#9a4a78", 5);
+        var idx = state.platforms.indexOf(hitPlatform);
+        if (idx >= 0) state.platforms.splice(idx, 1);
+        addParticles(hitPlatform.x + hitPlatform.w / 2, hitPlatform.y, 14, "#9a4a78", 5);
         state.screenShake = 3;
+        p.vy = JUMP_POWER * 0.6;
+        state.grounded = false;
       } else if (hitPlatform.type === "bouncy") {
-        p.vy = JUMP_POWER * 1.7;
-        addParticles(p.x + p.w / 2, p.y + p.h, 8, "#c8a84a", 4);
-        state.screenShake = 2;
+        p.vy = JUMP_POWER * 1.5;
+        addParticles(p.x + p.w / 2, p.y + p.h, 10, "#c8a84a", 5);
+        state.screenShake = 3;
         _snd("hit");
+        state.grounded = false;
       } else {
-        /* Приземление: частицы и лёгкая тряска */
-        if (!wasOnGroundBefore) {
-          addParticles(p.x + p.w / 2, p.y + p.h, 6, "#6b7593", 3);
-          state.screenShake = Math.min(4, Math.abs(p.vy) * 0.3);
+        /* Обычная платформа — стоим */
+        p.vy = 0;
+        if (!wasGrounded) {
+          addParticles(p.x + p.w / 2, p.y + p.h, 4, "#6b7593", 2);
         }
-        p.vy = JUMP_POWER;
       }
     } else {
-      /* Не на платформе — тикаем coyote time */
-      if (state.coyoteTimer > 0) state.coyoteTimer -= dt * (1/60);
+      state.grounded = false;
+      state.currentPlatform = null;
     }
 
+    /* 6. Обработка прыжка */
+    if (state.jumpBufferTimer > 0 && (state.grounded || state.coyoteTimer > 0)) {
+      p.vy = JUMP_POWER;
+      state.grounded = false;
+      state.coyoteTimer = 0;
+      state.jumpBufferTimer = 0;
+      addParticles(p.x + p.w / 2, p.y + p.h, 6, "#38bdf8", 4);
+      _snd("hit");
+    }
+
+    /* 7. Тик jump buffer и coyote time */
+    if (state.jumpBufferTimer > 0) state.jumpBufferTimer -= dt * (1/60);
+    if (!state.grounded && state.coyoteTimer > 0) state.coyoteTimer -= dt * (1/60);
+
+    /* 8. Ускорители */
     for (var j = state.powerups.length - 1; j >= 0; j--) {
       var pu = state.powerups[j];
       if (p.x + p.w > pu.x && p.x < pu.x + pu.w && p.y + p.h > pu.y && p.y < pu.y + pu.h) {
         if (pu.type === "spring") { p.vy = -22; addParticles(pu.x + pu.w / 2, pu.y, 10, "#22c55e", 5); }
         else if (pu.type === "rocket") { p.vy = -30; addParticles(pu.x + pu.w / 2, pu.y, 14, "#ef4444", 6); }
         state.screenShake = 3;
-        state.powerups.splice(j, 1); _snd("hit");
+        state.powerups.splice(j, 1);
+        _snd("hit");
       }
     }
 
+    /* 9. Препятствия */
     for (var oi = state.obstacles.length - 1; oi >= 0; oi--) {
       var ob = state.obstacles[oi];
       if (!ob.alive) continue;
@@ -818,16 +896,19 @@ function renderDireJumper() {
       }
     }
 
+    /* 10. Заточки */
     for (var pi = state.projectiles.length - 1; pi >= 0; pi--) {
       var pr = state.projectiles[pi];
       pr.y -= 12 * dt;
       if (pr.y < state.cameraY - 40 || pr.y > state.cameraY + H + 40) { state.projectiles.splice(pi, 1); continue; }
       for (var oi2 = state.obstacles.length - 1; oi2 >= 0; oi2--) {
-        var ob2 = state.obstacles[oi2]; if (!ob2.alive) continue;
+        var ob2 = state.obstacles[oi2];
+        if (!ob2.alive) continue;
         if (pr.x > ob2.x && pr.x < ob2.x + ob2.w && pr.y > ob2.y && pr.y < ob2.y + ob2.h) {
           ob2.alive = false;
           addParticles(ob2.x + ob2.w / 2, ob2.y + ob2.h / 2, 10, "#fbbf24", 4);
-          state.obstacles.splice(oi2, 1); state.projectiles.splice(pi, 1);
+          state.obstacles.splice(oi2, 1);
+          state.projectiles.splice(pi, 1);
           state.screenShake = 3;
           _snd("hit");
           break;
@@ -835,30 +916,58 @@ function renderDireJumper() {
       }
     }
 
+    /* 11. Камера */
     var targetCam = p.y - H * 0.55;
-    if (targetCam < state.cameraY) { var diff = state.cameraY - targetCam; state.cameraY -= diff * 0.08 * dt; if (state.maxHeight < state.cameraY * -1) state.maxHeight = state.cameraY * -1; state.score = Math.floor(state.maxHeight); }
+    if (targetCam < state.cameraY) {
+      var diff = state.cameraY - targetCam;
+      state.cameraY -= diff * 0.08 * dt;
+      if (state.maxHeight < state.cameraY * -1) state.maxHeight = state.cameraY * -1;
+      state.score = Math.floor(state.maxHeight);
+    }
+
+    /* 12. Лава */
     var lavaTopWorld = state.cameraY + H - LAVA_HEIGHT;
     if (p.y + p.h >= lavaTopWorld) { die("lava"); return; }
-    if (state.score > state.lastCheckedScore + 500) { state.lastCheckedScore = state.score; if (typeof Achievements !== "undefined") Achievements.check(); }
+
+    /* 13. Ачивки */
+    if (state.score > state.lastCheckedScore + 500) {
+      state.lastCheckedScore = state.score;
+      if (typeof Achievements !== "undefined") Achievements.check();
+    }
+
+    /* 14. Спавн новых платформ */
     state.spawnAcc += dt;
     if (state.spawnAcc > 40) {
       state.spawnAcc = 0;
       var topPlatform = null;
-      for (var tp = 0; tp < state.platforms.length; tp++) if (!topPlatform || state.platforms[tp].y < topPlatform.y) topPlatform = state.platforms[tp];
+      for (var tp = 0; tp < state.platforms.length; tp++) {
+        if (!topPlatform || state.platforms[tp].y < topPlatform.y) topPlatform = state.platforms[tp];
+      }
       if (topPlatform) spawnPlatformAbove(topPlatform.x + topPlatform.w / 2, topPlatform.y);
     }
+
+    /* 15. Удаление ушедших */
     for (var di = state.platforms.length - 1; di >= 0; di--) if (state.platforms[di].y > state.cameraY + H + 100) state.platforms.splice(di, 1);
     for (var di2 = state.obstacles.length - 1; di2 >= 0; di2--) if (state.obstacles[di2].y > state.cameraY + H + 100) state.obstacles.splice(di2, 1);
     for (var di3 = state.powerups.length - 1; di3 >= 0; di3--) if (state.powerups[di3].y > state.cameraY + H + 100) state.powerups.splice(di3, 1);
-    for (var qi = state.particles.length - 1; qi >= 0; qi--) { var q = state.particles[qi]; q.x += q.vx * dt; q.y += q.vy * dt; q.life -= dt; if (q.life <= 0) state.particles.splice(qi, 1); }
 
-    /* Затухание тряски экрана */
+    /* 16. Частицы */
+    for (var qi = state.particles.length - 1; qi >= 0; qi--) {
+      var q = state.particles[qi];
+      q.x += q.vx * dt;
+      q.y += q.vy * dt;
+      q.life -= dt;
+      if (q.life <= 0) state.particles.splice(qi, 1);
+    }
+
+    /* 17. Тряска */
     if (state.screenShake > 0) {
       state.screenShake *= state.screenShakeDecay;
       if (state.screenShake < 0.1) state.screenShake = 0;
     }
 
-    draw(); updateHUD();
+    draw();
+    updateHUD();
     rafId = requestAnimationFrame(loop);
   }
 
@@ -868,11 +977,14 @@ function renderDireJumper() {
     ctx.fillStyle = bgGrad; ctx.fillRect(0, 0, W, H);
     var starOffset = state.cameraY * 0.15;
     for (var i = 0; i < 50; i++) {
-      var sx = (i * 137) % W; var sy = (i * 89 + starOffset) % (H * 2);
-      if (sy < 0) sy += H * 2; if (sy > H) continue;
+      var sx = (i * 137) % W;
+      var sy = (i * 89 + starOffset) % (H * 2);
+      if (sy < 0) sy += H * 2;
+      if (sy > H) continue;
       var brightness = 0.2 + ((i * 31) % 100) / 300;
       ctx.fillStyle = "rgba(200,220,255," + brightness.toFixed(2) + ")";
-      var size = i % 7 === 0 ? 2 : 1; ctx.fillRect(sx, sy, size, size);
+      var size = i % 7 === 0 ? 2 : 1;
+      ctx.fillRect(sx, sy, size, size);
     }
   }
   function drawLava(ctx) {
@@ -884,10 +996,18 @@ function renderDireJumper() {
     lavaGrad.addColorStop(0, "#f97316"); lavaGrad.addColorStop(0.3, "#dc2626"); lavaGrad.addColorStop(1, "#7f1d1d");
     ctx.fillStyle = lavaGrad; ctx.fillRect(0, screenY, W, LAVA_HEIGHT);
     var t = performance.now() / 250;
-    for (var x = 0; x < W; x += 10) { var waveH = 3 + Math.sin(t + x * 0.08) * 3; ctx.fillStyle = "#fbbf24"; ctx.fillRect(x, screenY - waveH, 10, waveH); }
+    for (var x = 0; x < W; x += 10) {
+      var waveH = 3 + Math.sin(t + x * 0.08) * 3;
+      ctx.fillStyle = "#fbbf24";
+      ctx.fillRect(x, screenY - waveH, 10, waveH);
+    }
     for (var b = 0; b < 8; b++) {
-      var bx = (b * 53 + performance.now() / 50) % W; var by = screenY + 5 + (b * 3) % (LAVA_HEIGHT - 10);
-      ctx.fillStyle = "rgba(251,191,36,0.6)"; ctx.beginPath(); ctx.arc(bx, by, 1.5, 0, Math.PI * 2); ctx.fill();
+      var bx = (b * 53 + performance.now() / 50) % W;
+      var by = screenY + 5 + (b * 3) % (LAVA_HEIGHT - 10);
+      ctx.fillStyle = "rgba(251,191,36,0.6)";
+      ctx.beginPath();
+      ctx.arc(bx, by, 1.5, 0, Math.PI * 2);
+      ctx.fill();
     }
   }
   function drawPlatform(ctx, pl) {
@@ -900,20 +1020,42 @@ function renderDireJumper() {
       bouncy: { base: "#5a4a2a", top: "#c8a84a", shadow: "#2d2515" }
     };
     var c = colors[pl.type] || colors.static;
-    ctx.fillStyle = c.shadow; ctx.fillRect(pl.x + 3, sy + pl.h, pl.w - 6, 4);
-    ctx.fillStyle = c.base; ctx.fillRect(pl.x, sy, pl.w, pl.h);
-    ctx.fillStyle = c.top; ctx.fillRect(pl.x, sy, pl.w, 4);
-    ctx.strokeStyle = "rgba(255,255,255,0.15)"; ctx.lineWidth = 1; ctx.strokeRect(pl.x + 0.5, sy + 0.5, pl.w - 1, pl.h - 1);
+    ctx.fillStyle = c.shadow;
+    ctx.fillRect(pl.x + 3, sy + pl.h, pl.w - 6, 4);
+    ctx.fillStyle = c.base;
+    ctx.fillRect(pl.x, sy, pl.w, pl.h);
+    ctx.fillStyle = c.top;
+    ctx.fillRect(pl.x, sy, pl.w, 4);
+    ctx.strokeStyle = "rgba(255,255,255,0.15)";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(pl.x + 0.5, sy + 0.5, pl.w - 1, pl.h - 1);
     if (pl.type === "moving") {
-      var offset = (performance.now() / 25) % 14; ctx.fillStyle = "rgba(255,255,255,0.4)";
-      for (var x = pl.x + offset; x < pl.x + pl.w; x += 14) { if (x < pl.x + 3) continue; ctx.fillRect(x, sy + 7, 5, 2); }
+      var offset = (performance.now() / 25) % 14;
+      ctx.fillStyle = "rgba(255,255,255,0.4)";
+      for (var x = pl.x + offset; x < pl.x + pl.w; x += 14) {
+        if (x < pl.x + 3) continue;
+        ctx.fillRect(x, sy + 7, 5, 2);
+      }
     } else if (pl.type === "fragile") {
-      ctx.strokeStyle = "rgba(255,200,220,0.5)"; ctx.lineWidth = 1;
+      ctx.strokeStyle = "rgba(255,200,220,0.5)";
+      ctx.lineWidth = 1;
       var cracks = [0.2, 0.45, 0.7, 0.9];
-      for (var s = 0; s < cracks.length; s++) { var cx = pl.x + pl.w * cracks[s]; ctx.beginPath(); ctx.moveTo(cx, sy + 4); ctx.lineTo(cx + 2, sy + 7); ctx.lineTo(cx - 2, sy + 10); ctx.stroke(); }
+      for (var s = 0; s < cracks.length; s++) {
+        var cx = pl.x + pl.w * cracks[s];
+        ctx.beginPath();
+        ctx.moveTo(cx, sy + 4);
+        ctx.lineTo(cx + 2, sy + 7);
+        ctx.lineTo(cx - 2, sy + 10);
+        ctx.stroke();
+      }
     } else if (pl.type === "bouncy") {
-      ctx.strokeStyle = "rgba(255,220,120,0.9)"; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.moveTo(pl.x + pl.w / 2 - 8, sy + pl.h - 3); ctx.lineTo(pl.x + pl.w / 2, sy + 5); ctx.lineTo(pl.x + pl.w / 2 + 8, sy + pl.h - 3); ctx.stroke();
+      ctx.strokeStyle = "rgba(255,220,120,0.9)";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(pl.x + pl.w / 2 - 8, sy + pl.h - 3);
+      ctx.lineTo(pl.x + pl.w / 2, sy + 5);
+      ctx.lineTo(pl.x + pl.w / 2 + 8, sy + pl.h - 3);
+      ctx.stroke();
     }
   }
   function drawObstacle(ctx, ob) {
@@ -921,22 +1063,38 @@ function renderDireJumper() {
     if (sy < -30 || sy > H + 30) return;
     if (ob.type === "spike") {
       ctx.fillStyle = "rgba(0,0,0,0.45)";
-      ctx.beginPath(); ctx.moveTo(ob.x + 2, sy + ob.h + 1); ctx.lineTo(ob.x + ob.w / 2 + 2, sy + 2); ctx.lineTo(ob.x + ob.w + 2, sy + ob.h + 1); ctx.closePath(); ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(ob.x + 2, sy + ob.h + 1);
+      ctx.lineTo(ob.x + ob.w / 2 + 2, sy + 2);
+      ctx.lineTo(ob.x + ob.w + 2, sy + ob.h + 1);
+      ctx.closePath();
+      ctx.fill();
       var g = ctx.createLinearGradient(ob.x, sy, ob.x, sy + ob.h);
       g.addColorStop(0, "#fef9c3"); g.addColorStop(0.35, "#f97316"); g.addColorStop(1, "#7f1d1d");
       ctx.fillStyle = g;
-      ctx.beginPath(); ctx.moveTo(ob.x, sy + ob.h); ctx.lineTo(ob.x + ob.w / 2, sy); ctx.lineTo(ob.x + ob.w, sy + ob.h); ctx.closePath(); ctx.fill();
-      ctx.strokeStyle = "#450a0a"; ctx.lineWidth = 1; ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(ob.x, sy + ob.h);
+      ctx.lineTo(ob.x + ob.w / 2, sy);
+      ctx.lineTo(ob.x + ob.w, sy + ob.h);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = "#450a0a";
+      ctx.lineWidth = 1;
+      ctx.stroke();
     } else {
-      var cx = ob.x + ob.w / 2, cy = sy + ob.h / 2; var r = ob.w / 2;
-      ctx.fillStyle = "rgba(0,0,0,0.4)"; ctx.beginPath(); ctx.arc(cx + 2, cy + 2, r, 0, Math.PI * 2); ctx.fill();
+      var cx = ob.x + ob.w / 2, cy = sy + ob.h / 2, r = ob.w / 2;
+      ctx.fillStyle = "rgba(0,0,0,0.4)";
+      ctx.beginPath(); ctx.arc(cx + 2, cy + 2, r, 0, Math.PI * 2); ctx.fill();
       var g2 = ctx.createRadialGradient(cx - r * 0.4, cy - r * 0.4, r * 0.2, cx, cy, r);
       g2.addColorStop(0, "#fef08a"); g2.addColorStop(0.5, "#eab308"); g2.addColorStop(1, "#854d0e");
-      ctx.fillStyle = g2; ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = g2;
+      ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
       ctx.strokeStyle = "#451a03"; ctx.lineWidth = 1.3; ctx.stroke();
-      ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(cx - r * 0.35, cy - r * 0.15, r * 0.22, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "#fff";
+      ctx.beginPath(); ctx.arc(cx - r * 0.35, cy - r * 0.15, r * 0.22, 0, Math.PI * 2); ctx.fill();
       ctx.beginPath(); ctx.arc(cx + r * 0.35, cy - r * 0.15, r * 0.22, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = "#0a0a0a"; ctx.beginPath(); ctx.arc(cx - r * 0.35, cy - r * 0.15, r * 0.11, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "#0a0a0a";
+      ctx.beginPath(); ctx.arc(cx - r * 0.35, cy - r * 0.15, r * 0.11, 0, Math.PI * 2); ctx.fill();
       ctx.beginPath(); ctx.arc(cx + r * 0.35, cy - r * 0.15, r * 0.11, 0, Math.PI * 2); ctx.fill();
     }
   }
@@ -944,56 +1102,102 @@ function renderDireJumper() {
     var sy = pu.y - state.cameraY;
     if (sy < -30 || sy > H + 30) return;
     var cx = pu.x + pu.w / 2, cy = sy + pu.h / 2;
-    var t = performance.now() / 200; var pulse = 1 + Math.sin(t) * 0.15; var r = (pu.w / 2) * pulse;
+    var t = performance.now() / 200, pulse = 1 + Math.sin(t) * 0.15, r = (pu.w / 2) * pulse;
     if (pu.type === "rocket") {
-      ctx.fillStyle = "rgba(239,68,68,0.35)"; ctx.beginPath(); ctx.arc(cx, cy, r * 1.6, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "rgba(239,68,68,0.35)";
+      ctx.beginPath(); ctx.arc(cx, cy, r * 1.6, 0, Math.PI * 2); ctx.fill();
       var rg = ctx.createRadialGradient(cx - r * 0.4, cy - r * 0.4, r * 0.2, cx, cy, r);
       rg.addColorStop(0, "#fca5a5"); rg.addColorStop(0.6, "#ef4444"); rg.addColorStop(1, "#991b1b");
-      ctx.fillStyle = rg; ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = rg;
+      ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
       ctx.strokeStyle = "#7f1d1d"; ctx.lineWidth = 1; ctx.stroke();
-      ctx.font = "bold 13px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText("🚀", cx, cy + 1);
+      ctx.font = "bold 13px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText("🚀", cx, cy + 1);
     } else {
-      ctx.fillStyle = "rgba(34,197,94,0.35)"; ctx.beginPath(); ctx.arc(cx, cy, r * 1.6, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "rgba(34,197,94,0.35)";
+      ctx.beginPath(); ctx.arc(cx, cy, r * 1.6, 0, Math.PI * 2); ctx.fill();
       var gg = ctx.createRadialGradient(cx - r * 0.4, cy - r * 0.4, r * 0.2, cx, cy, r);
       gg.addColorStop(0, "#86efac"); gg.addColorStop(0.6, "#22c55e"); gg.addColorStop(1, "#14532d");
-      ctx.fillStyle = gg; ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = gg;
+      ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
       ctx.strokeStyle = "#14532d"; ctx.lineWidth = 1; ctx.stroke();
-      ctx.font = "bold 12px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText("⚡", cx, cy + 1);
+      ctx.font = "bold 12px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText("⚡", cx, cy + 1);
     }
   }
   function drawProjectile(ctx, pr) {
     var sy = pr.y - state.cameraY;
     if (sy < -40 || sy > H + 40) return;
-    ctx.fillStyle = "rgba(196,181,253,0.35)"; ctx.fillRect(pr.x - 1, sy + 8, 2, 12);
-    ctx.fillStyle = "#c4b5fd"; ctx.fillRect(pr.x - 1.5, sy, 3, 14);
+    ctx.fillStyle = "rgba(196,181,253,0.35)";
+    ctx.fillRect(pr.x - 1, sy + 8, 2, 12);
+    ctx.fillStyle = "#c4b5fd";
+    ctx.fillRect(pr.x - 1.5, sy, 3, 14);
     ctx.fillStyle = "#e9d5ff";
-    ctx.beginPath(); ctx.moveTo(pr.x - 4, sy + 2); ctx.lineTo(pr.x + 4, sy + 2); ctx.lineTo(pr.x, sy - 8); ctx.closePath(); ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(pr.x - 4, sy + 2);
+    ctx.lineTo(pr.x + 4, sy + 2);
+    ctx.lineTo(pr.x, sy - 8);
+    ctx.closePath();
+    ctx.fill();
     ctx.strokeStyle = "#7c3aed"; ctx.lineWidth = 0.8; ctx.stroke();
     ctx.fillStyle = "#a855f7";
-    ctx.beginPath(); ctx.moveTo(pr.x - 3, sy + 10); ctx.lineTo(pr.x - 4, sy + 16); ctx.lineTo(pr.x, sy + 14); ctx.lineTo(pr.x + 4, sy + 16); ctx.lineTo(pr.x + 3, sy + 10); ctx.closePath(); ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(pr.x - 3, sy + 10);
+    ctx.lineTo(pr.x - 4, sy + 16);
+    ctx.lineTo(pr.x, sy + 14);
+    ctx.lineTo(pr.x + 4, sy + 16);
+    ctx.lineTo(pr.x + 3, sy + 10);
+    ctx.closePath();
+    ctx.fill();
   }
-  function drawSlark(ctx, cx, cy, w, h, facing, animT, vy) {
-    var sway = Math.sin(animT * 0.15) * 1.2;
+  function drawSlark(ctx, cx, cy, w, h, facing, animT, vy, grounded) {
+    var sway = grounded ? 0 : Math.sin(animT * 0.15) * 1.2;
     var squash = 1 + Math.max(-0.15, Math.min(0.15, -vy * 0.012));
     var rw = w / 2, rh = h / 2;
-    ctx.save(); ctx.translate(cx, cy + sway); ctx.scale(2 - squash, squash);
+    ctx.save();
+    ctx.translate(cx, cy + sway);
+    ctx.scale(2 - squash, squash);
     var tailDir = facing === 1 ? -1 : 1;
     ctx.fillStyle = "#0e5a8a";
-    ctx.beginPath(); ctx.moveTo(tailDir * rw * 0.85, 0); ctx.quadraticCurveTo(tailDir * rw * 1.9, -rh * 0.5 + Math.sin(animT * 0.2) * 2, tailDir * rw * 1.7, -rh * 1.3); ctx.quadraticCurveTo(tailDir * rw * 1.2, -rh * 0.8, tailDir * rw * 0.7, -rh * 0.3); ctx.closePath(); ctx.fill();
-    ctx.beginPath(); ctx.moveTo(tailDir * rw * 0.85, 0); ctx.quadraticCurveTo(tailDir * rw * 1.9, rh * 0.5 + Math.sin(animT * 0.2) * 2, tailDir * rw * 1.7, rh * 1.3); ctx.quadraticCurveTo(tailDir * rw * 1.2, rh * 0.8, tailDir * rw * 0.7, rh * 0.3); ctx.closePath(); ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(tailDir * rw * 0.85, 0);
+    ctx.quadraticCurveTo(tailDir * rw * 1.9, -rh * 0.5 + Math.sin(animT * 0.2) * 2, tailDir * rw * 1.7, -rh * 1.3);
+    ctx.quadraticCurveTo(tailDir * rw * 1.2, -rh * 0.8, tailDir * rw * 0.7, -rh * 0.3);
+    ctx.closePath(); ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(tailDir * rw * 0.85, 0);
+    ctx.quadraticCurveTo(tailDir * rw * 1.9, rh * 0.5 + Math.sin(animT * 0.2) * 2, tailDir * rw * 1.7, rh * 1.3);
+    ctx.quadraticCurveTo(tailDir * rw * 1.2, rh * 0.8, tailDir * rw * 0.7, rh * 0.3);
+    ctx.closePath(); ctx.fill();
     ctx.fillStyle = "#0e5a8a";
-    ctx.beginPath(); ctx.moveTo(-rw * 0.5, rh * 0.7); ctx.lineTo(-rw * 0.75, rh * 1.25); ctx.lineTo(-rw * 0.1, rh * 0.9); ctx.closePath(); ctx.fill();
-    ctx.beginPath(); ctx.moveTo(rw * 0.5, rh * 0.7); ctx.lineTo(rw * 0.75, rh * 1.25); ctx.lineTo(rw * 0.1, rh * 0.9); ctx.closePath(); ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(-rw * 0.5, rh * 0.7); ctx.lineTo(-rw * 0.75, rh * 1.25); ctx.lineTo(-rw * 0.1, rh * 0.9);
+    ctx.closePath(); ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(rw * 0.5, rh * 0.7); ctx.lineTo(rw * 0.75, rh * 1.25); ctx.lineTo(rw * 0.1, rh * 0.9);
+    ctx.closePath(); ctx.fill();
     ctx.fillStyle = "#0e5a8a";
-    ctx.beginPath(); ctx.moveTo(-rw * 0.35, -rh * 0.9); ctx.lineTo(0, -rh * 1.6); ctx.lineTo(rw * 0.4, -rh * 0.9); ctx.quadraticCurveTo(0, -rh * 0.75, -rw * 0.35, -rh * 0.9); ctx.closePath(); ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(-rw * 0.35, -rh * 0.9);
+    ctx.lineTo(0, -rh * 1.6);
+    ctx.lineTo(rw * 0.4, -rh * 0.9);
+    ctx.quadraticCurveTo(0, -rh * 0.75, -rw * 0.35, -rh * 0.9);
+    ctx.closePath(); ctx.fill();
     ctx.strokeStyle = "#082f49"; ctx.lineWidth = 1; ctx.stroke();
     var bodyGrad = ctx.createRadialGradient(-rw * 0.35, -rh * 0.35, 2, 0, 0, rw * 1.2);
-    bodyGrad.addColorStop(0, "#93e0ff"); bodyGrad.addColorStop(0.5, "#38bdf8"); bodyGrad.addColorStop(1, "#0369a1");
+    bodyGrad.addColorStop(0, "#93e0ff");
+    bodyGrad.addColorStop(0.5, "#38bdf8");
+    bodyGrad.addColorStop(1, "#0369a1");
     ctx.fillStyle = bodyGrad;
-    ctx.beginPath(); ctx.moveTo(0, -rh * 1.05); ctx.bezierCurveTo(rw * 0.9, -rh * 0.9, rw * 1.0, rh * 0.6, 0, rh * 1.0); ctx.bezierCurveTo(-rw * 1.0, rh * 0.6, -rw * 0.9, -rh * 0.9, 0, -rh * 1.05); ctx.closePath(); ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(0, -rh * 1.05);
+    ctx.bezierCurveTo(rw * 0.9, -rh * 0.9, rw * 1.0, rh * 0.6, 0, rh * 1.0);
+    ctx.bezierCurveTo(-rw * 1.0, rh * 0.6, -rw * 0.9, -rh * 0.9, 0, -rh * 1.05);
+    ctx.closePath(); ctx.fill();
     ctx.strokeStyle = "#082f49"; ctx.lineWidth = 1.4; ctx.stroke();
-    var eyeOff = facing * rw * 0.28; var eyeY = -rh * 0.2; var eyeR = rw * 0.3;
-    ctx.fillStyle = "#fef9c3"; ctx.beginPath(); ctx.arc(-rw * 0.35 + eyeOff, eyeY, eyeR, 0, Math.PI * 2); ctx.fill();
+    var eyeOff = facing * rw * 0.28, eyeY = -rh * 0.2, eyeR = rw * 0.3;
+    ctx.fillStyle = "#fef9c3";
+    ctx.beginPath(); ctx.arc(-rw * 0.35 + eyeOff, eyeY, eyeR, 0, Math.PI * 2); ctx.fill();
     ctx.beginPath(); ctx.arc(rw * 0.35 + eyeOff, eyeY, eyeR, 0, Math.PI * 2); ctx.fill();
     ctx.strokeStyle = "#082f49"; ctx.lineWidth = 1; ctx.stroke();
     var pupilOff = facing * rw * 0.08;
@@ -1005,34 +1209,39 @@ function renderDireJumper() {
     ctx.beginPath(); ctx.arc(rw * 0.35 + eyeOff + pupilOff - eyeR * 0.2, eyeY - eyeR * 0.25, eyeR * 0.22, 0, Math.PI * 2); ctx.fill();
     var mouthY = rh * 0.5;
     ctx.fillStyle = "#082f49";
-    ctx.beginPath(); ctx.moveTo(-rw * 0.45, mouthY); ctx.quadraticCurveTo(0, mouthY + rh * 0.5, rw * 0.45, mouthY); ctx.quadraticCurveTo(0, mouthY + rh * 0.25, -rw * 0.45, mouthY); ctx.closePath(); ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(-rw * 0.45, mouthY);
+    ctx.quadraticCurveTo(0, mouthY + rh * 0.5, rw * 0.45, mouthY);
+    ctx.quadraticCurveTo(0, mouthY + rh * 0.25, -rw * 0.45, mouthY);
+    ctx.closePath(); ctx.fill();
     ctx.fillStyle = "#f8fafc";
-    ctx.beginPath(); ctx.moveTo(-rw * 0.3, mouthY + rh * 0.08); ctx.lineTo(-rw * 0.18, mouthY + rh * 0.33); ctx.lineTo(-rw * 0.06, mouthY + rh * 0.08); ctx.closePath(); ctx.fill();
-    ctx.beginPath(); ctx.moveTo(rw * 0.06, mouthY + rh * 0.08); ctx.lineTo(rw * 0.18, mouthY + rh * 0.33); ctx.lineTo(rw * 0.3, mouthY + rh * 0.08); ctx.closePath(); ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(-rw * 0.3, mouthY + rh * 0.08);
+    ctx.lineTo(-rw * 0.18, mouthY + rh * 0.33);
+    ctx.lineTo(-rw * 0.06, mouthY + rh * 0.08);
+    ctx.closePath(); ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(rw * 0.06, mouthY + rh * 0.08);
+    ctx.lineTo(rw * 0.18, mouthY + rh * 0.33);
+    ctx.lineTo(rw * 0.3, mouthY + rh * 0.08);
+    ctx.closePath(); ctx.fill();
     ctx.restore();
   }
   function draw() {
     var ctx = canvas.getContext("2d");
     ctx.clearRect(0, 0, W, H);
-
-    /* Тряска экрана */
     if (state.screenShake > 0) {
       ctx.save();
-      ctx.translate(
-        (Math.random() - 0.5) * state.screenShake,
-        (Math.random() - 0.5) * state.screenShake
-      );
+      ctx.translate((Math.random() - 0.5) * state.screenShake, (Math.random() - 0.5) * state.screenShake);
     }
-
     drawBackground(ctx);
     for (var i = 0; i < state.platforms.length; i++) drawPlatform(ctx, state.platforms[i]);
     for (var j = 0; j < state.powerups.length; j++) drawPowerup(ctx, state.powerups[j]);
     for (var k = 0; k < state.obstacles.length; k++) drawObstacle(ctx, state.obstacles[k]);
     for (var l = 0; l < state.projectiles.length; l++) drawProjectile(ctx, state.projectiles[l]);
-
-    /* Частицы */
     for (var q = 0; q < state.particles.length; q++) {
-      var pt = state.particles[q]; var sy = pt.y - state.cameraY;
+      var pt = state.particles[q];
+      var sy = pt.y - state.cameraY;
       ctx.fillStyle = pt.color;
       ctx.globalAlpha = Math.max(0, pt.life / pt.maxLife);
       ctx.beginPath();
@@ -1040,14 +1249,15 @@ function renderDireJumper() {
       ctx.fill();
       ctx.globalAlpha = 1;
     }
-
-    var p = state.player; var py = p.y - state.cameraY;
-    drawSlark(ctx, p.x + p.w / 2, py + p.h / 2, p.w, p.h, p.facing, p.animT, p.vy);
+    var p = state.player;
+    var py = p.y - state.cameraY;
+    drawSlark(ctx, p.x + p.w / 2, py + p.h / 2, p.w, p.h, p.facing, p.animT, p.vy, state.grounded);
     drawLava(ctx);
     var progress = Math.min(1, state.maxHeight / 30000);
-    ctx.fillStyle = "rgba(139,92,246,0.15)"; ctx.fillRect(6, 6, 4, H - 12);
-    ctx.fillStyle = "#8b5cf6"; ctx.fillRect(6, 6 + (H - 12) * (1 - progress), 4, (H - 12) * progress);
-
+    ctx.fillStyle = "rgba(139,92,246,0.15)";
+    ctx.fillRect(6, 6, 4, H - 12);
+    ctx.fillStyle = "#8b5cf6";
+    ctx.fillRect(6, 6 + (H - 12) * (1 - progress), 4, (H - 12) * progress);
     if (state.screenShake > 0) ctx.restore();
   }
   function die(reason) {
@@ -1074,12 +1284,16 @@ function renderDireJumper() {
     var btnRow = el("div", { style: "display:flex;gap:8px;" });
     var retryBtn = UI.btn("🔄 Ещё раз"); retryBtn.addEventListener("click", function () { overlay.remove(); start(); }); btnRow.appendChild(retryBtn);
     var menuBtn2 = UI.btn("← В меню", { variant: "ghost" }); menuBtn2.addEventListener("click", function () { overlay.remove(); showIntro("direjumper"); }); btnRow.appendChild(menuBtn2);
-    overlay.appendChild(btnRow); canvasWrap.appendChild(overlay);
+    overlay.appendChild(btnRow);
+    canvasWrap.appendChild(overlay);
   }
   function start() {
     var oldOverlay = canvasWrap.querySelector("div[style*='position:absolute'][style*='inset:0']");
     if (oldOverlay) oldOverlay.remove();
-    reset(); state.running = true; attachListeners(); canvas.focus();
+    reset();
+    state.running = true;
+    attachListeners();
+    canvas.focus();
     var games = (Store.get("direjumpergames", 0) || 0) + 1;
     Store.set("direjumpergames", games);
     if (typeof Achievements !== "undefined") Achievements.check();
@@ -1105,4 +1319,4 @@ if (!window._gamesGlobalListeners) {
   });
 }
 
-console.log("games v13.0 ready (Dire Jumper: coyote time, jump buffer, asymmetric gravity, hang time, particles, screen shake)");
+console.log("games v14.0 ready (Dire Jumper: manual jump, zigzag generation, coyote time, jump buffer)");
