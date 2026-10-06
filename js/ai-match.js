@@ -1,13 +1,11 @@
-/* DOTA JETCH — AI MATCH v4.1 (UNIFIED BRAIN + FIXED MARKDOWN)
-   Фикс: склеивание слов в рендере Markdown
-   Один brainAnswer для чата и матча + глубокий контекст */
+/* DOTA JETCH — AI MATCH v4.2 (UNIFIED BRAIN + CSS WHITESPACE FIX)
+   Фикс: переносы строк через white-space: pre-wrap, а не через <br> */
 
 (function () {
   "use strict";
   var AI_BLOCK_ID = "aiMatchBlock";
   var isAiMatchResponding = false;
 
-  /* ─── Сбор полного контекста матча ─── */
   function collectFullContext() {
     if (typeof lastAnalysis === "undefined" || !lastAnalysis || !lastAnalysis.match) return null;
     var res = lastAnalysis;
@@ -78,7 +76,6 @@
     return parts.join(". ");
   }
 
-  /* ─── Поиск союзника по player_slot ─── */
   function findAllyBySlot(ctx, slot) {
     if (!ctx || !ctx.allies) return null;
     for (var i = 0; i < ctx.allies.length; i++) {
@@ -87,7 +84,6 @@
     return null;
   }
 
-  /* ─── Специализированные ответы про матч ─── */
   function getMatchAnswer(q, ctx) {
     if (!ctx) return null;
     var s = String(q || "").toLowerCase();
@@ -318,10 +314,11 @@
     tick();
   }
 
-  /* ─── ФИКС: простой рендер без удаления переносов ─── */
+  /* ─── ФИКС v4.2: простой рендер, не трогаем \n ─── */
   function renderMarkdown(text) {
     if (!text) return "";
     var h = String(text);
+    /* Экранируем HTML */
     h = h.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     /* Заголовки */
     h = h.replace(/^### (.+)$/gm, '<strong style="display:block;margin-top:12px;font-size:14px;color:var(--accent-light);">$1</strong>');
@@ -333,8 +330,7 @@
     h = h.replace(/^---$/gm, '<hr style="border:none;border-top:1px solid var(--border);margin:10px 0;">');
     /* Списки */
     h = h.replace(/^- (.+)$/gm, '<div style="padding:3px 0 3px 14px;">• $1</div>');
-    /* Перенос строк — БЕЗ агрессивной очистки */
-    h = h.replace(/\n/g, '<br>');
+    /* НЕ заменяем \n на <br> — пусть CSS white-space: pre-wrap сделает это */
     return h;
   }
 
@@ -367,7 +363,7 @@
     var ctx = collectFullContext();
     if (ctx) {
       var autoText = generateAutoReview(ctx);
-      var autoBubble = el("div", { style: "padding:14px 16px;background:var(--bg-elev);border-radius:10px;font-size:13px;line-height:1.65;color:var(--text);max-width:100%;" });
+      var autoBubble = el("div", { style: "padding:14px 16px;background:var(--bg-elev);border-radius:10px;font-size:13px;line-height:1.65;color:var(--text);max-width:100%;white-space:pre-wrap;" });
       autoBubble.innerHTML = renderMarkdown(autoText);
       log.appendChild(autoBubble);
     }
@@ -387,7 +383,7 @@
       isAiMatchResponding = true;
       inp.disabled = true; btn.disabled = true; inp.value = "";
 
-      log.appendChild(el("div", { style: "padding:8px 12px;background:var(--accent-bg);border-radius:10px;font-size:13px;align-self:flex-end;max-width:80%;color:var(--text);" }, q));
+      log.appendChild(el("div", { style: "padding:8px 12px;background:var(--accent-bg);border-radius:10px;font-size:13px;align-self:flex-end;max-width:80%;color:var(--text);white-space:pre-wrap;" }, q));
 
       var think = addThinkingBlock(log);
 
@@ -398,7 +394,7 @@
         var ctxNow = collectFullContext();
         if (!ctxNow) {
           think.finalize();
-          log.appendChild(el("div", { style: "padding:10px 12px;background:var(--bg-elev);border-radius:10px;font-size:13px;color:var(--text);max-width:85%;" }, "⚠ Нет данных матча. Сначала разбери матч на странице «Анализ»."));
+          log.appendChild(el("div", { style: "padding:10px 12px;background:var(--bg-elev);border-radius:10px;font-size:13px;color:var(--text);max-width:85%;white-space:pre-wrap;" }, "⚠ Нет данных матча. Сначала разбери матч на странице «Анализ»."));
           isAiMatchResponding = false; inp.disabled = false; btn.disabled = false; inp.focus();
           return;
         }
@@ -410,7 +406,7 @@
           await new Promise(function (r) { setTimeout(r, 300); });
           think.finalize();
           var stAns = typeof brainAnswer === "function" ? brainAnswer(q) : { text: "Привет!" };
-          var stBubble = el("div", { style: "padding:10px 12px;background:var(--bg-elev);border-radius:10px;font-size:13px;line-height:1.55;color:var(--text);max-width:85%;" });
+          var stBubble = el("div", { style: "padding:10px 12px;background:var(--bg-elev);border-radius:10px;font-size:13px;line-height:1.55;color:var(--text);max-width:85%;white-space:pre-wrap;" });
           log.appendChild(stBubble);
           typeWriter(stBubble, stAns.text || "Привет!", 10, function () {
             isAiMatchResponding = false; inp.disabled = false; btn.disabled = false; inp.focus();
@@ -437,7 +433,7 @@
           await new Promise(function (r) { setTimeout(r, 400 + Math.random() * 300); });
           think.finalize();
 
-          var bubble = el("div", { style: "padding:10px 12px;background:var(--bg-elev);border-radius:10px;font-size:13px;line-height:1.55;color:var(--text);max-width:85%;" });
+          var bubble = el("div", { style: "padding:10px 12px;background:var(--bg-elev);border-radius:10px;font-size:13px;line-height:1.55;color:var(--text);max-width:85%;white-space:pre-wrap;" });
           log.appendChild(bubble);
           bubble.innerHTML = renderMarkdown(matchAnswer);
           log.scrollTop = log.scrollHeight;
@@ -454,7 +450,7 @@
         var ans = typeof brainAnswer === "function" ? brainAnswer(fullQuery) : { text: "ИИ недоступен." };
         var txt = (ans && ans.text) ? ans.text : "Не удалось получить ответ.";
 
-        var fbubble = el("div", { style: "padding:10px 12px;background:var(--bg-elev);border-radius:10px;font-size:13px;line-height:1.55;color:var(--text);max-width:85%;" });
+        var fbubble = el("div", { style: "padding:10px 12px;background:var(--bg-elev);border-radius:10px;font-size:13px;line-height:1.55;color:var(--text);max-width:85%;white-space:pre-wrap;" });
         log.appendChild(fbubble);
         if (txt.length > 200) {
           fbubble.innerHTML = renderMarkdown(txt);
@@ -467,7 +463,7 @@
         }
       } catch (err) {
         try { think.finalize(); } catch (e) {}
-        log.appendChild(el("div", { style: "padding:10px 12px;background:var(--bg-elev);border-radius:10px;font-size:13px;color:var(--red);max-width:85%;" }, "⚠ Ошибка: " + (err.message || err)));
+        log.appendChild(el("div", { style: "padding:10px 12px;background:var(--bg-elev);border-radius:10px;font-size:13px;color:var(--red);max-width:85%;white-space:pre-wrap;" }, "⚠ Ошибка: " + (err.message || err)));
         isAiMatchResponding = false; inp.disabled = false; btn.disabled = false; inp.focus();
       }
     }
@@ -475,5 +471,5 @@
     inp.addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); ask(); } });
     report.appendChild(card);
   };
-  console.log("ai-match v4.1 ready (FIXED markdown + unified brain)");
+  console.log("ai-match v4.2 ready (CSS white-space: pre-wrap fix)");
 })();
