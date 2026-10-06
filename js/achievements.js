@@ -23,7 +23,7 @@ var ACHIEVEMENTS = [
   { id: "a20", cat: "Активность", icon: "25", title: "Постоянный", desc: "25 сессий", check: function (s) { return s.sessions >= 25; } },
   { id: "a21", cat: "Активность", icon: "100", title: "Верный", desc: "100 сессий", check: function (s) { return s.sessions >= 100; } },
   { id: "a22", cat: "Особые", icon: "C", title: "Стилист", desc: "Сменить тему", check: function (s) { return s.themeChanged === true; } },
-  { id: "a23", cat: "Особые", icon: "?", title: "Любопытный", desc: "Открой «О программе»", check: function (s) { return s.visitedAbout === true; } },
+  { id: "a23", cat: "Особые", icon: "?", title: "Любопытный", desc: "Открой «О сайте»", check: function (s) { return s.visitedAbout === true; } },
   { id: "a24", cat: "Особые", icon: "20", title: "Мастер", desc: "Открыть 20 ачивок", check: function (s) { return s.unlockedCount >= 20; }, late: true },
   { id: "a25", cat: "Дири-Джампер", icon: "1", title: "Первый прыжок", desc: "Сыграть 1 раз", check: function (s) { return s.djGames >= 1; } },
   { id: "a26", cat: "Дири-Джампер", icon: "5k", title: "Высоко", desc: "5 000 очков", check: function (s) { return s.djBest >= 5000; } },
