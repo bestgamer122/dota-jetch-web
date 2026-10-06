@@ -1,8 +1,6 @@
-/* DOTA JETCH — AI MATCH v4.0 (UNIFIED BRAIN)
-   Теперь окно матча использует ТОТ ЖЕ brainAnswer, что и чат.
-   + Полный контекст матча из BrainMatchAnalyzer
-   + Процесс размышления (как в чате)
-   + Специализированные ответы про матч */
+/* DOTA JETCH — AI MATCH v4.1 (UNIFIED BRAIN + FIXED MARKDOWN)
+   Фикс: склеивание слов в рендере Markdown
+   Один brainAnswer для чата и матча + глубокий контекст */
 
 (function () {
   "use strict";
@@ -39,12 +37,10 @@
       kda: (p.kills + p.assists) / Math.max(p.deaths, 1)
     };
 
-    /* Глубокий анализ */
     if (typeof BrainMatchAnalyzer !== "undefined") {
       ctx.deepReport = BrainMatchAnalyzer.buildFullReport(m, p.player_slot, isRadiant);
     }
 
-    /* Данные о врагах */
     if (res.heroes && m.players) {
       ctx.enemies = [];
       ctx.allies = [];
@@ -55,7 +51,13 @@
         for (var j = 0; j < res.heroes.length; j++) {
           if (res.heroes[j].id === mp.hero_id) { heroName = res.heroes[j].name; break; }
         }
-        var entry = { name: heroName, kills: mp.kills, deaths: mp.deaths, assists: mp.assists, gpm: Math.round(mp.gold_per_min || 0), isMe: mp.player_slot === p.player_slot };
+        var entry = {
+          name: heroName,
+          kills: mp.kills, deaths: mp.deaths, assists: mp.assists,
+          gpm: Math.round(mp.gold_per_min || 0),
+          player_slot: mp.player_slot,
+          isMe: mp.player_slot === p.player_slot
+        };
         if (mpR === isRadiant) ctx.allies.push(entry);
         else ctx.enemies.push(entry);
       }
@@ -64,7 +66,6 @@
     return ctx;
   }
 
-  /* ─── Текстовый контекст для brainAnswer ─── */
   function ctxToText(ctx) {
     if (!ctx) return "";
     var parts = [];
@@ -74,31 +75,32 @@
     parts.push("Ластхиты: " + ctx.lastHits);
     parts.push("Длительность: " + ctx.duration.toFixed(0) + " мин");
     parts.push("Результат: " + (ctx.won ? "победа" : "поражение"));
-    if (ctx.deepReport && ctx.deepReport.ruiner) {
-      var rp = ctx.deepReport.ruiner.player;
-      var rn = "?";
-      for (var i = 0; i < ctx.allies.length; i++) {
-        if (ctx.allies[i].isMe === false && ctx.allies[i].kills === rp.kills) { rn = ctx.allies[i].name; break; }
-      }
-      parts.push("Руинер: " + rp.kills + "/" + rp.deaths + "/" + rp.assists + " (" + ctx.deepReport.ruiner.reason + ")");
-    }
     return parts.join(". ");
+  }
+
+  /* ─── Поиск союзника по player_slot ─── */
+  function findAllyBySlot(ctx, slot) {
+    if (!ctx || !ctx.allies) return null;
+    for (var i = 0; i < ctx.allies.length; i++) {
+      if (ctx.allies[i].player_slot === slot) return ctx.allies[i];
+    }
+    return null;
   }
 
   /* ─── Специализированные ответы про матч ─── */
   function getMatchAnswer(q, ctx) {
-    if (!ctx || !ctx.deepReport) return null;
+    if (!ctx) return null;
     var s = String(q || "").toLowerCase();
 
-    /* РУИНЕР */
     if (s.indexOf("руинер") >= 0 || s.indexOf("заруинил") >= 0 || s.indexOf("виноват") >= 0 || s.indexOf("слабый игрок") >= 0) {
-      if (!ctx.deepReport.ruiner) return "🎯 **Руинера не нашёл.** Матч либо не распарсен, либо все сыграли ровно. Победа?" + (ctx.won ? " Да — и это главное!" : "");
-      var rp = ctx.deepReport.ruiner.player;
-      var heroName = "?";
-      for (var i = 0; i < ctx.allies.length; i++) {
-        if (ctx.allies[i].kills === rp.kills && ctx.allies[i].deaths === rp.deaths) { heroName = ctx.allies[i].name; break; }
+      if (!ctx.deepReport || !ctx.deepReport.ruiner) {
+        return "🎯 **Руинера не нашёл.**\n\nМатч либо не распарсен, либо все сыграли ровно." + (ctx.won ? "\n\n🏆 Победа — и это главное!" : "");
       }
-      var isMe = (rp.kills === ctx.kills && rp.deaths === ctx.deaths);
+      var rp = ctx.deepReport.ruiner.player;
+      var ally = findAllyBySlot(ctx, rp.player_slot);
+      var heroName = ally ? ally.name : "Игрок #" + rp.player_slot;
+      var isMe = rp.player_slot === (ctx.isRadiant ? 0 : 128) || (ally && ally.isMe);
+
       var l = [];
       l.push("🎯 **Разбор руинера**");
       l.push("");
@@ -107,18 +109,19 @@
       l.push("**GPM:** " + Math.round(rp.gold_per_min || 0));
       l.push("");
       l.push("**Причина:** " + ctx.deepReport.ruiner.reason);
-      if (isMe) l.push("");
-      if (isMe) l.push("⚠️ Честный разбор. Работай над ошибками — будешь расти.");
+      if (isMe) {
+        l.push("");
+        l.push("⚠️ Честный разбор. Работай над ошибками — будешь расти.");
+      }
       return l.join("\n");
     }
 
-    /* ПОЧЕМУ ПРОИГРАЛ */
     if (s.indexOf("почему") >= 0 && (s.indexOf("проиграл") >= 0 || s.indexOf("потерял") >= 0 || s.indexOf("луз") >= 0)) {
-      if (ctx.won) return "🏆 Ты **выиграл** этот матч! Разбери проигранную игру — там больше пользы.";
+      if (ctx.won) return "🏆 Ты **выиграл** этот матч!\n\nРазбери проигранную игру — там больше пользы.";
       var l2 = [];
       l2.push("📉 **Почему ты проиграл на " + ctx.hero + "**");
       l2.push("");
-      if (ctx.deepReport.turningPoints && ctx.deepReport.turningPoints.length) {
+      if (ctx.deepReport && ctx.deepReport.turningPoints && ctx.deepReport.turningPoints.length) {
         l2.push("**⚡ Ключевые моменты:**");
         for (var j = 0; j < Math.min(ctx.deepReport.turningPoints.length, 3); j++) {
           var tp = ctx.deepReport.turningPoints[j];
@@ -127,7 +130,7 @@
         }
         l2.push("");
       }
-      if (ctx.deepReport.ruiner) {
+      if (ctx.deepReport && ctx.deepReport.ruiner) {
         l2.push("**🎯 Руинер:** " + ctx.deepReport.ruiner.reason);
         l2.push("");
       }
@@ -140,13 +143,12 @@
       return l2.join("\n");
     }
 
-    /* ЧТО НАДО БЫЛО СДЕЛАТЬ */
     if (s.indexOf("что надо было") >= 0 || s.indexOf("что нужно было") >= 0 || s.indexOf("как победить") >= 0 || s.indexOf("чтобы победить") >= 0) {
       var l3 = [];
       l3.push("💡 **Что нужно было сделать на " + ctx.hero + "**");
       l3.push("");
 
-      if (ctx.deepReport.farming && ctx.deepReport.farming.phases && ctx.deepReport.farming.phases.length) {
+      if (ctx.deepReport && ctx.deepReport.farming && ctx.deepReport.farming.phases && ctx.deepReport.farming.phases.length) {
         l3.push("**📈 Фарм по фазам:**");
         for (var k = 0; k < ctx.deepReport.farming.phases.length; k++) {
           var ph = ctx.deepReport.farming.phases[k];
@@ -155,7 +157,7 @@
         l3.push("");
       }
 
-      if (ctx.deepReport.farming && ctx.deepReport.farming.holes && ctx.deepReport.farming.holes.length) {
+      if (ctx.deepReport && ctx.deepReport.farming && ctx.deepReport.farming.holes && ctx.deepReport.farming.holes.length) {
         l3.push("**🔴 Минуты остановки фарма:**");
         for (var m2 = 0; m2 < Math.min(ctx.deepReport.farming.holes.length, 3); m2++) {
           var h = ctx.deepReport.farming.holes[m2];
@@ -164,7 +166,7 @@
         l3.push("");
       }
 
-      if (ctx.deepReport.fights && ctx.deepReport.fights.length) {
+      if (ctx.deepReport && ctx.deepReport.fights && ctx.deepReport.fights.length) {
         l3.push("**⚔ Ошибки в драках:**");
         for (var f = 0; f < Math.min(ctx.deepReport.fights.length, 3); f++) {
           var fight = ctx.deepReport.fights[f];
@@ -184,7 +186,6 @@
       return l3.join("\n");
     }
 
-    /* КАК ФАРМИТЬ */
     if (s.indexOf("фарм") >= 0 || s.indexOf("гпм") >= 0 || s.indexOf("gpm") >= 0) {
       var l4 = [];
       l4.push("💰 **Разбор фарма на " + ctx.hero + "**");
@@ -193,14 +194,14 @@
       l4.push("**Ластхиты:** " + ctx.lastHits + " за " + ctx.duration.toFixed(0) + " мин");
       l4.push("**LH/мин:** " + (ctx.lastHits / Math.max(ctx.duration, 1)).toFixed(1));
       l4.push("");
-      if (ctx.deepReport.farming && ctx.deepReport.farming.phases) {
+      if (ctx.deepReport && ctx.deepReport.farming && ctx.deepReport.farming.phases) {
         for (var ph2 = 0; ph2 < ctx.deepReport.farming.phases.length; ph2++) {
           var p2 = ctx.deepReport.farming.phases[ph2];
           l4.push("• **" + p2.phase + "**: " + p2.avgGrowth + " зол/мин (норма " + p2.target + ")");
         }
         l4.push("");
       }
-      if (ctx.deepReport.farming && ctx.deepReport.farming.holes) {
+      if (ctx.deepReport && ctx.deepReport.farming && ctx.deepReport.farming.holes) {
         l4.push("**🔴 Провалы фарма:**");
         for (var h2 = 0; h2 < Math.min(ctx.deepReport.farming.holes.length, 5); h2++) {
           var ho = ctx.deepReport.farming.holes[h2];
@@ -216,9 +217,10 @@
       return l4.join("\n");
     }
 
-    /* ПЕРЕЛОМНЫЕ МОМЕНТЫ */
     if (s.indexOf("перелом") >= 0 || s.indexOf("момент") >= 0) {
-      if (!ctx.deepReport.turningPoints || !ctx.deepReport.turningPoints.length) return "🤔 Не нашёл резких переломов — либо игра шла ровно, либо матч не распарсен.";
+      if (!ctx.deepReport || !ctx.deepReport.turningPoints || !ctx.deepReport.turningPoints.length) {
+        return "🤔 Не нашёл резких переломов — либо игра шла ровно, либо матч не распарсен.";
+      }
       var l5 = ["⚡ **Переломные моменты матча**", ""];
       for (var t = 0; t < ctx.deepReport.turningPoints.length; t++) {
         var tp2 = ctx.deepReport.turningPoints[t];
@@ -231,19 +233,20 @@
       return l5.join("\n");
     }
 
-    /* РАЗБОР МАТЧА */
     if (s.indexOf("разбери") >= 0 || s.indexOf("как я сыграл") >= 0 || s.indexOf("оцени") >= 0) {
       return buildFullReview(ctx);
     }
 
-    /* КДА, ГПМ, УРОН, БИЛД — короткие */
-    if (s.indexOf("кда") >= 0 || s.indexOf("kda") >= 0) return "📊 **KDA:** " + ctx.kills + "/" + ctx.deaths + "/" + ctx.assists + " (" + ctx.kda.toFixed(2) + ")";
-    if (s.indexOf("урон") >= 0 || s.indexOf("дамаг") >= 0) return "⚔ **Урон по героям:** " + ctx.heroDamage + "\n**По строениям:** " + ctx.towerDamage;
+    if (s.indexOf("кда") >= 0 || s.indexOf("kda") >= 0) {
+      return "📊 **KDA:** " + ctx.kills + "/" + ctx.deaths + "/" + ctx.assists + " (" + ctx.kda.toFixed(2) + ")";
+    }
+    if (s.indexOf("урон") >= 0 || s.indexOf("дамаг") >= 0) {
+      return "⚔ **Урон по героям:** " + ctx.heroDamage + "\n**По строениям:** " + ctx.towerDamage;
+    }
 
     return null;
   }
 
-  /* ─── Полный разбор матча ─── */
   function buildFullReview(ctx) {
     var l = [];
     l.push("📊 **Разбор матча: " + ctx.hero + "**");
@@ -287,7 +290,6 @@
     return l.join("\n");
   }
 
-  /* ─── Определение small talk ─── */
   function isSmallTalk(q) {
     var s = String(q || "").toLowerCase().trim();
     var hw = ["привет","прив","здарова","здоров","хай","ку","hi","hello","hey","здравствуй"];
@@ -297,13 +299,11 @@
     return false;
   }
 
-  /* ─── Автоматический разбор ─── */
   function generateAutoReview(ctx) {
     if (!ctx) return null;
     return buildFullReview(ctx) + "\n\n---\n\n_Можешь задать любой вопрос про матч ниже._";
   }
 
-  /* ─── Печатная машинка ─── */
   function typeWriter(el, text, speed, cb) {
     speed = speed || 8;
     var i = 0; el.textContent = "";
@@ -318,26 +318,26 @@
     tick();
   }
 
-  /* ─── Разметка Markdown ─── */
+  /* ─── ФИКС: простой рендер без удаления переносов ─── */
   function renderMarkdown(text) {
     if (!text) return "";
     var h = String(text);
     h = h.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    /* Заголовки */
     h = h.replace(/^### (.+)$/gm, '<strong style="display:block;margin-top:12px;font-size:14px;color:var(--accent-light);">$1</strong>');
     h = h.replace(/^## (.+)$/gm, '<strong style="display:block;margin-top:14px;font-size:15px;color:var(--accent-light);">$1</strong>');
+    /* Жирный и курсив */
     h = h.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
     h = h.replace(/_(.+?)_/g, '<em style="color:var(--text-muted);">$1</em>');
+    /* HR */
     h = h.replace(/^---$/gm, '<hr style="border:none;border-top:1px solid var(--border);margin:10px 0;">');
+    /* Списки */
     h = h.replace(/^- (.+)$/gm, '<div style="padding:3px 0 3px 14px;">• $1</div>');
+    /* Перенос строк — БЕЗ агрессивной очистки */
     h = h.replace(/\n/g, '<br>');
-    h = h.replace(/(<br>)+(<strong)/g, '$2');
-    h = h.replace(/(<\/strong>)(<br>)+/g, '$1');
-    h = h.replace(/(<hr[^>]*>)(<br>)+/g, '$1');
-    h = h.replace(/(<div[^>]*>)/g, '<br>$1');
     return h;
   }
 
-  /* ─── Блок размышления ─── */
   function addThinkingBlock(log) {
     var wrap = el("div", { style: "display:flex;gap:10px;align-items:flex-start;opacity:0.7;" });
     var avatar = el("div", { style: "width:30px;height:30px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:bold;background:var(--accent-bg);color:var(--accent-light);border:1px solid var(--accent);" }, "AI");
@@ -353,7 +353,6 @@
     };
   }
 
-  /* ─── Точка входа ─── */
   window.addAiBlockToReport = function () {
     if (document.getElementById(AI_BLOCK_ID)) return;
     if (Store.get("ai.enabled", true) === false) return;
@@ -399,15 +398,13 @@
         var ctxNow = collectFullContext();
         if (!ctxNow) {
           think.finalize();
-          var errDiv = el("div", { style: "padding:10px 12px;background:var(--bg-elev);border-radius:10px;font-size:13px;color:var(--text);max-width:85%;" }, "⚠ Нет данных матча. Сначала разбери матч на странице «Анализ».");
-          log.appendChild(errDiv);
+          log.appendChild(el("div", { style: "padding:10px 12px;background:var(--bg-elev);border-radius:10px;font-size:13px;color:var(--text);max-width:85%;" }, "⚠ Нет данных матча. Сначала разбери матч на странице «Анализ»."));
           isAiMatchResponding = false; inp.disabled = false; btn.disabled = false; inp.focus();
           return;
         }
 
         think.addStep("Герой: " + ctxNow.hero + ", KDA: " + ctxNow.kills + "/" + ctxNow.deaths + "/" + ctxNow.assists);
 
-        /* 1. Small talk — простой ответ */
         if (isSmallTalk(q)) {
           think.setStep("Это small talk...");
           await new Promise(function (r) { setTimeout(r, 300); });
@@ -421,7 +418,6 @@
           return;
         }
 
-        /* 2. Специализированный ответ про матч */
         think.setStep("Анализирую матч через BrainMatchAnalyzer...");
         await new Promise(function (r) { setTimeout(r, 500 + Math.random() * 300); });
 
@@ -449,7 +445,6 @@
           return;
         }
 
-        /* 3. Фолбэк — общий brainAnswer с контекстом */
         think.setStep("Общий вопрос — использую полный brain...");
         await new Promise(function (r) { setTimeout(r, 400); });
         think.finalize();
@@ -472,8 +467,7 @@
         }
       } catch (err) {
         try { think.finalize(); } catch (e) {}
-        var errB = el("div", { style: "padding:10px 12px;background:var(--bg-elev);border-radius:10px;font-size:13px;color:var(--red);max-width:85%;" }, "⚠ Ошибка: " + (err.message || err));
-        log.appendChild(errB);
+        log.appendChild(el("div", { style: "padding:10px 12px;background:var(--bg-elev);border-radius:10px;font-size:13px;color:var(--red);max-width:85%;" }, "⚠ Ошибка: " + (err.message || err)));
         isAiMatchResponding = false; inp.disabled = false; btn.disabled = false; inp.focus();
       }
     }
@@ -481,5 +475,5 @@
     inp.addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); ask(); } });
     report.appendChild(card);
   };
-  console.log("ai-match v4.0 ready (UNIFIED BRAIN — same as chat + deep match context)");
+  console.log("ai-match v4.1 ready (FIXED markdown + unified brain)");
 })();
