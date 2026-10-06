@@ -1,5 +1,5 @@
-/* DOTA JETCH — AI MATCH v4.3 (UNIFIED BRAIN + LINE-BY-LINE RENDER)
-   Фикс: построчный рендер через <div> — гарантирует отсутствие склеивания */
+/* DOTA JETCH — AI MATCH v5.0 (UNIFIED BRAIN + HARD NEWLINE FIX)
+   Фикс: принудительная замена \n на <br> в renderMarkdown — работает всегда */
 
 (function () {
   "use strict";
@@ -314,56 +314,25 @@
     tick();
   }
 
-  /* ─── ФИКС v4.3: построчный рендер через <div> ─── */
+  /* ─── ФИКС v5.0: жёсткая замена \n на <br> ─── */
   function renderMarkdown(text) {
     if (!text) return "";
-    var lines = String(text).split("\n");
-    var out = [];
-    for (var i = 0; i < lines.length; i++) {
-      var line = lines[i];
-
-      /* Экранируем HTML */
-      line = line.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-
-      /* Пустая строка = вертикальный отступ */
-      if (line === "") {
-        out.push('<div style="height:8px;"></div>');
-        continue;
-      }
-
-      /* HR */
-      if (/^---$/.test(line)) {
-        out.push('<hr style="border:none;border-top:1px solid var(--border);margin:10px 0;">');
-        continue;
-      }
-
-      /* Заголовки */
-      if (/^### /.test(line)) {
-        var h3 = line.replace(/^### /, '').replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-        out.push('<div style="margin-top:12px;font-size:14px;color:var(--accent-light);font-weight:bold;">' + h3 + '</div>');
-        continue;
-      }
-      if (/^## /.test(line)) {
-        var h2 = line.replace(/^## /, '').replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-        out.push('<div style="margin-top:14px;font-size:15px;color:var(--accent-light);font-weight:bold;">' + h2 + '</div>');
-        continue;
-      }
-
-      /* Список */
-      if (/^- /.test(line)) {
-        var li = line.replace(/^- /, '');
-        li = li.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-        li = li.replace(/_(.+?)_/g, '<em style="color:var(--text-muted);">$1</em>');
-        out.push('<div style="padding:3px 0 3px 14px;">• ' + li + '</div>');
-        continue;
-      }
-
-      /* Обычная строка */
-      var normal = line.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-      normal = normal.replace(/_(.+?)_/g, '<em style="color:var(--text-muted);">$1</em>');
-      out.push('<div>' + normal + '</div>');
-    }
-    return out.join("");
+    var h = String(text);
+    /* Экранируем HTML */
+    h = h.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    /* Заголовки */
+    h = h.replace(/^### (.+)$/gm, '<strong style="display:block;margin-top:12px;font-size:14px;color:var(--accent-light);">$1</strong>');
+    h = h.replace(/^## (.+)$/gm, '<strong style="display:block;margin-top:14px;font-size:15px;color:var(--accent-light);">$1</strong>');
+    /* Жирный и курсив */
+    h = h.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    h = h.replace(/_(.+?)_/g, '<em style="color:var(--text-muted);">$1</em>');
+    /* HR */
+    h = h.replace(/^---$/gm, '<hr style="border:none;border-top:1px solid var(--border);margin:10px 0;">');
+    /* Списки */
+    h = h.replace(/^- (.+)$/gm, '<div style="padding:3px 0 3px 14px;">• $1</div>');
+    /* ─── ГЛАВНОЕ: принудительно заменяем \n на <br> ─── */
+    h = h.replace(/\n/g, '<br>');
+    return h;
   }
 
   function addThinkingBlock(log) {
@@ -415,7 +384,7 @@
       isAiMatchResponding = true;
       inp.disabled = true; btn.disabled = true; inp.value = "";
 
-      log.appendChild(el("div", { style: "padding:8px 12px;background:var(--accent-bg);border-radius:10px;font-size:13px;align-self:flex-end;max-width:80%;color:var(--text);white-space:pre-wrap;" }, q));
+      log.appendChild(el("div", { style: "padding:8px 12px;background:var(--accent-bg);border-radius:10px;font-size:13px;align-self:flex-end;max-width:80%;color:var(--text);" }, q));
 
       var think = addThinkingBlock(log);
 
@@ -438,7 +407,7 @@
           await new Promise(function (r) { setTimeout(r, 300); });
           think.finalize();
           var stAns = typeof brainAnswer === "function" ? brainAnswer(q) : { text: "Привет!" };
-          var stBubble = el("div", { style: "padding:10px 12px;background:var(--bg-elev);border-radius:10px;font-size:13px;line-height:1.55;color:var(--text);max-width:85%;white-space:pre-wrap;" });
+          var stBubble = el("div", { style: "padding:10px 12px;background:var(--bg-elev);border-radius:10px;font-size:13px;line-height:1.55;color:var(--text);max-width:85%;" });
           log.appendChild(stBubble);
           typeWriter(stBubble, stAns.text || "Привет!", 10, function () {
             isAiMatchResponding = false; inp.disabled = false; btn.disabled = false; inp.focus();
@@ -482,7 +451,7 @@
         var ans = typeof brainAnswer === "function" ? brainAnswer(fullQuery) : { text: "ИИ недоступен." };
         var txt = (ans && ans.text) ? ans.text : "Не удалось получить ответ.";
 
-        var fbubble = el("div", { style: "padding:10px 12px;background:var(--bg-elev);border-radius:10px;font-size:13px;line-height:1.55;color:var(--text);max-width:85%;white-space:pre-wrap;" });
+        var fbubble = el("div", { style: "padding:10px 12px;background:var(--bg-elev);border-radius:10px;font-size:13px;line-height:1.55;color:var(--text);max-width:85%;" });
         log.appendChild(fbubble);
         if (txt.length > 200) {
           fbubble.innerHTML = renderMarkdown(txt);
@@ -503,5 +472,5 @@
     inp.addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); ask(); } });
     report.appendChild(card);
   };
-  console.log("ai-match v4.3 ready (line-by-line render)");
+  console.log("ai-match v5.0 ready (hard newline fix)");
 })();
