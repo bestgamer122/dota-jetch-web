@@ -1,5 +1,5 @@
-/* DOTA JETCH — AI MATCH v4.2 (UNIFIED BRAIN + CSS WHITESPACE FIX)
-   Фикс: переносы строк через white-space: pre-wrap, а не через <br> */
+/* DOTA JETCH — AI MATCH v4.3 (UNIFIED BRAIN + LINE-BY-LINE RENDER)
+   Фикс: построчный рендер через <div> — гарантирует отсутствие склеивания */
 
 (function () {
   "use strict";
@@ -314,24 +314,56 @@
     tick();
   }
 
-  /* ─── ФИКС v4.2: простой рендер, не трогаем \n ─── */
+  /* ─── ФИКС v4.3: построчный рендер через <div> ─── */
   function renderMarkdown(text) {
     if (!text) return "";
-    var h = String(text);
-    /* Экранируем HTML */
-    h = h.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-    /* Заголовки */
-    h = h.replace(/^### (.+)$/gm, '<strong style="display:block;margin-top:12px;font-size:14px;color:var(--accent-light);">$1</strong>');
-    h = h.replace(/^## (.+)$/gm, '<strong style="display:block;margin-top:14px;font-size:15px;color:var(--accent-light);">$1</strong>');
-    /* Жирный и курсив */
-    h = h.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-    h = h.replace(/_(.+?)_/g, '<em style="color:var(--text-muted);">$1</em>');
-    /* HR */
-    h = h.replace(/^---$/gm, '<hr style="border:none;border-top:1px solid var(--border);margin:10px 0;">');
-    /* Списки */
-    h = h.replace(/^- (.+)$/gm, '<div style="padding:3px 0 3px 14px;">• $1</div>');
-    /* НЕ заменяем \n на <br> — пусть CSS white-space: pre-wrap сделает это */
-    return h;
+    var lines = String(text).split("\n");
+    var out = [];
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i];
+
+      /* Экранируем HTML */
+      line = line.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+      /* Пустая строка = вертикальный отступ */
+      if (line === "") {
+        out.push('<div style="height:8px;"></div>');
+        continue;
+      }
+
+      /* HR */
+      if (/^---$/.test(line)) {
+        out.push('<hr style="border:none;border-top:1px solid var(--border);margin:10px 0;">');
+        continue;
+      }
+
+      /* Заголовки */
+      if (/^### /.test(line)) {
+        var h3 = line.replace(/^### /, '').replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+        out.push('<div style="margin-top:12px;font-size:14px;color:var(--accent-light);font-weight:bold;">' + h3 + '</div>');
+        continue;
+      }
+      if (/^## /.test(line)) {
+        var h2 = line.replace(/^## /, '').replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+        out.push('<div style="margin-top:14px;font-size:15px;color:var(--accent-light);font-weight:bold;">' + h2 + '</div>');
+        continue;
+      }
+
+      /* Список */
+      if (/^- /.test(line)) {
+        var li = line.replace(/^- /, '');
+        li = li.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+        li = li.replace(/_(.+?)_/g, '<em style="color:var(--text-muted);">$1</em>');
+        out.push('<div style="padding:3px 0 3px 14px;">• ' + li + '</div>');
+        continue;
+      }
+
+      /* Обычная строка */
+      var normal = line.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+      normal = normal.replace(/_(.+?)_/g, '<em style="color:var(--text-muted);">$1</em>');
+      out.push('<div>' + normal + '</div>');
+    }
+    return out.join("");
   }
 
   function addThinkingBlock(log) {
@@ -363,7 +395,7 @@
     var ctx = collectFullContext();
     if (ctx) {
       var autoText = generateAutoReview(ctx);
-      var autoBubble = el("div", { style: "padding:14px 16px;background:var(--bg-elev);border-radius:10px;font-size:13px;line-height:1.65;color:var(--text);max-width:100%;white-space:pre-wrap;" });
+      var autoBubble = el("div", { style: "padding:14px 16px;background:var(--bg-elev);border-radius:10px;font-size:13px;line-height:1.65;color:var(--text);max-width:100%;" });
       autoBubble.innerHTML = renderMarkdown(autoText);
       log.appendChild(autoBubble);
     }
@@ -394,7 +426,7 @@
         var ctxNow = collectFullContext();
         if (!ctxNow) {
           think.finalize();
-          log.appendChild(el("div", { style: "padding:10px 12px;background:var(--bg-elev);border-radius:10px;font-size:13px;color:var(--text);max-width:85%;white-space:pre-wrap;" }, "⚠ Нет данных матча. Сначала разбери матч на странице «Анализ»."));
+          log.appendChild(el("div", { style: "padding:10px 12px;background:var(--bg-elev);border-radius:10px;font-size:13px;color:var(--text);max-width:85%;" }, "⚠ Нет данных матча. Сначала разбери матч на странице «Анализ»."));
           isAiMatchResponding = false; inp.disabled = false; btn.disabled = false; inp.focus();
           return;
         }
@@ -433,7 +465,7 @@
           await new Promise(function (r) { setTimeout(r, 400 + Math.random() * 300); });
           think.finalize();
 
-          var bubble = el("div", { style: "padding:10px 12px;background:var(--bg-elev);border-radius:10px;font-size:13px;line-height:1.55;color:var(--text);max-width:85%;white-space:pre-wrap;" });
+          var bubble = el("div", { style: "padding:10px 12px;background:var(--bg-elev);border-radius:10px;font-size:13px;line-height:1.55;color:var(--text);max-width:85%;" });
           log.appendChild(bubble);
           bubble.innerHTML = renderMarkdown(matchAnswer);
           log.scrollTop = log.scrollHeight;
@@ -463,7 +495,7 @@
         }
       } catch (err) {
         try { think.finalize(); } catch (e) {}
-        log.appendChild(el("div", { style: "padding:10px 12px;background:var(--bg-elev);border-radius:10px;font-size:13px;color:var(--red);max-width:85%;white-space:pre-wrap;" }, "⚠ Ошибка: " + (err.message || err)));
+        log.appendChild(el("div", { style: "padding:10px 12px;background:var(--bg-elev);border-radius:10px;font-size:13px;color:var(--red);max-width:85%;" }, "⚠ Ошибка: " + (err.message || err)));
         isAiMatchResponding = false; inp.disabled = false; btn.disabled = false; inp.focus();
       }
     }
@@ -471,5 +503,5 @@
     inp.addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); ask(); } });
     report.appendChild(card);
   };
-  console.log("ai-match v4.2 ready (CSS white-space: pre-wrap fix)");
+  console.log("ai-match v4.3 ready (line-by-line render)");
 })();
