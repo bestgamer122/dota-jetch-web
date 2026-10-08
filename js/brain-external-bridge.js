@@ -1,4 +1,4 @@
-/* DOTA JETCH — BRAIN EXTERNAL BRIDGE v4.0
+/* DOTA JETCH — BRAIN EXTERNAL BRIDGE v5.0
    Мост между локальным brain и внешней нейросетью (мульти-провайдер). */
 
 var BrainExternalBridge = {
@@ -44,4 +44,4 @@ var BrainExternalBridge = {
   }
 };
 
-console.log("brain-external-bridge v4.0 ready (multi-provider)");
+console.log("brain-external-bridge v5.0 ready (multi-provider)");

@@ -1,30 +1,23 @@
-/* DOTA JETCH — EXTERNAL AI v4.0
-   Мульти-провайдер: Kilo + OpenZoo + Pollinations (fallback chain).
-   Таймаут 7 секунд на каждый, автоматическое переключение. */
+/* DOTA JETCH — EXTERNAL AI v5.0
+   Мульти-провайдер: UncloseAI + KeylessAI (CORS open, no key). */
 
 var ExternalAI = {
   enabled: true,
   busy: false,
   lastError: null,
-  TIMEOUT_MS: 7000,
+  TIMEOUT_MS: 8000,
 
   providers: [
     {
-      name: "Kilo",
-      url: "https://api.kilo.ai/api/gateway/chat/completions",
-      model: "gpt-4o-mini",
-      headers: { "Content-Type": "application/json" }
-    },
-    {
-      name: "OpenZoo",
-      url: "https://api.openzoo.fun/v1/chat/completions",
-      model: "z-ai/glm-5.3-flash",
+      name: "UncloseAI",
+      url: "https://hermes.ai.unturf.com/v1/chat/completions",
+      model: "Hermes-3-Llama-3.1-8B",
       headers: { "Content-Type": "application/json", "Authorization": "Bearer unused" }
     },
     {
-      name: "Pollinations",
-      url: "https://gen.pollinations.ai/v1/chat/completions",
-      model: "openai",
+      name: "KeylessAI",
+      url: "https://keylessai.thryx.workers.dev/v1/chat/completions",
+      model: "gpt-4o-mini",
       headers: { "Content-Type": "application/json" }
     }
   ],
@@ -146,7 +139,7 @@ var ExternalAI = {
   },
 
   init: function () {
-    console.log("external-ai v4.0 ready · Kilo → OpenZoo → Pollinations (timeout 7s)");
+    console.log("external-ai v5.0 ready · UncloseAI → KeylessAI (timeout 8s)");
   }
 };
 
