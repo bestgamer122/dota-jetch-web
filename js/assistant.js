@@ -1,5 +1,5 @@
-/* DOTA JETCH — ИИ-АССИСТЕНТ v15.0
-   Гибридная ИИ: локальный brain + внешняя нейросеть (Pollinations, без ключа) */
+/* DOTA JETCH — ИИ-АССИСТЕНТ v16.0
+   Гибридная ИИ: локальный brain + внешняя нейросеть (мульти-провайдер) */
 
 var chatHistory = [];
 var isResponding = false;
@@ -196,7 +196,9 @@ async function onChatSend() {
           think.addStep("✓ Внешняя ИИ дала ответ");
         }
       } catch (err) {
+        console.warn("External AI failed:", err);
         think.addStep("⚠ Внешняя ИИ недоступна — оставляю локальный ответ");
+        finalText = localAnswer.text || "Внешняя ИИ недоступна. Попробуй позже.";
       }
     } else {
       think.addStep("✓ Ответ найден в локальной базе");

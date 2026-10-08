@@ -1,11 +1,34 @@
-/* DOTA JETCH — EXTERNAL AI v2.1
-   Pollinations AI — бесплатная нейросеть без ключа.
-   ФИКС: агрессивнее определяет, когда нужна внешняя ИИ. */
+/* DOTA JETCH — EXTERNAL AI v3.0
+   Мульти-провайдер: KeylessAI + LLM7 + Pollinations (fallback chain)
+   Таймаут 8 секунд на каждый запрос, автоматическое переключение. */
 
 var ExternalAI = {
   enabled: true,
   busy: false,
   lastError: null,
+  TIMEOUT_MS: 8000,
+
+  /* ─── Список провайдеров (по приоритету) ─── */
+  providers: [
+    {
+      name: "KeylessAI",
+      url: "https://keylessai.thryx.workers.dev/v1/chat/completions",
+      model: "gpt-4o-mini",
+      headers: { "Content-Type": "application/json" }
+    },
+    {
+      name: "LLM7",
+      url: "https://api.llm7.io/v1/chat/completions",
+      model: "gpt-4o-mini",
+      headers: { "Content-Type": "application/json", "Authorization": "Bearer unused" }
+    },
+    {
+      name: "Pollinations",
+      url: "https://text.pollinations.ai/openai",
+      model: "openai",
+      headers: { "Content-Type": "application/json" }
+    }
+  ],
 
   systemPrompt: function (matchContext) {
     var base = "Ты DotaJetch AI — эксперт по Dota 2. Отвечай кратко, конкретно, на русском. " +
@@ -17,71 +40,87 @@ var ExternalAI = {
     return base;
   },
 
-  askPollinations: function (userQuery, matchContext) {
+  /* ─── Запрос к одному провайдеру с таймаутом ─── */
+  askProvider: function (provider, userQuery, matchContext) {
     var self = this;
-    return new Promise(function (resolve, reject) {
-      var url = "https://text.pollinations.ai/openai";
-      var body = {
-        model: "openai",
-        messages: [
-          { role: "system", content: self.systemPrompt(matchContext) },
-          { role: "user", content: userQuery }
-        ],
-        temperature: 0.7,
-        max_tokens: 800
-      };
-      fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body)
-      })
-      .then(function (res) {
-        if (!res.ok) throw new Error("Pollinations HTTP " + res.status);
-        return res.text();
-      })
-      .then(function (text) {
-        try {
-          var json = JSON.parse(text);
-          if (json.choices && json.choices[0] && json.choices[0].message) {
-            resolve(json.choices[0].message.content);
-            return;
-          }
-        } catch (e) {}
-        if (text && text.length > 5) resolve(text);
-        else reject(new Error("Pollinations: пустой ответ"));
-      })
-      .catch(reject);
+    var body = {
+      model: provider.model,
+      messages: [
+        { role: "system", content: self.systemPrompt(matchContext) },
+        { role: "user", content: userQuery }
+      ],
+      temperature: 0.7,
+      max_tokens: 800
+    };
+
+    var controller = new AbortController();
+    var timeoutId = setTimeout(function () { controller.abort(); }, self.TIMEOUT_MS);
+
+    return fetch(provider.url, {
+      method: "POST",
+      headers: provider.headers,
+      body: JSON.stringify(body),
+      signal: controller.signal
+    })
+    .then(function (res) {
+      clearTimeout(timeoutId);
+      if (!res.ok) throw new Error(provider.name + " HTTP " + res.status);
+      return res.text();
+    })
+    .then(function (text) {
+      /* Пробуем JSON */
+      try {
+        var json = JSON.parse(text);
+        if (json.choices && json.choices[0] && json.choices[0].message) {
+          return json.choices[0].message.content;
+        }
+      } catch (e) {}
+      /* Или plain text */
+      if (text && text.length > 10) return text;
+      throw new Error(provider.name + ": пустой ответ");
+    })
+    .catch(function (err) {
+      clearTimeout(timeoutId);
+      throw err;
     });
   },
 
+  /* ─── Главный вызов: пробуем все провайдеры по очереди ─── */
   ask: function (query, matchContext) {
     var self = this;
     if (!this.enabled) return Promise.reject(new Error("external-ai-disabled"));
     if (this.busy) return Promise.reject(new Error("busy"));
     this.busy = true;
     this.lastError = null;
-    return this.askPollinations(query, matchContext)
+
+    var chain = Promise.reject(new Error("start"));
+    for (var i = 0; i < this.providers.length; i++) {
+      (function (provider) {
+        chain = chain.catch(function () {
+          return self.askProvider(provider, query, matchContext);
+        });
+      })(this.providers[i]);
+    }
+
+    return chain
+      .catch(function (err) {
+        self.lastError = err;
+        throw new Error("Все внешние ИИ недоступны");
+      })
       .finally(function () { self.busy = false; });
   },
 
-  /* ─── ФИКС: агрессивнее определяем, когда нужна внешняя ИИ ─── */
+  /* ─── Определение необходимости внешней ИИ ─── */
   shouldUseExternal: function (query, localAnswer) {
     if (!this.enabled) return false;
     if (this.busy) return false;
 
-    /* Если локальный ответил уверенно (>= 0.85) — не дёргаем */
     if (localAnswer && localAnswer.confidence >= 0.85) return false;
-
-    /* Если ответа нет вообще — нужна */
     if (!localAnswer || !localAnswer.text) return true;
 
-    /* Universal — это всегда заглушка, нужна внешняя */
     if (localAnswer.kind && localAnswer.kind.indexOf("universal") === 0) return true;
-
-    /* Kind = none / unknown — нужна */
     if (localAnswer.kind === "none" || localAnswer.kind === "unknown") return true;
 
-    /* По тексту — шаблонные фразы-заглушки */
     var t = localAnswer.text.toLowerCase();
     if (t.indexOf("не знаю") >= 0) return true;
     if (t.indexOf("не уверен") >= 0) return true;
@@ -95,7 +134,6 @@ var ExternalAI = {
     if (t.indexOf("я слышу тебя") >= 0) return true;
     if (t.indexOf("могу разобрать матч") >= 0) return true;
 
-    /* Короткий ответ (< 100 символов) без конкретики — тоже подозрительно */
     if (localAnswer.text.length < 100 && localAnswer.confidence < 0.7) return true;
 
     return false;
@@ -114,7 +152,7 @@ var ExternalAI = {
   },
 
   init: function () {
-    console.log("external-ai v2.1 ready · Pollinations (no key needed)");
+    console.log("external-ai v3.0 ready · KeylessAI → LLM7 → Pollinations (timeout 8s)");
   }
 };
 
