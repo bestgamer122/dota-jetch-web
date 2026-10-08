@@ -1,4 +1,5 @@
-/* DOTA JETCH — BRAIN UNIVERSAL v1.1 (делегирование в BrainMMR) */
+/* DOTA JETCH — BRAIN UNIVERSAL v1.2
+   ФИКС: не отвечает заглушкой, если есть lastAnalysis и вопрос про матч. */
 
 var BrainUniversal = {
   respond: function (q) {
@@ -6,7 +7,19 @@ var BrainUniversal = {
     if (!s) return null;
     var low = s.toLowerCase();
 
-    /* MMR — делегируем в BrainMMR, если он не сработал в основном цикле */
+    /* ─── ФИКС: если есть матч и вопрос про него — НЕ отвечаем заглушкой ─── */
+    if (typeof lastAnalysis !== "undefined" && lastAnalysis && lastAnalysis.match) {
+      /* Вопрос явно про матч — отдаём сигнал что нужен MatchReview */
+      if (low.indexOf("матч") >= 0 || low.indexOf("анализ") >= 0 ||
+          low.indexOf("анализируй") >= 0 || low.indexOf("разбор") >= 0 ||
+          low.indexOf("игра") >= 0 || low.indexOf("руинер") >= 0 ||
+          low.indexOf("проиграл") >= 0 || low.indexOf("победил") >= 0) {
+        /* Возвращаем null — пусть верхний уровень вызовет ExternalAI */
+        return null;
+      }
+    }
+
+    /* MMR — делегируем в BrainMMR */
     if (typeof BrainMMR !== "undefined" && (low.indexOf("ммр") >= 0 || low.indexOf("рейтинг") >= 0 || low.indexOf("ранг") >= 0)) {
       var r = BrainMMR.predictFromLastMatch();
       if (r) return { kind: "universal_mmr", text: r.text, confidence: 0.9, trace: ["Universal.MMR"] };

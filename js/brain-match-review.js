@@ -1,13 +1,32 @@
-/* DOTA JETCH — BRAIN MATCH REVIEW v2.0
-   Использует BrainMatchAnalyzer для глубокого разбора матча.
-   Отвечает на вопросы: "почему проиграл", "кто руинер", "как фармить", "что делать". */
+/* DOTA JETCH — BRAIN MATCH REVIEW v2.1
+   + Больше фраз: «анализируй матч», «проанализируй», «оцени игру» и др. */
 
 var BrainMatchReview = {
 
   detect: function (q) {
     var s = String(q || "").toLowerCase().trim();
-    if (s.length > 150) return null;
+    if (s.length > 200) return null;
 
+    /* ─── Анализ/разбор (широкий набор фраз) ─── */
+    if (s.indexOf("анализируй матч") >= 0) return "review";
+    if (s.indexOf("проанализируй матч") >= 0) return "review";
+    if (s.indexOf("проанализируй") >= 0 && s.indexOf("матч") >= 0) return "review";
+    if (s.indexOf("анализ матча") >= 0) return "review";
+    if (s.indexOf("разбери мой матч") >= 0) return "review";
+    if (s.indexOf("разбери матч") >= 0) return "review";
+    if (s.indexOf("разбери игру") >= 0) return "review";
+    if (s.indexOf("разбери последнюю") >= 0) return "review";
+    if (s.indexOf("как я сыграл") >= 0) return "review";
+    if (s.indexOf("как я отыграл") >= 0) return "review";
+    if (s.indexOf("оцени мой матч") >= 0) return "review";
+    if (s.indexOf("оцени мою игру") >= 0) return "review";
+    if (s.indexOf("оцени игру") >= 0) return "review";
+    if (s.indexOf("оцени матч") >= 0) return "review";
+    if (s.indexOf("мой последний матч") >= 0) return "review";
+    if (s.indexOf("что не так с моей игрой") >= 0) return "review";
+    if (s.indexOf("что не так в матче") >= 0) return "review";
+
+    /* ─── Конкретные вопросы ─── */
     if (s.indexOf("почему я проиграл") >= 0) return "why_lost";
     if (s.indexOf("почему проиграли") >= 0) return "why_lost";
     if (s.indexOf("почему мы проиграли") >= 0) return "why_lost";
@@ -32,14 +51,6 @@ var BrainMatchReview = {
     if (s.indexOf("фарм") >= 0 && s.indexOf("улучшить") >= 0) return "farming";
 
     if (s.indexOf("переломн") >= 0 || s.indexOf("ключевой момент") >= 0 || s.indexOf("перелом") >= 0) return "turning";
-
-    if (s.indexOf("разбери мой матч") >= 0) return "review";
-    if (s.indexOf("разбери матч") >= 0) return "review";
-    if (s.indexOf("как я сыграл") >= 0) return "review";
-    if (s.indexOf("оцени мой матч") >= 0) return "review";
-    if (s.indexOf("оцени мою игру") >= 0) return "review";
-    if (s.indexOf("мой последний матч") >= 0) return "review";
-    if (s.indexOf("что не так с моей игрой") >= 0) return "review";
 
     if (s.indexOf("мой кда") >= 0 || s.indexOf("мой kda") >= 0) return "kda";
     if (s.indexOf("мой гпм") >= 0 || s.indexOf("мой gpm") >= 0) return "gpm";
@@ -73,7 +84,7 @@ var BrainMatchReview = {
 
   answer: function (kind) {
     var res = this._getLast();
-    if (!res) return "🤔 Нет данных последнего матча. Открой вкладку **«Анализ матча»**, введи ID матча и героя — потом спрашивай.";
+    if (!res) return "🤔 Нет данных последнего матча.\n\nОткрой вкладку **«Анализ матча»**, введи ID матча и героя — потом спрашивай.";
 
     var p = res.player, m = res.match;
     var hn = res.hero ? res.hero.name : "?";
@@ -388,4 +399,4 @@ var BrainMatchReview = {
   }
 };
 
-console.log("brain-match-review v2.0 ready (deep analysis)");
+console.log("brain-match-review v2.1 ready");

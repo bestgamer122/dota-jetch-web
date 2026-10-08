@@ -1,13 +1,12 @@
-/* DOTA JETCH — EXTERNAL AI v2.0
+/* DOTA JETCH — EXTERNAL AI v2.1
    Pollinations AI — бесплатная нейросеть без ключа.
-   Дополняет локальный brain, когда он не может ответить. */
+   ФИКС: агрессивнее определяет, когда нужна внешняя ИИ. */
 
 var ExternalAI = {
   enabled: true,
   busy: false,
   lastError: null,
 
-  /* ─── Системный промпт (наша «личность») ─── */
   systemPrompt: function (matchContext) {
     var base = "Ты DotaJetch AI — эксперт по Dota 2. Отвечай кратко, конкретно, на русском. " +
       "Используй реальные факты из Dota 2 (патч 7.38+). Не выдумывай. " +
@@ -18,7 +17,6 @@ var ExternalAI = {
     return base;
   },
 
-  /* ─── Вызов Pollinations (без ключа) ─── */
   askPollinations: function (userQuery, matchContext) {
     var self = this;
     return new Promise(function (resolve, reject) {
@@ -56,7 +54,6 @@ var ExternalAI = {
     });
   },
 
-  /* ─── Главный вызов ─── */
   ask: function (query, matchContext) {
     var self = this;
     if (!this.enabled) return Promise.reject(new Error("external-ai-disabled"));
@@ -67,23 +64,43 @@ var ExternalAI = {
       .finally(function () { self.busy = false; });
   },
 
-  /* ─── Определение: нужна ли внешняя ИИ ─── */
+  /* ─── ФИКС: агрессивнее определяем, когда нужна внешняя ИИ ─── */
   shouldUseExternal: function (query, localAnswer) {
     if (!this.enabled) return false;
     if (this.busy) return false;
+
+    /* Если локальный ответил уверенно (>= 0.85) — не дёргаем */
     if (localAnswer && localAnswer.confidence >= 0.85) return false;
+
+    /* Если ответа нет вообще — нужна */
     if (!localAnswer || !localAnswer.text) return true;
+
+    /* Universal — это всегда заглушка, нужна внешняя */
+    if (localAnswer.kind && localAnswer.kind.indexOf("universal") === 0) return true;
+
+    /* Kind = none / unknown — нужна */
+    if (localAnswer.kind === "none" || localAnswer.kind === "unknown") return true;
+
+    /* По тексту — шаблонные фразы-заглушки */
     var t = localAnswer.text.toLowerCase();
     if (t.indexOf("не знаю") >= 0) return true;
-    if (t.indexOf("это интересный вопрос по dota") >= 0) return true;
     if (t.indexOf("не уверен") >= 0) return true;
     if (t.indexOf("попробуй переформулировать") >= 0) return true;
     if (t.indexOf("не смог") >= 0) return true;
-    if (localAnswer.kind === "none" || localAnswer.kind === "unknown") return true;
+    if (t.indexOf("это интересный вопрос") >= 0) return true;
+    if (t.indexOf("расскажи подробнее") >= 0) return true;
+    if (t.indexOf("что тебя интересует") >= 0) return true;
+    if (t.indexOf("давай разберёмся") >= 0) return true;
+    if (t.indexOf("давай разберемся") >= 0) return true;
+    if (t.indexOf("я слышу тебя") >= 0) return true;
+    if (t.indexOf("могу разобрать матч") >= 0) return true;
+
+    /* Короткий ответ (< 100 символов) без конкретики — тоже подозрительно */
+    if (localAnswer.text.length < 100 && localAnswer.confidence < 0.7) return true;
+
     return false;
   },
 
-  /* ─── Формирование контекста матча ─── */
   buildMatchContext: function () {
     if (typeof lastAnalysis === "undefined" || !lastAnalysis || !lastAnalysis.match) return null;
     var res = lastAnalysis;
@@ -96,9 +113,8 @@ var ExternalAI = {
     return ctx;
   },
 
-  /* ─── Инициализация ─── */
   init: function () {
-    console.log("external-ai v2.0 ready · Pollinations (no key needed)");
+    console.log("external-ai v2.1 ready · Pollinations (no key needed)");
   }
 };
 
