@@ -1,30 +1,29 @@
-/* DOTA JETCH — EXTERNAL AI v3.0
-   Мульти-провайдер: KeylessAI + LLM7 + Pollinations (fallback chain)
-   Таймаут 8 секунд на каждый запрос, автоматическое переключение. */
+/* DOTA JETCH — EXTERNAL AI v4.0
+   Мульти-провайдер: Kilo + OpenZoo + Pollinations (fallback chain).
+   Таймаут 7 секунд на каждый, автоматическое переключение. */
 
 var ExternalAI = {
   enabled: true,
   busy: false,
   lastError: null,
-  TIMEOUT_MS: 8000,
+  TIMEOUT_MS: 7000,
 
-  /* ─── Список провайдеров (по приоритету) ─── */
   providers: [
     {
-      name: "KeylessAI",
-      url: "https://keylessai.thryx.workers.dev/v1/chat/completions",
+      name: "Kilo",
+      url: "https://api.kilo.ai/api/gateway/chat/completions",
       model: "gpt-4o-mini",
       headers: { "Content-Type": "application/json" }
     },
     {
-      name: "LLM7",
-      url: "https://api.llm7.io/v1/chat/completions",
-      model: "gpt-4o-mini",
+      name: "OpenZoo",
+      url: "https://api.openzoo.fun/v1/chat/completions",
+      model: "z-ai/glm-5.3-flash",
       headers: { "Content-Type": "application/json", "Authorization": "Bearer unused" }
     },
     {
       name: "Pollinations",
-      url: "https://text.pollinations.ai/openai",
+      url: "https://gen.pollinations.ai/v1/chat/completions",
       model: "openai",
       headers: { "Content-Type": "application/json" }
     }
@@ -40,7 +39,6 @@ var ExternalAI = {
     return base;
   },
 
-  /* ─── Запрос к одному провайдеру с таймаутом ─── */
   askProvider: function (provider, userQuery, matchContext) {
     var self = this;
     var body = {
@@ -68,14 +66,12 @@ var ExternalAI = {
       return res.text();
     })
     .then(function (text) {
-      /* Пробуем JSON */
       try {
         var json = JSON.parse(text);
         if (json.choices && json.choices[0] && json.choices[0].message) {
           return json.choices[0].message.content;
         }
       } catch (e) {}
-      /* Или plain text */
       if (text && text.length > 10) return text;
       throw new Error(provider.name + ": пустой ответ");
     })
@@ -85,7 +81,6 @@ var ExternalAI = {
     });
   },
 
-  /* ─── Главный вызов: пробуем все провайдеры по очереди ─── */
   ask: function (query, matchContext) {
     var self = this;
     if (!this.enabled) return Promise.reject(new Error("external-ai-disabled"));
@@ -110,7 +105,6 @@ var ExternalAI = {
       .finally(function () { self.busy = false; });
   },
 
-  /* ─── Определение необходимости внешней ИИ ─── */
   shouldUseExternal: function (query, localAnswer) {
     if (!this.enabled) return false;
     if (this.busy) return false;
@@ -152,7 +146,7 @@ var ExternalAI = {
   },
 
   init: function () {
-    console.log("external-ai v3.0 ready · KeylessAI → LLM7 → Pollinations (timeout 8s)");
+    console.log("external-ai v4.0 ready · Kilo → OpenZoo → Pollinations (timeout 7s)");
   }
 };
 
