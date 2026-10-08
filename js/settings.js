@@ -1,6 +1,5 @@
-/* DOTA JETCH — SETTINGS v5.3
-   - Карточка «Звуки»: только ползунок громкости (без вкл/выкл)
-   - Звук всегда включён, отключается только громкостью 0% */
+/* DOTA JETCH — SETTINGS v7.0
+   Убрана карточка настройки нейросети — всё работает автоматически через Pollinations */
 
 var FOREVER_KEY = "DANYA8228PRO";
 
@@ -148,7 +147,7 @@ function renderPlanCard(frag) {
 
     var feats = el("div", { class: "dim", style: "font-size:12px;margin-bottom:12px;line-height:1.6;" });
     feats.appendChild(el("div", {}, "+ Бесконечные анализы"));
-    feats.appendChild(el("div", {}, "+ ИИ чат"));
+    feats.appendChild(el("div", {}, "+ ИИ чат (локальная + внешняя)"));
     feats.appendChild(el("div", {}, "+ Все функции"));
     plan.appendChild(feats);
 
@@ -192,7 +191,6 @@ function renderThemeCard(frag) {
   frag.appendChild(theme);
 }
 
-/* ─── КАРТОЧКА: ЗВУКИ (только ползунок громкости) ─── */
 function renderSoundCard(frag) {
   if (typeof Sound === "undefined") return;
   var card = UI.card("Звуки");
@@ -201,7 +199,6 @@ function renderSoundCard(frag) {
     "Звуки работают только в мини-играх: попадания, промахи, победа и ответы в викторине.");
   card.appendChild(info);
 
-  // Громкость
   var volRow = el("div", { style: "display:flex;align-items:center;gap:10px;margin-bottom:14px;" });
   volRow.appendChild(el("span", { class: "dim", style: "font-size:11px;min-width:80px;" }, "Громкость"));
 
@@ -228,7 +225,6 @@ function renderSoundCard(frag) {
 
   card.appendChild(volRow);
 
-  // Кнопка теста
   var testBtn = UI.btn("🔊 Проверить звук", { variant: "ghost" });
   testBtn.style.width = "auto";
   testBtn.style.minWidth = "180px";

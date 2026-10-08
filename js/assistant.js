@@ -1,4 +1,5 @@
-/* DOTA JETCH — ИИ-АССИСТЕНТ v13.1 (антиспам + анимация печати + таймаут) */
+/* DOTA JETCH — ИИ-АССИСТЕНТ v15.0
+   Гибридная ИИ: локальный brain + внешняя нейросеть (Pollinations, без ключа) */
 
 var chatHistory = [];
 var isResponding = false;
@@ -24,6 +25,7 @@ function renderChat() {
   row.appendChild(inp);
   row.appendChild(btn);
   inputCard.appendChild(row);
+
   frag.appendChild(inputCard);
 
   setTimeout(function () {
@@ -74,11 +76,11 @@ function addChatMessage(log, role, text, scroll) {
   return bubble;
 }
 
-function addThinkingBlock(log) {
+function addThinkingBlock(log, label) {
   var wrap = el("div", { style: "display:flex;gap:10px;align-items:flex-start;opacity:0.7;" });
   var avatar = el("div", { style: "width:30px;height:30px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:bold;background:var(--accent-bg);color:var(--accent-light);border:1px solid var(--accent);" }, "AI");
   var box = el("div", { style: "flex:1;padding:10px 14px;border-radius:12px;font-size:12px;line-height:1.6;background:var(--bg-card);border:1px dashed var(--accent);color:var(--text-muted);font-family:'JetBrains Mono',monospace;white-space:pre-wrap;" });
-  var line = el("div", {}, "Думаю...");
+  var line = el("div", {}, label || "Думаю...");
   box.appendChild(line);
   wrap.appendChild(avatar); wrap.appendChild(box);
   log.appendChild(wrap); log.scrollTop = log.scrollHeight;
@@ -107,7 +109,6 @@ function typeWriter(el, text, speed, callback) {
   tick();
 }
 
-/* Обёртка с таймаутом для вызова ИИ */
 function brainAnswerWithTimeout(question, timeoutMs) {
   return new Promise(function (resolve) {
     var done = false;
@@ -157,7 +158,6 @@ async function onChatSend() {
   if (typeof Daily !== "undefined") Daily.bump("chat");
   if (typeof Achievements !== "undefined") Achievements.check();
 
-  /* Фидбек — обрабатываем отдельно, без таймаута */
   if (typeof BrainFeedback !== "undefined" && BrainFeedback.detect(q)) {
     var fbAnswer = brainAnswer(q);
     var fbBubble = addChatMessage(log, "assistant", "", false);
@@ -173,33 +173,56 @@ async function onChatSend() {
     return;
   }
 
-  var think = addThinkingBlock(log);
+  var think = addThinkingBlock(log, "Думаю...");
 
   try {
-    think.setStep("Анализирую запрос...");
-    await new Promise(function (r) { setTimeout(r, 500 + Math.random() * 400); });
+    think.setStep("Обрабатываю запрос...");
+    await new Promise(function (r) { setTimeout(r, 300 + Math.random() * 300); });
 
-    var answer = await brainAnswerWithTimeout(q, 15000);
+    think.addStep("Ищу в локальной базе...");
+    var localAnswer = brainAnswer(q);
 
-    if (answer.trace && answer.trace.length) {
-      for (var i = 0; i < answer.trace.length; i++) {
-        think.addStep(answer.trace[i]);
-        await new Promise(function (r) { setTimeout(r, 350 + Math.random() * 250); });
+    var finalText = localAnswer.text || "Не удалось получить ответ.";
+    var source = "local";
+
+    if (typeof ExternalAI !== "undefined" && ExternalAI.shouldUseExternal(q, localAnswer)) {
+      think.addStep("Локальная база не уверена — подключаю внешнюю ИИ...");
+      try {
+        var matchCtx = ExternalAI.buildMatchContext();
+        var externalText = await ExternalAI.ask(q, matchCtx);
+        if (externalText && externalText.length > 10) {
+          finalText = externalText;
+          source = "external";
+          think.addStep("✓ Внешняя ИИ дала ответ");
+        }
+      } catch (err) {
+        think.addStep("⚠ Внешняя ИИ недоступна — оставляю локальный ответ");
+      }
+    } else {
+      think.addStep("✓ Ответ найден в локальной базе");
+    }
+
+    if (localAnswer.trace && localAnswer.trace.length) {
+      for (var i = 0; i < localAnswer.trace.length; i++) {
+        think.addStep(localAnswer.trace[i]);
+        await new Promise(function (r) { setTimeout(r, 200 + Math.random() * 200); });
       }
     }
 
     think.setStep("Формулирую ответ...");
-    await new Promise(function (r) { setTimeout(r, 500 + Math.random() * 400); });
-
+    await new Promise(function (r) { setTimeout(r, 300 + Math.random() * 300); });
     think.finalize();
 
-    var finalText = answer.text || "Не удалось получить ответ.";
-    if (typeof answer.confidence === "number" && answer.confidence < 0.6 && answer.confidence > 0) {
-      finalText += "\n\n(уверенность: " + Math.round(answer.confidence * 100) + "%)";
+    if (source === "external") {
+      finalText = "🌐 " + finalText + "\n\n_— ответ дополнен внешней нейросетью_";
+    }
+
+    if (typeof localAnswer.confidence === "number" && localAnswer.confidence < 0.6 && localAnswer.confidence > 0 && source === "local") {
+      finalText += "\n\n(уверенность: " + Math.round(localAnswer.confidence * 100) + "%)";
     }
 
     var bubble = addChatMessage(log, "assistant", "", false);
-    typeWriter(bubble, finalText, 12, function () {
+    typeWriter(bubble, finalText, 10, function () {
       chatHistory.push({ role: "assistant", text: finalText });
       Store.set("chathistory", chatHistory.slice(-100));
       isResponding = false;

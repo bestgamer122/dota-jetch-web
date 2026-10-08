@@ -1,4 +1,4 @@
-/* DOTA JETCH — BRAIN v10.0 (все модули) */
+/* DOTA JETCH — BRAIN v15.0 (UNIFIED + EXTERNAL AI BRIDGE v2) */
 
 function _brainAnswerNoChain(query) {
   var q = String(query || "").trim();
@@ -15,17 +15,80 @@ function _brainAnswerNoChain(query) {
 }
 window._brainAnswerNoChain = _brainAnswerNoChain;
 
+function injectMatchContext(query) {
+  if (typeof lastAnalysis === "undefined" || !lastAnalysis || !lastAnalysis.match) return query;
+  var res = lastAnalysis;
+  var p = res.player, m = res.match;
+  var ctx = "Контекст последнего матча: ";
+  ctx += "Герой: " + (res.hero ? res.hero.name : "?") + ". ";
+  ctx += "KDA: " + p.kills + "/" + p.deaths + "/" + p.assists + ". ";
+  ctx += "GPM: " + Math.round(p.gold_per_min || 0) + ". ";
+  ctx += "Длительность: " + ((m.duration || 0) / 60).toFixed(0) + " мин. ";
+  ctx += "Результат: " + (res.won ? "победа" : "поражение") + ". ";
+  ctx += "Позиция: " + (res.position || "?") + ". ";
+  return ctx + "Вопрос: " + query;
+}
+
 function brainAnswer(query) {
   var q = String(query || "").trim();
   if (!q) return { kind: "empty", text: "Спроси что-нибудь.", confidence: 1, trace: [] };
 
-  /* CHAIN V2 */
+  var s = q.toLowerCase();
+  var isMatchQuestion = (s.indexOf("матч") >= 0 || s.indexOf("игра") >= 0 ||
+                         s.indexOf("проиграл") >= 0 || s.indexOf("руинер") >= 0 ||
+                         s.indexOf("смерт") >= 0 || s.indexOf("фарм") >= 0 ||
+                         s.indexOf("тайминг") >= 0 || s.indexOf("предмет") >= 0 ||
+                         s.indexOf("процентиль") >= 0 || s.indexOf("тренд") >= 0 ||
+                         s.indexOf("топ-игрок") >= 0 || s.indexOf("про-игрок") >= 0);
+
+  if (isMatchQuestion && typeof lastAnalysis !== "undefined" && lastAnalysis && lastAnalysis.match) {
+    q = injectMatchContext(q);
+  }
+
   if (typeof BrainChainV2 !== "undefined") {
     var chainRes = BrainChainV2.run(q);
     if (chainRes) return chainRes;
   }
 
-  /* АВТООБУЧЕНИЕ */
+  if (typeof BrainMatchup !== "undefined") {
+    var muKind = BrainMatchup.detect(q);
+    if (muKind) {
+      var muAns = BrainMatchup.answer(muKind, q);
+      if (muAns) return { kind: "matchup", text: muAns, confidence: 0.95, trace: ["Matchup"] };
+    }
+  }
+
+  if (isMatchQuestion) {
+    var specialAns = null;
+    if (typeof BrainPercentiles !== "undefined") {
+      var pKind = BrainPercentiles.detect(q);
+      if (pKind) specialAns = BrainPercentiles.answer(pKind);
+    }
+    if (!specialAns && typeof BrainProCompare !== "undefined") {
+      var proKind = BrainProCompare.detect(q);
+      if (proKind) specialAns = BrainProCompare.answer(proKind);
+    }
+    if (!specialAns && typeof BrainDeathPatterns !== "undefined") {
+      var dpKind = BrainDeathPatterns.detect(q);
+      if (dpKind) specialAns = BrainDeathPatterns.answer(dpKind);
+    }
+    if (!specialAns && typeof BrainItemTimings !== "undefined") {
+      var itKind = BrainItemTimings.detect(q);
+      if (itKind) specialAns = BrainItemTimings.answer(itKind);
+    }
+    if (specialAns) {
+      return { kind: "match_special", text: specialAns, confidence: 0.95, trace: ["MatchModule"] };
+    }
+  }
+
+  if (typeof BrainTrends !== "undefined") {
+    var trKind = BrainTrends.detect(q);
+    if (trKind) {
+      var trAns = BrainTrends.answer(trKind);
+      if (trAns) return { kind: "trends", text: trAns, confidence: 0.95, trace: ["Trends"] };
+    }
+  }
+
   if (typeof BrainAutoLearner !== "undefined") {
     var alKind = BrainAutoLearner.detect(q);
     if (alKind === "report" || alKind === "weakness" || alKind === "strength") {
@@ -42,7 +105,6 @@ function brainAnswer(query) {
     }
   }
 
-  /* ОБУЧАЕМАЯ ПАМЯТЬ */
   if (typeof BrainLearning !== "undefined") {
     var lc = BrainLearning.parseLearnCommand(q);
     if (lc) {
@@ -51,9 +113,9 @@ function brainAnswer(query) {
     }
     var corr = BrainLearning.parseCorrection(q);
     if (corr) {
-      var ctx = (typeof BrainContext !== "undefined") ? BrainContext.load() : null;
-      var lastQ = ctx && ctx.history && ctx.history.length ? ctx.history[ctx.history.length-1].q : "";
-      var lastA = ctx && ctx.history && ctx.history.length ? ctx.history[ctx.history.length-1].a : "";
+      var ctx2 = (typeof BrainContext !== "undefined") ? BrainContext.load() : null;
+      var lastQ = ctx2 && ctx2.history && ctx2.history.length ? ctx2.history[ctx2.history.length-1].q : "";
+      var lastA = ctx2 && ctx2.history && ctx2.history.length ? ctx2.history[ctx2.history.length-1].a : "";
       BrainLearning.recordCorrection(lastQ, lastA, corr.correction);
       return { kind: "learn_correction", text: "Понял, исправил. Теперь буду отвечать: «" + corr.correction + "»", confidence: 1.0 };
     }
@@ -61,7 +123,6 @@ function brainAnswer(query) {
     BrainLearning.trackHour();
   }
 
-  /* РУСИФИКАЦИЯ */
   var originalQ = q;
   if (typeof BrainRus !== "undefined") {
     var rusKind = BrainRus.detect(q);
@@ -72,7 +133,6 @@ function brainAnswer(query) {
     if (BrainRus.hasSlang(q)) q = BrainRus.normalize(q);
   }
 
-  /* ЛИЧНОСТЬ */
   if (typeof BrainPersonality !== "undefined") {
     var moodKind = BrainPersonality.detect(q);
     if (moodKind) {
@@ -85,7 +145,6 @@ function brainAnswer(query) {
     }
   }
 
-  /* META */
   if (typeof BrainMeta !== "undefined") {
     var metaKind = BrainMeta.detect(q);
     if (metaKind) {
@@ -94,7 +153,6 @@ function brainAnswer(query) {
     }
   }
 
-  /* MMR */
   if (typeof BrainMMR !== "undefined") {
     var mmrKind = BrainMMR.detect(q);
     if (mmrKind) {
@@ -103,7 +161,6 @@ function brainAnswer(query) {
     }
   }
 
-  /* HEROES FULL */
   if (typeof BRAIN_HEROES !== "undefined") {
     var heroLow = q.toLowerCase();
     if (heroLow.indexOf("расскажи про") >= 0 || heroLow.indexOf("что за герой") >= 0) {
@@ -119,7 +176,6 @@ function brainAnswer(query) {
     }
   }
 
-  /* DRAFT */
   if (typeof BrainDraft !== "undefined") {
     var drKind = BrainDraft.detect(q);
     if (drKind) {
@@ -138,11 +194,13 @@ function brainAnswer(query) {
     }
   }
 
-  /* BUILDS */
   if (typeof BrainBuilds !== "undefined") {
     if (BrainBuilds.detect(q) === "build") {
       var heroForBuild = null;
-      if (typeof findHeroByAlias === "function") {
+      if (typeof BrainBuilds.extractHero === "function") {
+        heroForBuild = BrainBuilds.extractHero(q);
+      }
+      if (!heroForBuild && typeof findHeroByAlias === "function") {
         var wds2 = q.toLowerCase().split(/[\s,]+/);
         for (var bi = 0; bi < wds2.length; bi++) {
           var w2 = wds2[bi].replace(/[^а-яёa-z\-]/g, "");
@@ -168,7 +226,6 @@ function brainAnswer(query) {
     }
   }
 
-  /* TIMINGS */
   if (typeof BrainTimings !== "undefined") {
     var timKind = BrainTimings.detect(q);
     if (timKind) {
@@ -177,7 +234,6 @@ function brainAnswer(query) {
     }
   }
 
-  /* SITUATIONS */
   if (typeof BrainSituations !== "undefined") {
     if (q.toLowerCase().indexOf("все ситуации") >= 0) return { kind: "situations_list", text: BrainSituations.list(), confidence: 0.95 };
     var sitKey = BrainSituations.detect(q);
@@ -187,7 +243,6 @@ function brainAnswer(query) {
     }
   }
 
-  /* MINDSET */
   if (typeof BrainMindset !== "undefined") {
     var mindKind = BrainMindset.detect(q);
     if (mindKind) {
@@ -196,7 +251,6 @@ function brainAnswer(query) {
     }
   }
 
-  /* LANES */
   if (typeof BrainLanes !== "undefined") {
     var lanesKind = BrainLanes.detect(q);
     if (lanesKind) {
@@ -205,7 +259,6 @@ function brainAnswer(query) {
     }
   }
 
-  /* PROKASTS */
   if (typeof BrainProkasts !== "undefined") {
     var prokKind = BrainProkasts.detect(q);
     if (prokKind) {
@@ -214,7 +267,6 @@ function brainAnswer(query) {
     }
   }
 
-  /* COUNTERS */
   if (typeof BrainCounters !== "undefined") {
     var cKind = BrainCounters.detect(q);
     if (cKind) {
@@ -223,7 +275,6 @@ function brainAnswer(query) {
     }
   }
 
-  /* ITEMS FULL */
   if (typeof BrainItemsFull !== "undefined") {
     var itemsKind = BrainItemsFull.detect(q);
     if (itemsKind) {
@@ -232,7 +283,6 @@ function brainAnswer(query) {
     }
   }
 
-  /* COMPARE */
   if (typeof BrainCompare !== "undefined") {
     var cmpKind = BrainCompare.detect(q);
     if (cmpKind) {
@@ -241,7 +291,6 @@ function brainAnswer(query) {
     }
   }
 
-  /* MATCH REVIEW */
   if (typeof BrainMatchReview !== "undefined") {
     var mrKind = BrainMatchReview.detect(q);
     if (mrKind) {
@@ -250,7 +299,6 @@ function brainAnswer(query) {
     }
   }
 
-  /* ПРОГНОЗ */
   if (typeof BrainPredictor !== "undefined") {
     var predKind = BrainPredictor.detect(q);
     if (predKind) {
@@ -261,7 +309,6 @@ function brainAnswer(query) {
     }
   }
 
-  /* ИНСАЙТЫ */
   if (typeof BrainInsights !== "undefined") {
     var insKind = BrainInsights.detect(q);
     if (insKind) {
@@ -270,13 +317,11 @@ function brainAnswer(query) {
     }
   }
 
-  /* FEEDBACK */
   if (typeof BrainFeedback !== "undefined") {
     var fb = BrainFeedback.detect(q);
     if (fb) return { kind: "feedback", text: BrainFeedback.respond(fb), confidence: 1.0 };
   }
 
-  /* ЭМОЦИЯ */
   if (typeof BrainEmotion !== "undefined") {
     var emo2 = BrainEmotion.detect(q);
     if (emo2 && (emo2.mood === "sad" || emo2.mood === "angry" || emo2.mood === "tired")) {
@@ -285,7 +330,6 @@ function brainAnswer(query) {
     }
   }
 
-  /* ОСНОВНОЙ ЦИКЛ */
   var analysis = BrainThink.analyze(q);
   var answer = BrainThink.run(q);
 
@@ -293,7 +337,6 @@ function brainAnswer(query) {
     answer.text = BrainPersonality.apply(answer.text);
   }
 
-  /* УНИВЕРСАЛ — когда всё не сработало */
   if (answer.kind === "none" || answer.kind === "unknown" || !answer.text || answer.text.indexOf("не знаю") >= 0) {
     if (typeof BrainUniversal !== "undefined") {
       var uni = BrainUniversal.respond(originalQ);
@@ -305,12 +348,10 @@ function brainAnswer(query) {
     }
   }
 
-  /* ЛОКАЛИЗАЦИЯ */
   if (typeof BrainRus !== "undefined" && answer && answer.text) {
     answer.text = BrainRus.localize(answer.text);
   }
 
-  /* СТАТИСТИКА */
   if (typeof BrainAutoLearner !== "undefined" && answer && answer.kind !== "empty") {
     if (answer.confidence !== undefined && answer.kind) {
       answer.confidence = BrainAutoLearner.getAdjustedConfidence(answer.kind, answer.confidence);
@@ -326,3 +367,5 @@ function brainAnswer(query) {
 if (typeof BrainMemoryLong !== "undefined") {
   setTimeout(function () { try { BrainMemoryLong.startSession(); } catch (e) {} }, 500);
 }
+
+console.log("brain v15.0 ready (external AI bridge v2, no key needed)");
