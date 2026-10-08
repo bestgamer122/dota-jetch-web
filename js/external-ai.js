@@ -1,5 +1,6 @@
-/* DOTA JETCH — EXTERNAL AI v5.0
-   Мульти-провайдер: UncloseAI + KeylessAI (CORS open, no key). */
+/* DOTA JETCH — EXTERNAL AI v6.0
+   Мульти-провайдер: UncloseAI + KeylessAI + FreeLLM + Pollinations.
+   Таймаут 8 сек, автоматическое переключение. */
 
 var ExternalAI = {
   enabled: true,
@@ -11,13 +12,25 @@ var ExternalAI = {
     {
       name: "UncloseAI",
       url: "https://hermes.ai.unturf.com/v1/chat/completions",
-      model: "Hermes-3-Llama-3.1-8B",
+      model: "adamo1139/Hermes-3-Llama-3.1-8B-FP8-Dynamic",
       headers: { "Content-Type": "application/json", "Authorization": "Bearer unused" }
     },
     {
       name: "KeylessAI",
       url: "https://keylessai.thryx.workers.dev/v1/chat/completions",
       model: "gpt-4o-mini",
+      headers: { "Content-Type": "application/json" }
+    },
+    {
+      name: "FreeLLM",
+      url: "https://free-llm-api.jianchuan.workers.dev/v1/chat/completions",
+      model: "gpt-4o-mini",
+      headers: { "Content-Type": "application/json", "Authorization": "Bearer free" }
+    },
+    {
+      name: "Pollinations",
+      url: "https://text.pollinations.ai/openai",
+      model: "openai",
       headers: { "Content-Type": "application/json" }
     }
   ],
@@ -139,7 +152,7 @@ var ExternalAI = {
   },
 
   init: function () {
-    console.log("external-ai v5.0 ready · UncloseAI → KeylessAI (timeout 8s)");
+    console.log("external-ai v6.0 ready · UncloseAI → KeylessAI → FreeLLM → Pollinations");
   }
 };
 
