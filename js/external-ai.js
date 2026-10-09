@@ -1,8 +1,5 @@
-/* DOTA JETCH — EXTERNAL AI v25.0 FINAL
-   + УБРАН slangDict — ИИ сам знает сленг, промпт ему всё объясняет
-   + applySlang = только дедуп "Форс (Форс)" → "Форс"
-   + Авто-поиск в интернете если ИИ тупанул
-   + max_tokens 2500, этапы, защита от крашей */
+/* DOTA JETCH — EXTERNAL AI v25.0
+   Без словаря сленга. ИИ сам знает + авто-поиск если тупит. */
 
 var ExternalAI = {
   enabled: true,
@@ -14,7 +11,7 @@ var ExternalAI = {
   mistralUrl: "https://api.mistral.ai/v1/chat/completions",
   mistralModels: ["mistral-small-latest", "open-mistral-nemo"],
 
-  rateLimitedUntil: 0,  currentModelIdx: 0,
+  rateLimitedUntil: 0,
 
   MODE_NAMES: {
     1: "All Pick", 2: "Captains Mode", 3: "Random Draft", 4: "Single Draft",
@@ -101,7 +98,6 @@ var ExternalAI = {
     return null;
   },
 
-  /* ═══ РЕЧЕВЫЕ ПРАВИЛА (только русские опечатки, не сленг) ═══ */
   speechFixes: [
     [/\bденан(?:ы|ов|а|у|ом|е)?\b/gi, "денаи"],
     [/\bденануть\b/gi, "заденаить"],
@@ -118,24 +114,11 @@ var ExternalAI = {
     return out;
   },
 
-  /* ═══ МИНИМАЛЬНАЯ чистка: только дедуп "Форс (Форс)" → "Форс" ═══
-     Никаких словарей. ИИ сам знает сленг. Мы только убираем дубли. */
+  /* Минимальная чистка: только жирный + дедуп "X (X)" → "X" */
   applySlang: function (text) {
     var out = String(text);
-
-    /* Жирный: одиночные * → ** */
     out = out.replace(/(^|[\s.,!?:;])\*([^\*\n]{1,60})\*(?=[\s.,!?:;]|$)/g, "$1**$2**");
-
-    /* Дедуп "X (X)" → "X" — латиница или кириллица, слово/фраза до 50 символов */
     out = out.replace(/([A-Za-zА-Яа-яЁё][A-Za-zА-Яа-яЁё0-9'’\-\s]{0,50}?)\s*\(\s*\1\s*\)/g, "$1");
-
-    /* Дедуп "English (Русский)" где English уже переведён → убираем скобку с переводом
-       Пример: "Force Staff (Форс)" → "Force Staff". НО мы НЕ переводим,
-       оставляем как написал ИИ. Смысл: не дублировать перевод.
-       Однако если ИИ написал "Force Staff (Форс)" — оставляем как есть,
-       потому что это ОК: английское название + сленг в скобках. */
-    /* (не трогаем, чтобы не ломать нормальный формат) */
-
     out = this.applySpeechFixes(out);
     return out;
   },
@@ -146,9 +129,8 @@ var ExternalAI = {
       "Твоя задача — помогать игроку советами. Ты тренер, не игрок.",
       "",
       "🚨 НЕ ВЫДУМЫВАЙ:",
-      "• Не выдумывай способности ('удар по голове', 'удар ногами' — запрещено).",
+      "• Не выдумывай способности ('удар по голове' — запрещено).",
       "• Не выдумывай предметы (Клинок, Молот — не существуют).",
-      "• Не выдумывай тайминги если их нет в контексте.",
       "• Если не знаешь — честно скажи 'Не знаю точно'.",
       "",
       "🚨 Dota 2 — MOBA с видом сверху. Способности — клики, AoE, снаряды.",
@@ -159,27 +141,27 @@ var ExternalAI = {
       "• Пиши как дотер — используй сленг: БКБ, МКБ, БФ, Радик, Манта, Дезоль, Дифуза, Хекс, Еул, Гост, Линка, Тараска, Атос, Сосуд, Блудорн, Аганим, Шард, Треды, Фейзы, Арканы.",
       "• Если НЕ уверен в сленге — пиши английское название как есть (Blade Mail, Force Staff), БЕЗ перевода в скобках.",
       "• НЕ дублируй название и перевод: не пиши 'Black King Bar (БКБ)'. Пиши 'БКБ' ИЛИ 'Black King Bar'.",
-      "• Правильные термины: денаи (не 'денан'), ластхиты (не 'ластхитс'), крипы (не 'крипс'), варды (не 'вардс').",
+      "• Термины: денаи (не 'денан'), ластхиты (не 'ластхитс'), крипы, варды.",
       "",
-      "═══ ФОРМАТ ОТВЕТА ═══",
+      "═══ ФОРМАТ ═══",
       "• **Жирный** через ДВОЙНЫЕ звёздочки.",
-      "• Списки через `• `. Эмодзи для разделов. Пустая строка между блоками.",
+      "• Списки через `• `. Эмодзи для разделов.",
       "• Заголовки через `###`.",
-      "• НЕ пиши вступления 'Конечно!' / 'Отличный вопрос!' — сразу к делу.",
+      "• НЕ пиши 'Конечно!' / 'Отличный вопрос!' — сразу к делу.",
       "",
       "═══ ДЛИНА ═══",
-      "• Короткий вопрос (до 10 слов) → 2-4 предложения.",
-      "• Вопрос про матч → до 350 слов.",
-      "• Общий вопрос → 150-250 слов.",
+      "• Короткий вопрос → 2-4 предложения.",
+      "• Про матч → до 350 слов.",
+      "• Общий → 150-250 слов.",
       "• Подробно (сборка, гайд) — до 500 слов, БЕЗ обрывов.",
       "",
       "═══ СТИЛЬ ═══",
-      "• Пиши как дотер: керри, мид, сап, фармить, ганкать, руинить.",
-      "• Правильно: 'Твой KDA', 'Ты играл на Spectre', НЕ 'Я Спектра'."
+      "• Керри, мид, сап, фармить, ганкать, руинить.",
+      "• 'Твой KDA', 'Ты играл на Spectre', НЕ 'Я Спектра'."
     ].join("\n");
 
     if (heroAbilitiesInfo) {
-      base += "\n\n══════ РЕАЛЬНЫЕ СПОСОБНОСТИ " + heroAbilitiesInfo.hero.toUpperCase() + " ══════\n" +
+      base += "\n\n══════ СПОСОБНОСТИ " + heroAbilitiesInfo.hero.toUpperCase() + " ══════\n" +
         heroAbilitiesInfo.abilities +
         "\n⚠️ Используй ТОЛЬКО эти способности.";
     }
@@ -187,15 +169,12 @@ var ExternalAI = {
     if (searchData && typeof WebSearch !== "undefined" && WebSearch && typeof WebSearch.formatForPrompt === "function") {
       var formatted = WebSearch.formatForPrompt(searchData);
       if (formatted) {
-        base += "\n\n══════ РЕЗУЛЬТАТЫ ПОИСКА ══════\n" +
-          formatted +
-          "\n⚠️ Используй ТОЛЬКО эту информацию. Не добавляй от себя.";
+        base += "\n\n══════ РЕЗУЛЬТАТЫ ПОИСКА ══════\n" + formatted + "\n⚠️ Используй ТОЛЬКО это.";
       }
     }
 
     if (matchContext) {
-      base += "\n\n══════ ДАННЫЕ ИГРОКА ══════\n" + matchContext +
-        "\n⚠️ Все данные — про ИГРОКА. Ты ассистент.";
+      base += "\n\n══════ ДАННЫЕ ИГРОКА ══════\n" + matchContext + "\n⚠️ Данные про ИГРОКА. Ты ассистент.";
     }
 
     return base;
@@ -234,12 +213,12 @@ var ExternalAI = {
     var position = res.position ? ("Pos " + res.position) : this.detectPosition(p, durMin);
     var modeName = this.MODE_NAMES[m.game_mode] || ("Режим #" + m.game_mode);
     var ctx = [];
-    ctx.push("🎮 ИГРОК ИГРАЛ НА ГЕРОЕ: " + heroName.toUpperCase());
+    ctx.push("🎮 ГЕРОЙ: " + heroName.toUpperCase());
     ctx.push("РЕЖИМ: " + modeName);
     if (position) ctx.push("ПОЗИЦИЯ: " + position);
     ctx.push("РЕЗУЛЬТАТ: " + (res.won ? "ПОБЕДА 🏆" : "ПОРАЖЕНИЕ 💀"));
     ctx.push("МАТЧ #" + (m.match_id || "?") + ", " + durMin.toFixed(0) + " мин");
-    ctx.push("KDA игрока: " + p.kills + "/" + p.deaths + "/" + p.assists);
+    ctx.push("KDA: " + p.kills + "/" + p.deaths + "/" + p.assists);
     ctx.push("GPM: " + Math.round(p.gold_per_min || 0) + " | XPM: " + Math.round(p.xp_per_min || 0));
     ctx.push("Ластхиты: " + (p.last_hits || 0) + " | Денаи: " + (p.denies || 0));
     ctx.push("Урон: " + Math.round(p.hero_damage || 0) + " | Нетворс: " + Math.round(p.total_gold || 0));
@@ -316,7 +295,6 @@ var ExternalAI = {
       if (waitMs > 20000) throw new Error("Mistral cooldown");
       await self.sleep(Math.min(waitMs, 20000));
     }
-    var lastError = null;
     for (var i = 0; i < self.mistralModels.length; i++) {
       var model = self.mistralModels[i];
       try {
@@ -325,7 +303,6 @@ var ExternalAI = {
         self.rateLimitedUntil = 0;
         return text;
       } catch (err) {
-        lastError = err;
         if (err.code === 429) { console.warn("429 " + model); continue; }
         if (err.code === 401) throw new Error("Неверный API-ключ");
         console.warn(model + " failed: " + err.message);
@@ -349,7 +326,6 @@ var ExternalAI = {
     return false;
   },
 
-  /* ═══ Автоматический поиск (ИИ сам смотрит в интернет когда тупит) ═══ */
   ask: async function (query, matchContext, onStage) {
     if (!this.enabled) throw new Error("external-ai-disabled");
     if (this.busy) throw new Error("busy");
@@ -368,7 +344,6 @@ var ExternalAI = {
       if (onStage) onStage("first");
       var text1 = await this.askMistral(query, matchContext, heroAbilitiesInfo, null);
 
-      /* Авто-поиск в интернете если ответ слабый */
       var canSearch = (typeof WebSearch !== "undefined") && WebSearch && (typeof WebSearch.search === "function");
       if (this.isWeakAnswer(text1) && canSearch) {
         if (onStage) onStage("search");
@@ -395,8 +370,10 @@ var ExternalAI = {
   },
 
   shouldUseExternal: function () { return true; },
-  init: function () { console.log("external-ai v25.0 · БЕЗ словаря сленга — всё через промпт + интернет"); }
+  init: function () { console.log("external-ai v25.0 · без словаря, только промпт + интернет"); }
 };
 
 if (typeof Store !== "undefined") {
-  setTimeout(function () { ExternalAI.init(); }, 
+  setTimeout(function () { ExternalAI.init(); }, 100);
+}
+
