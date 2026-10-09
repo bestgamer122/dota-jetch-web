@@ -1,5 +1,5 @@
 /* DOTA JETCH — ИИ-АССИСТЕНТ v25.0 FINAL
-   ВСЕ ФИКСЫ: сохранение matchId, фоновые запросы, красивый скролл, кнопка вниз. */
+   Сохранение матча, фоновые запросы, красивый скролл, кнопка вниз, анимация */
 
 var chatHistory = [];
 var isResponding = false;
@@ -13,32 +13,20 @@ async function loadChatMatchContext(matchId, heroName) {
   if (!match || !match.players) throw new Error("Матч не найден");
   var heroes = await getHeroes();
   if (!heroes || !heroes.length) throw new Error("Герои недоступны");
-
   var hero = null;
   for (var i = 0; i < heroes.length; i++) {
     if (heroes[i].name === heroName) { hero = heroes[i]; break; }
   }
   if (!hero) throw new Error("Герой не найден");
-
   var player = null;
   for (var j = 0; j < match.players.length; j++) {
     if (match.players[j].hero_id === hero.id) { player = match.players[j]; break; }
   }
   if (!player) throw new Error("Игрок не найден");
-
   var isRadiant = player.player_slot < 128;
   var won = (match.radiant_win && isRadiant) || (!match.radiant_win && !isRadiant);
   var durMin = (match.duration || 0) / 60;
-
-  return {
-    match: match,
-    player: player,
-    hero: hero,
-    heroes: heroes,
-    won: won,
-    durMin: durMin,
-    position: null
-  };
+  return { match: match, player: player, hero: hero, heroes: heroes, won: won, durMin: durMin, position: null };
 }
 
 function isChatAtBottom(log) {
@@ -225,7 +213,6 @@ function renderChat() {
   setTimeout(async function () {
     var l = qs("#chatLog");
     if (!l) return;
-
     var saved = Store.get("chathistory", []);
     if (Array.isArray(saved) && saved.length) {
       chatHistory = saved;

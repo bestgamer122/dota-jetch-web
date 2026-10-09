@@ -1,7 +1,5 @@
-/* DOTA JETCH — ANALYZE v3.4
-   - Fix: last_hits / denies / hero_damage могут быть undefined
-   - Fix: MODE_NAMES расширен
-   - Fix: пересчёт pct в buildMetrics */
+/* DOTA JETCH — ANALYZE v3.5
+   Кнопка "Обсудить с ИИ" вместо встроенного AI-блока */
 
 var MODE_NAMES = {
   1: "All Pick", 2: "Captains Mode", 3: "Random Draft", 4: "Single Draft",
@@ -151,6 +149,25 @@ function getItemRecs(p, hero, match, allHeroes) {
   return out.slice(0, 6);
 }
 
+/* Кнопка "Обсудить с ИИ" */
+function buildChatButton(res) {
+  if (!res || !res.match || !res.hero) return null;
+  var card = el("div", { class: "card" });
+  card.style.cssText = "background:linear-gradient(135deg,rgba(139,92,246,0.15),var(--bg-card));border-color:var(--accent);text-align:center;";
+  card.appendChild(el("div", { style: "font-size:32px;margin-bottom:8px;" }, "💬"));
+  card.appendChild(el("div", { style: "font-size:15px;font-weight:700;color:var(--text);margin-bottom:6px;" }, "Обсудить с ИИ"));
+  card.appendChild(el("div", { class: "dim", style: "font-size:12px;line-height:1.5;margin-bottom:16px;max-width:340px;margin-left:auto;margin-right:auto;" },
+    "Спроси почему проиграл, кто руинер, что надо было собрать — ИИ ответит с учётом ЭТОГО матча."));
+  var btn = UI.btn("Открыть чат с ИИ");
+  btn.style.cssText = "width:100%;padding:14px;font-size:14px;font-weight:800;";
+  btn.addEventListener("click", function () {
+    Store.set("chatselectedmatch", { matchId: res.match.match_id, heroName: res.hero.name });
+    switchPage("chat");
+  });
+  card.appendChild(btn);
+  return card;
+}
+
 function renderAnalyze() {
   var frag = document.createDocumentFragment();
   var plus = (typeof checkLicense === "function") ? checkLicense() : (Store.get("license.active", false) === true);
@@ -162,8 +179,9 @@ function renderAnalyze() {
     frag.appendChild(resetBtn);
     var report = el("div", { id: "analyzeReport" });
     report.appendChild(buildReport(lastAnalysis));
+    var chatBtn = buildChatButton(lastAnalysis);
+    if (chatBtn) report.appendChild(chatBtn);
     frag.appendChild(report);
-    if (typeof addAiBlockToReport === "function") setTimeout(addAiBlockToReport, 100);
     return frag;
   }
 
@@ -223,7 +241,8 @@ async function onAnalyzeClick() {
     if (!plus) analyzeQuotaInc();
     report.innerHTML = "";
     report.appendChild(buildReport(res));
-    if (typeof addAiBlockToReport === "function") setTimeout(addAiBlockToReport, 100);
+    var chatBtn = buildChatButton(res);
+    if (chatBtn) report.appendChild(chatBtn);
     lastAnalysis = res;
     if (typeof History !== "undefined") History.add(res);
     if (typeof Achievements !== "undefined") Achievements.onAnalyze(res);
@@ -357,4 +376,4 @@ function buildMetrics(r) {
   return card;
 }
 
-console.log("analyze v3.4 ready (undefined-safe)");
+console.log("analyze v3.5 ready (chat button instead of AI block)");
