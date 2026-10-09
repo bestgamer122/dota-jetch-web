@@ -1,8 +1,8 @@
-/* DOTA JETCH — EXTERNAL AI v23.0 FINAL
-   + Авто-поиск при слабом ответе (Wikipedia + DuckDuckGo)
-   + max_tokens 2500 — длинные ответы не обрываются
-   + Защита от отсутствия WebSearch
-   + Умный isWeakAnswer (не триггерит поиск зря) */
+/* DOTA JETCH — EXTERNAL AI v25.0 FINAL
+   + УБРАН slangDict — ИИ сам знает сленг, промпт ему всё объясняет
+   + applySlang = только дедуп "Форс (Форс)" → "Форс"
+   + Авто-поиск в интернете если ИИ тупанул
+   + max_tokens 2500, этапы, защита от крашей */
 
 var ExternalAI = {
   enabled: true,
@@ -14,8 +14,7 @@ var ExternalAI = {
   mistralUrl: "https://api.mistral.ai/v1/chat/completions",
   mistralModels: ["mistral-small-latest", "open-mistral-nemo"],
 
-  rateLimitedUntil: 0,
-  currentModelIdx: 0,
+  rateLimitedUntil: 0,  currentModelIdx: 0,
 
   MODE_NAMES: {
     1: "All Pick", 2: "Captains Mode", 3: "Random Draft", 4: "Single Draft",
@@ -102,32 +101,7 @@ var ExternalAI = {
     return null;
   },
 
-  slangDict: {
-    "Aghanim's Scepter": "Аганим", "Aghanim's Shard": "Шард",
-    "Black King Bar": "БКБ", "Monkey King Bar": "МКБ",
-    "Battle Fury": "БФ", "Manta Style": "Манта",
-    "Radiance": "Радик", "Scythe of Vyse": "Хекс",
-    "Blink Dagger": "Блинк", "Heart of Tarrasque": "Тараска",
-    "Linken's Sphere": "Линка", "Eye of Skadi": "Скади",
-    "Force Staff": "Форс", "Ghost Scepter": "Гост",
-    "Glimmer Cape": "Глиммер", "Desolator": "Дезоль",
-    "Diffusal Blade": "Дифуза", "Satanic": "Сатаник",
-    "Shiva's Guard": "Шива", "Butterfly": "Бабочка",
-    "Silver Edge": "Сильвер", "Shadow Blade": "ШБ",
-    "Power Treads": "Треды", "Phase Boots": "Фейзы",
-    "Arcane Boots": "Арканы", "Town Portal Scroll": "ТП",
-    "Smoke of Deceit": "Смок", "Dust of Appearance": "Даст",
-    "Sentry Ward": "Сентри", "Observer Ward": "Вард",
-    "Gem of True Sight": "Гем", "Divine Rapier": "Рапира",
-    "Blade Mail": "БМ", "Mask of Madness": "МоМ",
-    "Urn of Shadows": "Урна", "Pipe of Insight": "Пайп",
-    "Guardian Greaves": "Грейвы", "Hand of Midas": "Мидас",
-    "Refresher Orb": "Рефрешер", "Octarine Core": "Октарин",
-    "Abyssal Blade": "Абиссал", "Crimson Guard": "Кримсон",
-    "Solar Crest": "Солярка", "Aeon Disk": "Аеон"
-  },
-
-  /* ═══ РЕЧЕВЫЕ ПРАВИЛА (замена странных форм) ═══ */
+  /* ═══ РЕЧЕВЫЕ ПРАВИЛА (только русские опечатки, не сленг) ═══ */
   speechFixes: [
     [/\bденан(?:ы|ов|а|у|ом|е)?\b/gi, "денаи"],
     [/\bденануть\b/gi, "заденаить"],
@@ -144,16 +118,24 @@ var ExternalAI = {
     return out;
   },
 
+  /* ═══ МИНИМАЛЬНАЯ чистка: только дедуп "Форс (Форс)" → "Форс" ═══
+     Никаких словарей. ИИ сам знает сленг. Мы только убираем дубли. */
   applySlang: function (text) {
     var out = String(text);
+
+    /* Жирный: одиночные * → ** */
     out = out.replace(/(^|[\s.,!?:;])\*([^\*\n]{1,60})\*(?=[\s.,!?:;]|$)/g, "$1**$2**");
-    var keys = Object.keys(this.slangDict).sort(function (a, b) { return b.length - a.length; });
-    for (var k = 0; k < keys.length; k++) {
-      var en = keys[k]; var ru = this.slangDict[en];
-      var escaped = en.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      var re = new RegExp("\\b" + escaped + "\\b", "g");
-      out = out.replace(re, ru);
-    }
+
+    /* Дедуп "X (X)" → "X" — латиница или кириллица, слово/фраза до 50 символов */
+    out = out.replace(/([A-Za-zА-Яа-яЁё][A-Za-zА-Яа-яЁё0-9'’\-\s]{0,50}?)\s*\(\s*\1\s*\)/g, "$1");
+
+    /* Дедуп "English (Русский)" где English уже переведён → убираем скобку с переводом
+       Пример: "Force Staff (Форс)" → "Force Staff". НО мы НЕ переводим,
+       оставляем как написал ИИ. Смысл: не дублировать перевод.
+       Однако если ИИ написал "Force Staff (Форс)" — оставляем как есть,
+       потому что это ОК: английское название + сленг в скобках. */
+    /* (не трогаем, чтобы не ломать нормальный формат) */
+
     out = this.applySpeechFixes(out);
     return out;
   },
@@ -173,25 +155,23 @@ var ExternalAI = {
       "",
       "🚫 ЧИТЫ: НЕ помогай с читами, хаками, скриптами.",
       "",
-      "═══ ПРАВИЛЬНЫЕ РУССКИЕ ТЕРМИНЫ ═══",
-      "• Денаи (не 'денан', не 'денанов')",
-      "• Ластхиты (не 'ластхитс')",
-      "• Крипы (не 'крипс')",
-      "• Варды (не 'вардс')",
-      "• Фарм, ганг, руны, Рошан, мид, керри, саппорт, оффлейн",
-      "• БКБ, МКБ, БФ, Радик, Манта, Дезоль, Дифуза, Хекс, Еул, Гост, Линка, Тараска",
+      "═══ СЛЕНГ И НАЗВАНИЯ ═══",
+      "• Пиши как дотер — используй сленг: БКБ, МКБ, БФ, Радик, Манта, Дезоль, Дифуза, Хекс, Еул, Гост, Линка, Тараска, Атос, Сосуд, Блудорн, Аганим, Шард, Треды, Фейзы, Арканы.",
+      "• Если НЕ уверен в сленге — пиши английское название как есть (Blade Mail, Force Staff), БЕЗ перевода в скобках.",
+      "• НЕ дублируй название и перевод: не пиши 'Black King Bar (БКБ)'. Пиши 'БКБ' ИЛИ 'Black King Bar'.",
+      "• Правильные термины: денаи (не 'денан'), ластхиты (не 'ластхитс'), крипы (не 'крипс'), варды (не 'вардс').",
       "",
       "═══ ФОРМАТ ОТВЕТА ═══",
-      "• Используй **жирный** для ключевых слов (ДВОЙНЫЕ звёздочки).",
+      "• **Жирный** через ДВОЙНЫЕ звёздочки.",
       "• Списки через `• `. Эмодзи для разделов. Пустая строка между блоками.",
-      "• Заголовки через `###` для разделов.",
+      "• Заголовки через `###`.",
       "• НЕ пиши вступления 'Конечно!' / 'Отличный вопрос!' — сразу к делу.",
       "",
       "═══ ДЛИНА ═══",
       "• Короткий вопрос (до 10 слов) → 2-4 предложения.",
       "• Вопрос про матч → до 350 слов.",
       "• Общий вопрос → 150-250 слов.",
-      "• Если нужно подробно (сборка, гайд) — до 500 слов, развёрнуто, БЕЗ обрывов.",
+      "• Подробно (сборка, гайд) — до 500 слов, БЕЗ обрывов.",
       "",
       "═══ СТИЛЬ ═══",
       "• Пиши как дотер: керри, мид, сап, фармить, ганкать, руинить.",
@@ -355,24 +335,21 @@ var ExternalAI = {
     throw new Error("Mistral исчерпан");
   },
 
-  /* ═══ УМНАЯ проверка: плохой ли ответ ═══ */
   isWeakAnswer: function (text) {
     if (!text) return true;
     var t = String(text).toLowerCase();
     var words = t.split(/\s+/).filter(function (w) { return w.length > 0; }).length;
-    /* Явные признаки плохого ответа */
     if (t.indexOf("не знаю") >= 0) return true;
     if (t.indexOf("не уверен") >= 0) return true;
     if (t.indexOf("не могу точно") >= 0) return true;
     if (t.indexOf("попробуй переформулировать") >= 0) return true;
     if (t.indexOf("уточни") >= 0 && words < 30) return true;
     if (t.indexOf("извини") >= 0 && words < 25) return true;
-    /* Очень короткий ответ на существенный запрос */
     if (words < 15) return true;
     return false;
   },
 
-  /* ═══ Автоматический поиск при плохом ответе ═══ */
+  /* ═══ Автоматический поиск (ИИ сам смотрит в интернет когда тупит) ═══ */
   ask: async function (query, matchContext, onStage) {
     if (!this.enabled) throw new Error("external-ai-disabled");
     if (this.busy) throw new Error("busy");
@@ -388,11 +365,10 @@ var ExternalAI = {
     this.lastError = null;
 
     try {
-      /* Первый запрос без поиска */
       if (onStage) onStage("first");
       var text1 = await this.askMistral(query, matchContext, heroAbilitiesInfo, null);
 
-      /* Если ответ слабый — пробуем с поиском */
+      /* Авто-поиск в интернете если ответ слабый */
       var canSearch = (typeof WebSearch !== "undefined") && WebSearch && (typeof WebSearch.search === "function");
       if (this.isWeakAnswer(text1) && canSearch) {
         if (onStage) onStage("search");
@@ -419,10 +395,8 @@ var ExternalAI = {
   },
 
   shouldUseExternal: function () { return true; },
-  init: function () { console.log("external-ai v23.0 FINAL · авто-поиск + длинные ответы"); }
+  init: function () { console.log("external-ai v25.0 · БЕЗ словаря сленга — всё через промпт + интернет"); }
 };
 
 if (typeof Store !== "undefined") {
-  setTimeout(function () { ExternalAI.init(); }, 100);
-}
-
+  setTimeout(function () { ExternalAI.init(); }, 
