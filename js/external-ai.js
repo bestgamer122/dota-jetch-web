@@ -1,43 +1,108 @@
-/* DOTA JETCH — EXTERNAL AI v10.0
-   Mistral с retry (429 fix) + ротация моделей + рабочие CORS-прокси + Pollinations fallback. */
+/* DOTA JETCH — EXTERNAL AI v11.0
+   FIX: убраны CORS-прокси (не нужны — Mistral CORS открыт).
+   FIX: 429 обрабатывается с exponential backoff.
+   FIX: промпт переписан — императив на короткие ответы, русские скиллы, дотерский сленг. */
 
 var ExternalAI = {
   enabled: true,
   busy: false,
   lastError: null,
-  TIMEOUT_MS: 20000,
+  TIMEOUT_MS: 25000,
 
   mistralKey: "mstrl_fmvy3EYwtaIGtaLRiqrwMK2RRFOZtVcb_1McbHV",
   mistralUrl: "https://api.mistral.ai/v1/chat/completions",
 
-  /* Модели по приоритету — если одна упирается в лимит, берём следующую */
+  /* Только рабочие модели (без открытых моделей типа mixtral — они тоже под rate limit) */
   mistralModels: [
     "mistral-small-latest",
-    "open-mistral-nemo",
-    "open-mixtral-8x7b",
-    "mistral-tiny"
+    "open-mistral-nemo"
   ],
 
-  /* Рабочие CORS-прокси для POST с headers (2026) */
-  corsProxies: [
-    "https://cors.eu.org/",
-    "https://test.cors.workers.dev/?"
-  ],
-
-  /* Внутреннее состояние: блокировка после 429 */
   rateLimitedUntil: 0,
   currentModelIdx: 0,
 
+  /* ─── Переименования скиллов: EN → RU ─── */
+  skillTranslations: {
+    "Shadowraze": "Тень-разряд (Q/W/E)",
+    "Necromastery": "Некромастери",
+    "Presence of the Dark Lord": "Присутствие Тёмного Лорда",
+    "Requiem": "Реквием",
+    "Spectral Dagger": "Призрачный клинок",
+    "Desolate": "Опустошение",
+    "Dispersion": "Рассеивание",
+    "Haunt": "Преследование",
+    "Reality": "Реальность",
+    "Spectral Dash": "Призрачный клинок",
+    "Ghost Scepter": "Скипетр призрака",
+    "Manta Style": "Стиль манты",
+    "Linken's Sphere": "Сфера Линкена",
+    "Aghanim's Shard": "Осколок Аганима",
+    "Aghanim's Scepter": "Скипетр Аганима",
+    "Black King Bar": "БКБ",
+    "Blink Dagger": "Блинк",
+    "Battle Fury": "Батл Фьюри",
+    "Radiance": "Радианс",
+    "Butterfly": "Бабочка",
+    "Satanic": "Сатаник",
+    "Skadi": "Скади",
+    "Eye of Skadi": "Око Скади",
+    "Heart of Tarrasque": "Сердце Тарраска",
+    "Assault Cuirass": "Асу",
+    "Silver Edge": "Сильвер Эдж",
+    "Monkey King Bar": "МКБ",
+    "Daedalus": "Дедалус",
+    "Diffusal Blade": "Дифуза",
+    "Abyssal Blade": "Абиссал",
+    "Sange and Yasha": "СнЯ",
+    "BKB": "БКБ"
+  },
+
+  translateSkills: function (text) {
+    var out = String(text);
+    for (var en in this.skillTranslations) {
+      if (!this.skillTranslations.hasOwnProperty(en)) continue;
+      var ru = this.skillTranslations[en];
+      var re = new RegExp("\\b" + en.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + "\\b", "g");
+      out = out.replace(re, ru);
+    }
+    return out;
+  },
+
+  /* ─── НОВЫЙ жёсткий промпт ─── */
   systemPrompt: function (matchContext) {
-    var base = "Ты DotaJetch AI — эксперт по Dota 2 на патче 7.38+. " +
-      "Отвечай на русском, кратко и конкретно. Используй реальные факты из Dota 2. " +
-      "Не выдумывай героев, предметы или механики. Давай конкретные советы с таймингами, предметами и цифрами. " +
-      "Если не уверен — скажи честно. Пиши понятно, без воды.";
+    var base = [
+      "Ты DotaJetch AI — дотерский тренер. Общаешься как опытный игрок 7000+ MMR с другом.",
+      "",
+      "🚨 ЖЁСТКИЕ ПРАВИЛА:",
+      "",
+      "1. **Все названия способностей — ТОЛЬКО по-русски**, если есть общепринятый перевод.",
+      "   Пример: Shadowraze → Тень-разряд, Spectral Dagger → Призрачный клинок, Requiem → Реквием, Dispersion → Рассеивание, Haunt → Преследование.",
+      "   Пример: Ghost Scepter → Скипетр призрака, Manta Style → Манта, BKB → БКБ, Blink Dagger → Блинк.",
+      "   Английские аббревиатуры (BKB, MKB, BKB) — можно оставить, их все знают.",
+      "",
+      "2. **Длина ответа — 150-350 слов МАКСИМУМ**. Не пиши трактаты. Коротко, по делу.",
+      "",
+      "3. **Формат ответа** (markdown обязателен):",
+      "   • **Жирный** для важного",
+      "   • Эмодзи для разделов (⚔️ 🛡 💰 🎯 ⚠️ ✅)",
+      "   • Списки через `• `",
+      "   • Пустая строка между блоками",
+      "",
+      "4. **Сленг дотеров приветствуется**: керри, мид, сап, оффлейн, фармить, крипы, ганкать, руинить, харасить, дизенгейджить, килить, лузать, изи, имба, ГГ.",
+      "",
+      "5. **Не используй сложные термины без пояснения**. Если пишешь 'дизенгейдж' — поясни '(выход из файта)'.",
+      "",
+      "6. **Если игрок спрашивает про свой матч** — опирайся на данные ниже и отвечай про ЭТОГО героя и ЭТУ игру.",
+      "",
+      "7. **Не пиши вступления типа 'Конечно!' или 'Отличный вопрос!'**. Сразу к делу.",
+      "",
+      "8. **Не используй 'ты' с маленькой буквы в уничижительном смысле**. Обращайся по-дружески."
+    ].join("\n");
+
     if (matchContext) {
-      base += "\n\n=== КОНТЕКСТ МАТЧА ИГРОКА ===\n" + matchContext +
-        "\n=== КОНЕЦ КОНТЕКСТА ===\n\n" +
-        "Отвечай как тренер, который смотрел этот матч. " +
-        "Если игрок спрашивает про матч — учитывай героя, KDA, GPM, врагов и союзников из контекста выше.";
+      base += "\n\n══════ ДАННЫЕ МАТЧА ══════\n" + matchContext +
+        "\n══════════════════════════\n\n" +
+        "⚠️ ВАЖНО: игрок играл на герое, указанном в самом верху. Все советы, разборы и рекомендации — именно про этого героя и эту игру. Не пиши общих фраз.";
     }
     return base;
   },
@@ -52,26 +117,25 @@ var ExternalAI = {
     return null;
   },
 
+  /* ─── Контекст: герой идёт ПЕРВОЙ строкой и капсом ─── */
   buildMatchContext: function () {
     var res = this.getContextSource();
     if (!res) return null;
     var p = res.player, m = res.match;
-    var ctx = [];
+    var heroName = res.hero ? res.hero.name : "?";
 
-    ctx.push("Герой игрока: " + (res.hero ? res.hero.name : "?"));
-    ctx.push("Матч #" + (m.match_id || "?"));
-    ctx.push("Результат: " + (res.won ? "ПОБЕДА" : "ПОРАЖЕНИЕ"));
-    ctx.push("Длительность: " + ((m.duration || 0) / 60).toFixed(0) + " мин");
+    var ctx = [];
+    ctx.push("🎮 ИГРОК ИГРАЛ НА ГЕРОЕ: " + heroName.toUpperCase());
+    ctx.push("Результат: " + (res.won ? "ПОБЕДА 🏆" : "ПОРАЖЕНИЕ 💀"));
+    ctx.push("Матч: #" + (m.match_id || "?") + ", длительность: " + ((m.duration || 0) / 60).toFixed(0) + " мин");
     if (res.position) ctx.push("Позиция: " + res.position);
 
     ctx.push("KDA: " + p.kills + "/" + p.deaths + "/" + p.assists +
       " (" + ((p.kills + p.assists) / Math.max(p.deaths, 1)).toFixed(2) + ")");
-    ctx.push("GPM: " + Math.round(p.gold_per_min || 0) + ", XPM: " + Math.round(p.xp_per_min || 0));
-    ctx.push("Ластхиты: " + (p.last_hits || 0) + ", Денаи: " + (p.denies || 0));
-    ctx.push("Урон по героям: " + Math.round(p.hero_damage || 0));
-    ctx.push("Урон по строениям: " + Math.round(p.tower_damage || 0));
-    ctx.push("Хил: " + Math.round(p.hero_healing || 0));
-    ctx.push("Нетворс: " + Math.round(p.total_gold || p.gold || 0));
+    ctx.push("GPM: " + Math.round(p.gold_per_min || 0) + " | XPM: " + Math.round(p.xp_per_min || 0));
+    ctx.push("Ластхиты: " + (p.last_hits || 0) + " | Денаи: " + (p.denies || 0));
+    ctx.push("Урон по героям: " + Math.round(p.hero_damage || 0) + " | по строениям: " + Math.round(p.tower_damage || 0));
+    ctx.push("Хил: " + Math.round(p.hero_healing || 0) + " | Нетворс: " + Math.round(p.total_gold || p.gold || 0));
 
     if (res.performance) {
       ctx.push("Оценка: " + res.performance.grade + " (" + res.performance.score + "/100)");
@@ -96,6 +160,16 @@ var ExternalAI = {
       if (enemies.length) ctx.push("Враги: " + enemies.join(", "));
     }
 
+    /* Последние предметы игрока */
+    if (res.items && m.players) {
+      var meItems = [];
+      for (var k = 0; k < 6; k++) {
+        var itemId = p["item_" + k] || 0;
+        if (itemId > 0 && res.items[itemId]) meItems.push(res.items[itemId].name);
+      }
+      if (meItems.length) ctx.push("Финальный инвентарь игрока: " + meItems.join(", "));
+    }
+
     return ctx.join("\n");
   },
 
@@ -106,12 +180,11 @@ var ExternalAI = {
     return fetch(url, options).finally(function () { clearTimeout(timeoutId); });
   },
 
-  /* ─── Пауза ─── */
   sleep: function (ms) {
     return new Promise(function (r) { setTimeout(r, ms); });
   },
 
-  /* ─── Один запрос к Mistral (с указанной моделью) ─── */
+  /* ─── Прямой запрос к Mistral ─── */
   mistralRequest: function (model, userQuery, matchContext) {
     var self = this;
     var body = {
@@ -120,8 +193,8 @@ var ExternalAI = {
         { role: "system", content: self.systemPrompt(matchContext) },
         { role: "user", content: userQuery }
       ],
-      temperature: 0.7,
-      max_tokens: 1000
+      temperature: 0.6,
+      max_tokens: 700
     };
     var headers = {
       "Content-Type": "application/json",
@@ -138,9 +211,12 @@ var ExternalAI = {
       if (res.status === 429) {
         throw { code: 429, message: "Rate limit" };
       }
+      if (res.status === 401) {
+        throw { code: 401, message: "Неверный API-ключ" };
+      }
       if (!res.ok) {
         return res.text().then(function (t) {
-          throw { code: res.status, message: "HTTP " + res.status + ": " + t.slice(0, 150) };
+          throw { code: res.status, message: "HTTP " + res.status + ": " + t.slice(0, 200) };
         });
       }
       return res.text();
@@ -148,70 +224,36 @@ var ExternalAI = {
     .then(function (text) {
       var json = JSON.parse(text);
       if (json.choices && json.choices[0] && json.choices[0].message) {
-        return json.choices[0].message.content;
+        return self.translateSkills(json.choices[0].message.content);
       }
       throw { code: -1, message: "Пустой ответ" };
     });
   },
 
-  /* ─── Через CORS-прокси ─── */
-  mistralViaProxy: function (proxy, model, userQuery, matchContext) {
-    var self = this;
-    var body = {
-      model: model,
-      messages: [
-        { role: "system", content: self.systemPrompt(matchContext) },
-        { role: "user", content: userQuery }
-      ],
-      temperature: 0.7,
-      max_tokens: 1000
-    };
-    var headers = {
-      "Content-Type": "application/json",
-      "Authorization": "Bearer " + self.mistralKey,
-      "Accept": "application/json"
-    };
-    var proxiedUrl = proxy + self.mistralUrl;
-
-    return self.fetchWithTimeout(proxiedUrl, {
-      method: "POST",
-      headers: headers,
-      body: JSON.stringify(body)
-    }, self.TIMEOUT_MS)
-    .then(function (res) {
-      if (res.status === 429) throw { code: 429, message: "Rate limit" };
-      if (!res.ok) throw { code: res.status, message: "Proxy HTTP " + res.status };
-      return res.text();
-    })
-    .then(function (text) {
-      var json = JSON.parse(text);
-      if (json.choices && json.choices[0] && json.choices[0].message) {
-        return json.choices[0].message.content;
-      }
-      throw { code: -1, message: "Пустой ответ" };
-    });
-  },
-
-  /* ─── Полный цикл Mistral с retry и ротацией моделей ─── */
+  /* ─── Mistral с правильным backoff ─── */
   askMistral: async function (userQuery, matchContext) {
     var self = this;
 
-    /* Если недавно был 429 — сразу переходим к следующей модели */
+    /* Если ещё в cooldown — сразу пропускаем */
     var now = Date.now();
     if (now < self.rateLimitedUntil) {
       var waitMs = self.rateLimitedUntil - now;
-      console.log("Rate limited, жду " + Math.round(waitMs/1000) + " сек...");
-      await self.sleep(Math.min(waitMs, 4000));
+      console.log("Mistral cooldown, жду " + Math.round(waitMs/1000) + " сек...");
+      if (waitMs > 5000) {
+        throw new Error("Mistral в cooldown " + Math.round(waitMs/1000) + " сек");
+      }
+      await self.sleep(waitMs);
     }
 
-    /* Пробуем каждую модель по очереди */
     var startIdx = self.currentModelIdx;
+    var lastError = null;
+
     for (var i = 0; i < self.mistralModels.length; i++) {
       var modelIdx = (startIdx + i) % self.mistralModels.length;
       var model = self.mistralModels[modelIdx];
 
-      /* 2 попытки прямого запроса к Mistral */
-      for (var attempt = 0; attempt < 2; attempt++) {
+      /* 3 попытки на модель с exponential backoff */
+      for (var attempt = 0; attempt < 3; attempt++) {
         try {
           console.log("Mistral [" + model + "] попытка " + (attempt+1));
           var text = await self.mistralRequest(model, userQuery, matchContext);
@@ -219,43 +261,36 @@ var ExternalAI = {
           self.rateLimitedUntil = 0;
           return text;
         } catch (err) {
+          lastError = err;
+
           if (err.code === 429) {
-            console.warn("Mistral " + model + " 429 (rate limit)");
-            self.rateLimitedUntil = Date.now() + 3000;
-            if (attempt === 0) {
-              await self.sleep(2000);
+            console.warn("Mistral " + model + " 429, attempt " + (attempt+1));
+            /* Exponential backoff: 2s, 4s, 8s */
+            var backoff = 2000 * Math.pow(2, attempt);
+            if (attempt < 2) {
+              await self.sleep(backoff);
               continue;
             }
-            /* Переходим к следующей модели */
+            /* После 3 попыток на модели — переключаемся на следующую */
+            self.rateLimitedUntil = Date.now() + 10000;
             break;
           }
-          /* Другие ошибки (сеть, CORS) — пробуем через прокси */
-          console.warn("Mistral direct [" + model + "] failed:", err.message || err);
-          break;
-        }
-      }
 
-      /* Пробуем через CORS-прокси */
-      for (var p = 0; p < self.corsProxies.length; p++) {
-        try {
-          console.log("Proxy [" + self.corsProxies[p] + "] model [" + model + "]");
-          var ptext = await self.mistralViaProxy(self.corsProxies[p], model, userQuery, matchContext);
-          self.currentModelIdx = modelIdx;
-          return ptext;
-        } catch (err) {
-          if (err.code === 429) {
-            self.rateLimitedUntil = Date.now() + 3000;
-            break;
+          if (err.code === 401) {
+            throw new Error("Неверный API-ключ Mistral");
           }
-          console.warn("Proxy failed:", err.message || err);
+
+          /* Другие ошибки — 1 попытка и переключение */
+          console.warn("Mistral " + model + " failed:", err.message);
+          break;
         }
       }
     }
 
-    throw new Error("Все модели Mistral исчерпаны");
+    throw new Error("Mistral исчерпан: " + (lastError ? lastError.message : "?"));
   },
 
-  /* ─── Pollinations ─── */
+  /* ─── Pollinations (fallback) ─── */
   askPollinations: function (userQuery, matchContext) {
     var self = this;
     var body = {
@@ -264,8 +299,8 @@ var ExternalAI = {
         { role: "system", content: self.systemPrompt(matchContext) },
         { role: "user", content: userQuery }
       ],
-      temperature: 0.7,
-      max_tokens: 1000
+      temperature: 0.6,
+      max_tokens: 700
     };
     return self.fetchWithTimeout("https://text.pollinations.ai/openai", {
       method: "POST",
@@ -279,9 +314,11 @@ var ExternalAI = {
     .then(function (text) {
       try {
         var json = JSON.parse(text);
-        if (json.choices && json.choices[0] && json.choices[0].message) return json.choices[0].message.content;
+        if (json.choices && json.choices[0] && json.choices[0].message) {
+          return self.translateSkills(json.choices[0].message.content);
+        }
       } catch (e) {}
-      if (text && text.length > 10) return text;
+      if (text && text.length > 10) return self.translateSkills(text);
       throw new Error("Pollinations пусто");
     });
   },
@@ -296,12 +333,12 @@ var ExternalAI = {
     try {
       return await this.askMistral(query, matchContext);
     } catch (err) {
-      console.warn("Mistral exhausted:", err.message, "→ Pollinations");
+      console.warn("Mistral полностью упал:", err.message, "→ Pollinations");
       try {
         return await this.askPollinations(query, matchContext);
       } catch (err2) {
         this.lastError = err2;
-        throw new Error("Все внешние ИИ недоступны");
+        throw new Error("Не могу получить ответ. Попробуй через 30 секунд.");
       }
     } finally {
       this.busy = false;
@@ -311,7 +348,7 @@ var ExternalAI = {
   shouldUseExternal: function () { return true; },
 
   init: function () {
-    console.log("external-ai v10.0 ready · Mistral (4 модели + retry) + 2 CORS-прокси + Pollinations");
+    console.log("external-ai v11.0 ready · Mistral (backoff) → Pollinations · RU skill names");
   }
 };
 
