@@ -1,5 +1,5 @@
-/* DOTA JETCH — ИИ-АССИСТЕНТ v19.0
-   Гибридная ИИ: локальный brain + внешняя нейросеть (мульти-провайдер) */
+/* DOTA JETCH — ИИ-АССИСТЕНТ v20.0
+   Гибридная ИИ: локальный brain + внешняя нейросеть (Mistral) */
 
 var chatHistory = [];
 var isResponding = false;
@@ -186,14 +186,14 @@ async function onChatSend() {
     var source = "local";
 
     if (typeof ExternalAI !== "undefined" && ExternalAI.shouldUseExternal(q, localAnswer)) {
-      think.addStep("Локальная база не уверена — подключаю внешнюю ИИ...");
+      think.addStep("Локальная база не уверена — подключаю Mistral...");
       try {
         var matchCtx = ExternalAI.buildMatchContext();
         var externalText = await ExternalAI.ask(q, matchCtx);
         if (externalText && externalText.length > 10) {
           finalText = externalText;
           source = "external";
-          think.addStep("✓ Внешняя ИИ дала ответ");
+          think.addStep("✓ Mistral дал ответ");
         }
       } catch (err) {
         console.warn("External AI failed:", err);
@@ -216,7 +216,7 @@ async function onChatSend() {
     think.finalize();
 
     if (source === "external") {
-      finalText = "🌐 " + finalText + "\n\n_— ответ дополнен внешней нейросетью_";
+      finalText = "🌐 " + finalText + "\n\n_— ответ дополнен Mistral AI_";
     }
 
     if (typeof localAnswer.confidence === "number" && localAnswer.confidence < 0.6 && localAnswer.confidence > 0 && source === "local") {

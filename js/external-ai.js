@@ -1,31 +1,25 @@
-/* DOTA JETCH — EXTERNAL AI v6.0
-   Мульти-провайдер: UncloseAI + KeylessAI + FreeLLM + Pollinations.
-   Таймаут 8 сек, автоматическое переключение. */
+/* DOTA JETCH — EXTERNAL AI v7.0
+   Mistral AI (основной, с ключом) + Pollinations (fallback).
+   CORS открыт, работает из браузера напрямую. */
 
 var ExternalAI = {
   enabled: true,
   busy: false,
   lastError: null,
-  TIMEOUT_MS: 8000,
+  TIMEOUT_MS: 12000,
+
+  /* ─── Ключ Mistral ─── */
+  mistralKey: "mstrl_fmvy3EYwtaIGtaLRiqrwMK2RRFOZtVcb_1McbHV",
+  mistralModel: "mistral-small-latest",
+  mistralUrl: "https://api.mistral.ai/v1/chat/completions",
 
   providers: [
     {
-      name: "UncloseAI",
-      url: "https://hermes.ai.unturf.com/v1/chat/completions",
-      model: "adamo1139/Hermes-3-Llama-3.1-8B-FP8-Dynamic",
-      headers: { "Content-Type": "application/json", "Authorization": "Bearer unused" }
-    },
-    {
-      name: "KeylessAI",
-      url: "https://keylessai.thryx.workers.dev/v1/chat/completions",
-      model: "gpt-4o-mini",
-      headers: { "Content-Type": "application/json" }
-    },
-    {
-      name: "FreeLLM",
-      url: "https://free-llm-api.jianchuan.workers.dev/v1/chat/completions",
-      model: "gpt-4o-mini",
-      headers: { "Content-Type": "application/json", "Authorization": "Bearer free" }
+      name: "Mistral",
+      url: "https://api.mistral.ai/v1/chat/completions",
+      model: "mistral-small-latest",
+      headers: null, // строится динамически из ключа
+      useMistralKey: true
     },
     {
       name: "Pollinations",
@@ -45,6 +39,17 @@ var ExternalAI = {
     return base;
   },
 
+  buildHeaders: function (provider) {
+    if (provider.useMistralKey) {
+      return {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer " + this.mistralKey,
+        "Accept": "application/json"
+      };
+    }
+    return provider.headers || { "Content-Type": "application/json" };
+  },
+
   askProvider: function (provider, userQuery, matchContext) {
     var self = this;
     var body = {
@@ -62,13 +67,17 @@ var ExternalAI = {
 
     return fetch(provider.url, {
       method: "POST",
-      headers: provider.headers,
+      headers: self.buildHeaders(provider),
       body: JSON.stringify(body),
       signal: controller.signal
     })
     .then(function (res) {
       clearTimeout(timeoutId);
-      if (!res.ok) throw new Error(provider.name + " HTTP " + res.status);
+      if (!res.ok) {
+        return res.text().then(function (errText) {
+          throw new Error(provider.name + " HTTP " + res.status + ": " + errText.slice(0, 200));
+        });
+      }
       return res.text();
     })
     .then(function (text) {
@@ -97,7 +106,10 @@ var ExternalAI = {
     var chain = Promise.reject(new Error("start"));
     for (var i = 0; i < this.providers.length; i++) {
       (function (provider) {
-        chain = chain.catch(function () {
+        chain = chain.catch(function (err) {
+          if (err && err.message !== "start") {
+            console.warn("Provider " + provider.name + " failed:", err.message);
+          }
           return self.askProvider(provider, query, matchContext);
         });
       })(this.providers[i]);
@@ -106,7 +118,7 @@ var ExternalAI = {
     return chain
       .catch(function (err) {
         self.lastError = err;
-        throw new Error("Все внешние ИИ недоступны");
+        throw new Error("Все внешние ИИ недоступны: " + err.message);
       })
       .finally(function () { self.busy = false; });
   },
@@ -152,7 +164,7 @@ var ExternalAI = {
   },
 
   init: function () {
-    console.log("external-ai v6.0 ready · UncloseAI → KeylessAI → FreeLLM → Pollinations");
+    console.log("external-ai v7.0 ready · Mistral (mistral-small-latest) + Pollinations fallback");
   }
 };
 
