@@ -1,5 +1,5 @@
-/* DOTA JETCH — EXTERNAL AI v20.0 FINAL
-   Глубокое мышление + реальные способности + режим игры + чёрный список */
+/* DOTA JETCH — EXTERNAL AI v21.0 FINAL
+   Без "Глубокого мышления". Чистый Mistral. */
 
 var ExternalAI = {
   enabled: true,
@@ -64,23 +64,6 @@ var ExternalAI = {
     return null;
   },
 
-  isMatchQuestion: function (query) {
-    var q = String(query || "").toLowerCase();
-    var words = ["матч", "проигра", "победил", "выиграл", "луз",
-      "кда", "kda", "гпм", "gpm", "хпм", "xpm",
-      "ластхит", "денай", "нетфорс", "нетворс",
-      "руинер", "заруинил", "виноват", "слабый игрок",
-      "смерт", "умира", "фарм", "харасил", "ганкал",
-      "этот матч", "этой игре", "в этой игре", "моя игра",
-      "мой герой", "моя позиция",
-      "собрать", "собрал", "билд", "предметы в",
-      "почему я", "как я", "что я",
-      "разбери", "разбор", "анализ",
-      "совет по игре", "что делать в игре"];
-    for (var i = 0; i < words.length; i++) if (q.indexOf(words[i]) >= 0) return true;
-    return false;
-  },
-
   findHeroAbilities: function (query) {
     var q = String(query || "").toLowerCase();
     var aliases = {
@@ -143,7 +126,6 @@ var ExternalAI = {
 
   applySlang: function (text) {
     var out = String(text);
-    /* Одиночные * → ** только если рядом нет звёздочек */
     out = out.replace(/(^|[\s.,!?:;])\*([^\*\n]{1,60})\*(?=[\s.,!?:;]|$)/g, "$1**$2**");
     var keys = Object.keys(this.slangDict).sort(function (a, b) { return b.length - a.length; });
     for (var k = 0; k < keys.length; k++) {
@@ -155,7 +137,7 @@ var ExternalAI = {
     return out;
   },
 
-  systemPrompt: function (matchContext, useMatchContext, heroAbilitiesInfo, searchData, deepThinkMode) {
+  systemPrompt: function (matchContext, heroAbilitiesInfo) {
     var base = [
       "Ты — DotaJetch AI, ИИ-АССИСТЕНТ. Ты НЕ играешь в Dota 2. Ты НЕ герой.",
       "Твоя задача — помогать игроку советами. Ты тренер, не игрок.",
@@ -193,17 +175,7 @@ var ExternalAI = {
         "\n⚠️ Используй ТОЛЬКО эти способности.";
     }
 
-    if (searchData && typeof WebSearch !== "undefined") {
-      base += "\n\n══════ РЕЗУЛЬТАТЫ ПОИСКА ══════\n" +
-        WebSearch.formatForPrompt(searchData) +
-        "\n⚠️ Используй ТОЛЬКО эту информацию.";
-    }
-
-    if (deepThinkMode && !searchData && !heroAbilitiesInfo) {
-      base += "\n\n⚠️ РЕЖИМ ГЛУБОКОГО МЫШЛЕНИЯ, но поиск не дал результатов. Если не знаешь — скажи 'Не знаю точно'.";
-    }
-
-    if (useMatchContext && matchContext) {
+    if (matchContext) {
       base += "\n\n══════ ДАННЫЕ ИГРОКА ══════\n" + matchContext +
         "\n⚠️ Все данные — про ИГРОКА. Ты ассистент.";
     }
@@ -282,12 +254,12 @@ var ExternalAI = {
 
   sleep: function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); },
 
-  mistralRequest: function (model, userQuery, matchContext, useMatchContext, heroAbilitiesInfo, searchData, deepThinkMode) {
+  mistralRequest: function (model, userQuery, matchContext, heroAbilitiesInfo) {
     var self = this;
     var body = {
       model: model,
       messages: [
-        { role: "system", content: self.systemPrompt(matchContext, useMatchContext, heroAbilitiesInfo, searchData, deepThinkMode) },
+        { role: "system", content: self.systemPrompt(matchContext, heroAbilitiesInfo) },
         { role: "user", content: userQuery }
       ],
       temperature: 0.3,
@@ -318,7 +290,7 @@ var ExternalAI = {
     });
   },
 
-  askMistral: async function (userQuery, matchContext, useMatchContext, heroAbilitiesInfo, searchData, deepThinkMode) {
+  askMistral: async function (userQuery, matchContext, heroAbilitiesInfo) {
     var self = this;
     var now = Date.now();
     if (now < self.rateLimitedUntil) {
@@ -330,8 +302,8 @@ var ExternalAI = {
     for (var i = 0; i < self.mistralModels.length; i++) {
       var model = self.mistralModels[i];
       try {
-        console.log("Mistral [" + model + "]" + (searchData ? " +search" : ""));
-        var text = await self.mistralRequest(model, userQuery, matchContext, useMatchContext, heroAbilitiesInfo, searchData, deepThinkMode);
+        console.log("Mistral [" + model + "]");
+        var text = await self.mistralRequest(model, userQuery, matchContext, heroAbilitiesInfo);
         self.rateLimitedUntil = 0;
         return text;
       } catch (err) {
@@ -345,7 +317,7 @@ var ExternalAI = {
     throw new Error("Mistral исчерпан");
   },
 
-  ask: async function (query, matchContext, deepThinkMode) {
+  ask: async function (query, matchContext) {
     if (!this.enabled) throw new Error("external-ai-disabled");
     if (this.busy) throw new Error("busy");
 
@@ -354,31 +326,14 @@ var ExternalAI = {
       return "🚫 Не помогаю с читами, хаками и скриптами для Dota 2. За такое банят аккаунт.\n\nСпроси что-нибудь по игре.";
     }
 
-    var useMatchContext = this.isMatchQuestion(query);
     var heroAbilitiesInfo = this.findHeroAbilities(query);
-    var searchData = null;
-
-    if (deepThinkMode && typeof WebSearch !== "undefined") {
-      if (!heroAbilitiesInfo && !useMatchContext) {
-        console.log("[DeepThink] Ищу: " + query);
-        try { searchData = await WebSearch.search(query); } catch (e) { console.warn("Search failed:", e.message); }
-      }
-    }
 
     this.busy = true;
     this.lastError = null;
     try {
-      return await this.askMistral(query, matchContext, useMatchContext, heroAbilitiesInfo, searchData, deepThinkMode);
+      return await this.askMistral(query, matchContext, heroAbilitiesInfo);
     } catch (err) {
       console.warn("Mistral упал:", err.message);
-      if (searchData) {
-        var fallback = "📚 Нашёл в интернете:\n\n";
-        for (var i = 0; i < searchData.results.length; i++) {
-          var r = searchData.results[i];
-          fallback += "**" + r.title + "**\n" + r.snippet + "\n\n";
-        }
-        return fallback;
-      }
       throw new Error("Сервис перегружен. Попробуй через минуту.");
     } finally {
       this.busy = false;
@@ -386,7 +341,7 @@ var ExternalAI = {
   },
 
   shouldUseExternal: function () { return true; },
-  init: function () { console.log("external-ai v20.0 FINAL"); }
+  init: function () { console.log("external-ai v21.0 FINAL · без глубокого мышления"); }
 };
 
 if (typeof Store !== "undefined") {

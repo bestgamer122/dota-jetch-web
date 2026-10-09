@@ -1,7 +1,6 @@
-/* DOTA JETCH — ИИ-АССИСТЕНТ v29.0 FINAL
-   + НАДЁЖНЫЙ рендер markdown через split **
-   + Балансировка звёздочек при typing
-   + Автоскролл при отправке */
+/* DOTA JETCH — ИИ-АССИСТЕНТ v30.0 FINAL
+   Убрано "Глубокое мышление". Оставлен чистый Mistral.
+   Надёжный рендер ** через split. */
 
 var chatHistory = [];
 var isResponding = false;
@@ -14,77 +13,41 @@ if (typeof window !== "undefined") {
 /* ═══ НАДЁЖНЫЙ рендер inline markdown ═══ */
 function renderInline(text) {
   var h = String(text);
-
-  /* Жирный: split по ** и оборачиваем нечётные части */
   var parts = h.split("**");
   var out = "";
   for (var i = 0; i < parts.length; i++) {
-    if (i % 2 === 1) {
-      out += "<strong>" + parts[i] + "</strong>";
-    } else {
-      out += parts[i];
-    }
+    if (i % 2 === 1) out += "<strong>" + parts[i] + "</strong>";
+    else out += parts[i];
   }
-
-  /* Курсив: _текст_ */
   out = out.replace(/(^|[^\w])_(.+?)_([^\w]|$)/g, '$1<em style="color:var(--text-muted);">$2</em>$3');
-
-  /* Убираем все оставшиеся одиночные * (они бесполезны) */
   out = out.replace(/\*/g, "");
-
   return out;
 }
 
-/* ═══ Балансировка звёздочек для typing ═══ */
 function balanceAsterisks(text) {
   var count = (text.match(/\*\*/g) || []).length;
   if (count % 2 === 1) {
-    /* Непарная ** — отрезаем всё после последней */
     var idx = text.lastIndexOf("**");
     if (idx > 0) text = text.slice(0, idx);
   }
   return text;
 }
 
-/* ═══ Полный рендер markdown ═══ */
 function renderMarkdownFull(text) {
   if (!text) return "";
   var lines = String(text).split("\n");
   var out = [];
   for (var i = 0; i < lines.length; i++) {
     var line = lines[i];
-    /* HTML escape */
     line = line.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-
-    /* Пустая строка */
     if (line.trim() === "") { out.push('<div style="height:8px;"></div>'); continue; }
-
-    /* HR */
-    if (/^---+$/.test(line.trim())) {
-      out.push('<hr style="border:none;border-top:1px solid var(--border);margin:8px 0;">');
-      continue;
-    }
-
-    /* Заголовки ### и ## */
+    if (/^---+$/.test(line.trim())) { out.push('<hr style="border:none;border-top:1px solid var(--border);margin:8px 0;">'); continue; }
     var h3 = line.match(/^###\s+(.+)$/);
-    if (h3) {
-      out.push('<div style="margin-top:10px;font-size:13px;font-weight:700;color:var(--accent-light);">' + renderInline(h3[1]) + '</div>');
-      continue;
-    }
+    if (h3) { out.push('<div style="margin-top:10px;font-size:13px;font-weight:700;color:var(--accent-light);">' + renderInline(h3[1]) + '</div>'); continue; }
     var h2 = line.match(/^##\s+(.+)$/);
-    if (h2) {
-      out.push('<div style="margin-top:12px;font-size:14px;font-weight:700;color:var(--accent-light);">' + renderInline(h2[1]) + '</div>');
-      continue;
-    }
-
-    /* Списки */
+    if (h2) { out.push('<div style="margin-top:12px;font-size:14px;font-weight:700;color:var(--accent-light);">' + renderInline(h2[1]) + '</div>'); continue; }
     var li = line.match(/^[-•]\s+(.+)$/);
-    if (li) {
-      out.push('<div style="padding:2px 0 2px 14px;">• ' + renderInline(li[1]) + '</div>');
-      continue;
-    }
-
-    /* Обычная строка */
+    if (li) { out.push('<div style="padding:2px 0 2px 14px;">• ' + renderInline(li[1]) + '</div>'); continue; }
     out.push('<div>' + renderInline(line) + '</div>');
   }
   return out.join("");
@@ -215,37 +178,6 @@ function buildMatchDropdown(history, onSelect) {
   } };
 }
 
-/* ═══ Кнопка "Глубокое мышление" ═══ */
-function buildDeepThinkToggle() {
-  var wrap = el("div", { style: "display:flex;align-items:center;gap:8px;margin-bottom:10px;" });
-  var enabled = Store.get("deepthink", false) === true;
-
-  var btn = el("button", {
-    type: "button", id: "deepThinkBtn",
-    style: "display:flex;align-items:center;gap:8px;padding:8px 14px;background:" + (enabled ? "linear-gradient(135deg,rgba(139,92,246,0.25),rgba(34,211,238,0.15))" : "var(--bg-elev)") + ";border:1px solid " + (enabled ? "var(--accent)" : "var(--border)") + ";border-radius:10px;color:" + (enabled ? "var(--accent-light)" : "var(--text-muted)") + ";font-size:12px;font-weight:600;font-family:inherit;cursor:pointer;transition:all 0.2s ease;"
-  });
-  var icon = el("span", { style: "font-size:14px;" }, "🧠");
-  var label = el("span", {}, "Глубокое мышление");
-  var status = el("span", { style: "font-size:10px;opacity:0.7;" }, enabled ? "вкл" : "выкл");
-  btn.appendChild(icon); btn.appendChild(label); btn.appendChild(status);
-
-  btn.addEventListener("click", function () {
-    enabled = !enabled;
-    Store.set("deepthink", enabled);
-    if (enabled) {
-      btn.style.background = "linear-gradient(135deg,rgba(139,92,246,0.25),rgba(34,211,238,0.15))";
-      btn.style.borderColor = "var(--accent)"; btn.style.color = "var(--accent-light)";
-      status.textContent = "вкл";
-    } else {
-      btn.style.background = "var(--bg-elev)"; btn.style.borderColor = "var(--border)";
-      btn.style.color = "var(--text-muted)"; status.textContent = "выкл";
-    }
-  });
-
-  wrap.appendChild(btn);
-  return wrap;
-}
-
 /* ═══ Главный рендер чата ═══ */
 function renderChat() {
   var plus = Store.get("license.active", false) === true;
@@ -271,7 +203,6 @@ function renderChat() {
   log.addEventListener("scroll", function () { updateScrollDownBtn(log); });
 
   var inputCard = el("div", { class: "card" });
-  inputCard.appendChild(buildDeepThinkToggle());
   inputCard.appendChild(el("div", { class: "dim", style: "font-size:11px;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.08em;" }, "Выбери матч для контекста"));
 
   var history = Store.get("recentmatches", []) || [];
@@ -304,7 +235,7 @@ function renderChat() {
       var ctx = await loadChatMatchContext(parseInt(matchId, 10), heroName);
       window.chatMatchContext = ctx;
       inputEl.disabled = false; sendBtn.disabled = false;
-      inputEl.placeholder = "Спроси про матч или что угодно..."; inputEl.focus();
+      inputEl.placeholder = "Спроси про матч..."; inputEl.focus();
       if (statusEl) { statusEl.textContent = "Готово. Спрашивай."; statusEl.style.color = "var(--green)"; }
     } catch (e) {
       console.error("loadChatMatchContext:", e);
@@ -331,9 +262,9 @@ function renderChat() {
     } else {
       chatHistory = [];
       if (!history.length) {
-        addChatMessage(l, "assistant", "Привет. Разбери матч на вкладке «Анализ» или включи 🧠 «Глубокое мышление» чтобы задать любой вопрос.", false);
+        addChatMessage(l, "assistant", "Привет. Разбери матч на вкладке «Анализ» — потом выбери его тут и спрашивай.", false);
       } else {
-        addChatMessage(l, "assistant", "Привет. Выбери матч из списка или включи 🧠 «Глубокое мышление».", false);
+        addChatMessage(l, "assistant", "Привет. Выбери матч из списка выше — я загружу его данные и буду отвечать с учётом игры.", false);
       }
     }
     l.scrollTop = l.scrollHeight;
@@ -350,7 +281,7 @@ function renderChat() {
           window.chatMatchContext = ctx;
           var inputEl = qs("#chatInput");
           var sendBtn = qs("#chatSendBtn");
-          if (inputEl) { inputEl.disabled = false; inputEl.placeholder = "Спроси про матч или что угодно..."; }
+          if (inputEl) { inputEl.disabled = false; inputEl.placeholder = "Спроси про матч..."; }
           if (sendBtn) sendBtn.disabled = false;
           if (statusEl) { statusEl.textContent = "Готово. Спрашивай."; statusEl.style.color = "var(--green)"; }
         } catch (e) {
@@ -454,18 +385,18 @@ async function onChatSend() {
   var plus = Store.get("license.active", false) === true;
   if (!plus) return;
 
+  if (!window.chatMatchContext) {
+    var log0 = qs("#chatLog");
+    if (log0) addChatMessage(log0, "assistant", "Сначала выбери матч из списка сверху.");
+    return;
+  }
+
   var inp = qs("#chatInput");
   var log = qs("#chatLog");
   var btn = qs("#chatSendBtn");
   if (!inp || !log) return;
   var q = (inp.value || "").trim();
   if (!q) return;
-
-  var deepThink = Store.get("deepthink", false) === true;
-  if (!deepThink && !window.chatMatchContext) {
-    addChatMessage(log, "assistant", "Выбери матч сверху или включи 🧠 «Глубокое мышление».");
-    return;
-  }
 
   isResponding = true;
   inp.disabled = true; btn.disabled = true; inp.value = "";
@@ -486,23 +417,18 @@ async function onChatSend() {
 
   try {
     var matchCtx = ExternalAI.buildMatchContext();
-    var useMatch = ExternalAI.isMatchQuestion(q);
     var heroAbilities = ExternalAI.findHeroAbilities(q);
 
     if (heroAbilities) {
       think.addStep("Знаю способности " + heroAbilities.hero + " ✓");
-    } else if (useMatch && matchCtx) {
-      think.addStep("Читаю данные матча...");
-    } else if (deepThink) {
-      think.addStep("Ищу в интернете (Wikipedia + DuckDuckGo)...");
     } else {
-      think.addStep("Формулирую ответ...");
+      think.addStep("Читаю данные матча...");
     }
     forceScrollToBottom(log);
 
     window.__chatPending = { query: q, matchContext: matchCtx, result: null };
 
-    var externalText = await ExternalAI.ask(q, matchCtx, deepThink);
+    var externalText = await ExternalAI.ask(q, matchCtx);
 
     think.updateStep("Формулирую ответ...");
     forceScrollToBottom(log);
@@ -515,22 +441,18 @@ async function onChatSend() {
     var bubble = addChatMessage(log, "assistant", "", false);
     forceScrollToBottom(log);
 
-    /* ═══ Плавная печать с балансировкой markdown ═══ */
     var i = 0;
     userScrolledUp = false;
     function typeTick() {
       if (i < finalText.length) {
         i += 3;
         if (i > finalText.length) i = finalText.length;
-        var partial = finalText.slice(0, i);
-        /* Балансируем ** перед рендером */
-        partial = balanceAsterisks(partial);
+        var partial = balanceAsterisks(finalText.slice(0, i));
         bubble.innerHTML = renderMarkdownFull(partial);
         if (!userScrolledUp) log.scrollTop = log.scrollHeight;
         if (i % 6 === 0) updateScrollDownBtn(log);
         setTimeout(typeTick, 12);
       } else {
-        /* Финальный рендер полного текста */
         bubble.innerHTML = renderMarkdownFull(finalText);
         if (!userScrolledUp) log.scrollTop = log.scrollHeight;
         updateScrollDownBtn(log);
