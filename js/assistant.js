@@ -1,6 +1,7 @@
-/* DOTA JETCH — ИИ-АССИСТЕНТ v30.0 FINAL
-   Убрано "Глубокое мышление". Оставлен чистый Mistral.
-   Надёжный рендер ** через split. */
+/* DOTA JETCH — ИИ-АССИСТЕНТ v31.0 FINAL
+   + Этапы генерации вернулись
+   + Авто-поиск в интернете
+   + Надёжный рендер markdown */
 
 var chatHistory = [];
 var isResponding = false;
@@ -39,21 +40,37 @@ function renderMarkdownFull(text) {
   var out = [];
   for (var i = 0; i < lines.length; i++) {
     var line = lines[i];
-    line = line.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    /* Пустая строка */
     if (line.trim() === "") { out.push('<div style="height:8px;"></div>'); continue; }
-    if (/^---+$/.test(line.trim())) { out.push('<hr style="border:none;border-top:1px solid var(--border);margin:8px 0;">'); continue; }
-    var h3 = line.match(/^###\s+(.+)$/);
-    if (h3) { out.push('<div style="margin-top:10px;font-size:13px;font-weight:700;color:var(--accent-light);">' + renderInline(h3[1]) + '</div>'); continue; }
-    var h2 = line.match(/^##\s+(.+)$/);
-    if (h2) { out.push('<div style="margin-top:12px;font-size:14px;font-weight:700;color:var(--accent-light);">' + renderInline(h2[1]) + '</div>'); continue; }
-    var li = line.match(/^[-•]\s+(.+)$/);
-    if (li) { out.push('<div style="padding:2px 0 2px 14px;">• ' + renderInline(li[1]) + '</div>'); continue; }
-    out.push('<div>' + renderInline(line) + '</div>');
+    /* HR */
+    if (/^---+$/.test(line.trim())) {
+      out.push('<hr style="border:none;border-top:1px solid var(--border);margin:8px 0;">');
+      continue;
+    }
+    /* Заголовки (2-4 решётки) */
+    var hMatch = line.match(/^\s*(#{2,4})\s+(.+?)\s*$/);
+    if (hMatch) {
+      var hLevel = hMatch[1].length;
+      var hText = hMatch[2].replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      var size = hLevel === 2 ? 15 : (hLevel === 3 ? 14 : 13);
+      out.push('<div style="margin-top:14px;font-size:' + size + 'px;font-weight:700;color:var(--accent-light);">' + renderInline(hText) + '</div>');
+      continue;
+    }
+    /* Экранируем остальное */
+    var esc = line.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    /* Списки */
+    var li = esc.match(/^\s*[-•]\s+(.+)$/);
+    if (li) {
+      out.push('<div style="padding:2px 0 2px 14px;">• ' + renderInline(li[1]) + '</div>');
+      continue;
+    }
+    /* Обычная строка */
+    out.push('<div>' + renderInline(esc) + '</div>');
   }
   return out.join("");
 }
 
-/* ═══ Загрузка контекста матча ═══ */
+/* ═══ Загрузка контекста ═══ */
 async function loadChatMatchContext(matchId, heroName) {
   var match = await apiGet("/matches/" + matchId);
   if (!match || !match.players) throw new Error("Матч не найден");
@@ -93,7 +110,7 @@ function updateScrollDownBtn(log) {
   else { btn.style.opacity = "1"; btn.style.pointerEvents = "auto"; }
 }
 
-/* ═══ Красивый dropdown ═══ */
+/* ═══ Dropdown ═══ */
 function buildMatchDropdown(history, onSelect) {
   var wrap = el("div", { style: "position:relative;user-select:none;" });
   var btn = el("button", {
@@ -264,7 +281,7 @@ function renderChat() {
       if (!history.length) {
         addChatMessage(l, "assistant", "Привет. Разбери матч на вкладке «Анализ» — потом выбери его тут и спрашивай.", false);
       } else {
-        addChatMessage(l, "assistant", "Привет. Выбери матч из списка выше — я загружу его данные и буду отвечать с учётом игры.", false);
+        addChatMessage(l, "assistant", "Привет. Выбери матч из списка выше — я загружу его данные.", false);
       }
     }
     l.scrollTop = l.scrollHeight;
@@ -335,6 +352,7 @@ function addChatMessage(log, role, text, scroll) {
   return bubble;
 }
 
+/* ═══ THINKING BLOCK С ЭТАПАМИ ═══ */
 function addThinkingBlock(log) {
   var wrap = el("div", { style: "display:flex;gap:10px;align-items:flex-start;opacity:0.85;" });
   var avatar = el("div", { style: "width:30px;height:30px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:bold;background:var(--accent-bg);color:var(--accent-light);border:1px solid var(--accent);" }, "AI");
@@ -419,20 +437,43 @@ async function onChatSend() {
     var matchCtx = ExternalAI.buildMatchContext();
     var heroAbilities = ExternalAI.findHeroAbilities(q);
 
+    /* Этап 1: подготовка */
     if (heroAbilities) {
       think.addStep("Знаю способности " + heroAbilities.hero + " ✓");
     } else {
       think.addStep("Читаю данные матча...");
     }
+    await new Promise(function (r) { setTimeout(r, 300); });
+    forceScrollToBottom(log);
+
+    /* Этап 2: запрос к AI */
+    think.addStep("Анализирую вопрос...");
+    await new Promise(function (r) { setTimeout(r, 300); });
     forceScrollToBottom(log);
 
     window.__chatPending = { query: q, matchContext: matchCtx, result: null };
 
-    var externalText = await ExternalAI.ask(q, matchCtx);
+    /* Этап 3 (опционально): поиск */
+    var stage = "first";
+    var stageSearch = false;
+    var externalText = await ExternalAI.ask(q, matchCtx, function (s) {
+      if (s === "search") {
+        stageSearch = true;
+        think.addStep("Проверяю ответ...");
+      } else if (s === "second") {
+        think.updateStep("Нашёл информацию в интернете ✓");
+      }
+    });
 
+    /* Если был поиск — добавляем видимый этап */
+    if (stageSearch) {
+      forceScrollToBottom(log);
+    }
+
+    /* Финальный этап */
     think.updateStep("Формулирую ответ...");
     forceScrollToBottom(log);
-    await new Promise(function (r) { setTimeout(r, 200); });
+    await new Promise(function (r) { setTimeout(r, 250); });
 
     if (window.__chatPending) window.__chatPending.result = externalText;
 
@@ -441,6 +482,7 @@ async function onChatSend() {
     var bubble = addChatMessage(log, "assistant", "", false);
     forceScrollToBottom(log);
 
+    /* Печать с балансировкой */
     var i = 0;
     userScrolledUp = false;
     function typeTick() {

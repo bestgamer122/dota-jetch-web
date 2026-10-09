@@ -1,5 +1,5 @@
-/* DOTA JETCH — WEB SEARCH v1.0
-   Поиск в интернете без API-ключа: Wikipedia + DuckDuckGo via CORS proxy. */
+/* DOTA JETCH — WEB SEARCH v2.0
+   Автоматический поиск в Wikipedia + DuckDuckGo (без ключа). */
 
 var WebSearch = {
   proxies: [
@@ -104,7 +104,7 @@ var WebSearch = {
 
   formatForPrompt: function (searchData) {
     if (!searchData || !searchData.results || !searchData.results.length) return null;
-    var lines = ["📚 НАЙДЕННАЯ ИНФОРМАЦИЯ ИЗ ИНТЕРНЕТА:"];
+    var lines = ["📚 ИНФОРМАЦИЯ ИЗ ИНТЕРНЕТА:"];
     for (var i = 0; i < searchData.results.length; i++) {
       var r = searchData.results[i];
       lines.push("");
@@ -121,4 +121,4 @@ var WebSearch = {
   }
 };
 
-console.log("web-search v1.0 ready");
+console.log("web-search v2.0 ready");

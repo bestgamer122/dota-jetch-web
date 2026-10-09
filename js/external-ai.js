@@ -1,5 +1,7 @@
-/* DOTA JETCH — EXTERNAL AI v21.0 FINAL
-   Без "Глубокого мышления". Чистый Mistral. */
+/* DOTA JETCH — EXTERNAL AI v22.0 FINAL
+   + Автоматический поиск при плохом ответе
+   + Увеличен max_tokens (2500) — текст не обрывается
+   + Речевые правила (денаи, ластхиты, крипы) */
 
 var ExternalAI = {
   enabled: true,
@@ -124,6 +126,26 @@ var ExternalAI = {
     "Solar Crest": "Солярка", "Aeon Disk": "Аеон"
   },
 
+  /* ═══ РЕЧЕВЫЕ ПРАВИЛА (замена странных форм) ═══ */
+  speechFixes: [
+    [/\bденан(?:ы|ов|а|у|ом|е)?\b/gi, "денаи"],
+    [/\bденануть\b/gi, "заденаить"],
+    [/\bластхитс\b/gi, "ластхиты"],
+    [/\bластхит(?!ы|а|ов|у|е|ом)\b/gi, "ластхит"],
+    [/\bкрипс\b/gi, "крипы"],
+    [/\bвардс\b/gi, "варды"],
+    [/\bгангнуть\b/gi, "гангнуть"],
+    [/\bпофармить\b/gi, "пофармить"]
+  ],
+
+  applySpeechFixes: function (text) {
+    var out = String(text);
+    for (var i = 0; i < this.speechFixes.length; i++) {
+      out = out.replace(this.speechFixes[i][0], this.speechFixes[i][1]);
+    }
+    return out;
+  },
+
   applySlang: function (text) {
     var out = String(text);
     out = out.replace(/(^|[\s.,!?:;])\*([^\*\n]{1,60})\*(?=[\s.,!?:;]|$)/g, "$1**$2**");
@@ -134,10 +156,11 @@ var ExternalAI = {
       var re = new RegExp("\\b" + escaped + "\\b", "g");
       out = out.replace(re, ru);
     }
+    out = this.applySpeechFixes(out);
     return out;
   },
 
-  systemPrompt: function (matchContext, heroAbilitiesInfo) {
+  systemPrompt: function (matchContext, heroAbilitiesInfo, searchData) {
     var base = [
       "Ты — DotaJetch AI, ИИ-АССИСТЕНТ. Ты НЕ играешь в Dota 2. Ты НЕ герой.",
       "Твоя задача — помогать игроку советами. Ты тренер, не игрок.",
@@ -152,16 +175,28 @@ var ExternalAI = {
       "",
       "🚫 ЧИТЫ: НЕ помогай с читами, хаками, скриптами.",
       "",
+      "═══ ПРАВИЛЬНЫЕ РУССКИЕ ТЕРМИНЫ ═══",
+      "• Денаи (не 'денан', не 'денанов')",
+      "• Ластхиты (не 'ластхитс')",
+      "• Крипы (не 'крипс')",
+      "• Варды (не 'вардс')",
+      "• Фарм, ганг, руны, Рошан, мид, керри, саппорт, оффлейн",
+      "• БКБ, МКБ, БФ, Радик, Манта, Дезоль, Дифуза, Хекс, Еул, Гост, Линка, Тараска",
+      "",
       "═══ ФОРМАТ ОТВЕТА ═══",
-      "• Используй **жирный** для ключевых слов (ДВОЙНЫЕ звёздочки, не одинарные).",
+      "• Используй **жирный** для ключевых слов (ДВОЙНЫЕ звёздочки).",
       "• Списки через `• `. Эмодзи для разделов. Пустая строка между блоками.",
       "• Заголовки через `###` для разделов.",
       "• НЕ пиши вступления 'Конечно!' / 'Отличный вопрос!' — сразу к делу.",
       "",
+      "═══ ДЛИНА ═══",
+      "• Короткий вопрос (до 10 слов) → 2-4 предложения.",
+      "• Вопрос про матч → до 350 слов.",
+      "• Общий вопрос → 150-250 слов.",
+      "• Если нужно подробно (сборка, гайд) — до 500 слов, развёрнуто, БЕЗ обрывов.",
       "",
       "═══ СТИЛЬ ═══",
       "• Пиши как дотер: керри, мид, сап, фармить, ганкать, руинить.",
-      "• Сокращения: БКБ, МКБ, БФ, Радик, Манта, Дезоль, Дифуза, Хекс, Еул, Гост, Линка, Тараска.",
       "• Правильно: 'Твой KDA', 'Ты играл на Spectre', НЕ 'Я Спектра'."
     ].join("\n");
 
@@ -169,6 +204,12 @@ var ExternalAI = {
       base += "\n\n══════ РЕАЛЬНЫЕ СПОСОБНОСТИ " + heroAbilitiesInfo.hero.toUpperCase() + " ══════\n" +
         heroAbilitiesInfo.abilities +
         "\n⚠️ Используй ТОЛЬКО эти способности.";
+    }
+
+    if (searchData) {
+      base += "\n\n══════ РЕЗУЛЬТАТЫ ПОИСКА ══════\n" +
+        WebSearch.formatForPrompt(searchData) +
+        "\n⚠️ Используй ТОЛЬКО эту информацию. Не добавляй от себя.";
     }
 
     if (matchContext) {
@@ -250,16 +291,16 @@ var ExternalAI = {
 
   sleep: function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); },
 
-  mistralRequest: function (model, userQuery, matchContext, heroAbilitiesInfo) {
+  mistralRequest: function (model, userQuery, matchContext, heroAbilitiesInfo, searchData) {
     var self = this;
     var body = {
       model: model,
       messages: [
-        { role: "system", content: self.systemPrompt(matchContext, heroAbilitiesInfo) },
+        { role: "system", content: self.systemPrompt(matchContext, heroAbilitiesInfo, searchData) },
         { role: "user", content: userQuery }
       ],
       temperature: 0.3,
-      max_tokens: 900
+      max_tokens: 2500
     };
     var headers = {
       "Content-Type": "application/json",
@@ -286,7 +327,7 @@ var ExternalAI = {
     });
   },
 
-  askMistral: async function (userQuery, matchContext, heroAbilitiesInfo) {
+  askMistral: async function (userQuery, matchContext, heroAbilitiesInfo, searchData) {
     var self = this;
     var now = Date.now();
     if (now < self.rateLimitedUntil) {
@@ -298,8 +339,8 @@ var ExternalAI = {
     for (var i = 0; i < self.mistralModels.length; i++) {
       var model = self.mistralModels[i];
       try {
-        console.log("Mistral [" + model + "]");
-        var text = await self.mistralRequest(model, userQuery, matchContext, heroAbilitiesInfo);
+        console.log("Mistral [" + model + "]" + (searchData ? " +search" : ""));
+        var text = await self.mistralRequest(model, userQuery, matchContext, heroAbilitiesInfo, searchData);
         self.rateLimitedUntil = 0;
         return text;
       } catch (err) {
@@ -313,7 +354,22 @@ var ExternalAI = {
     throw new Error("Mistral исчерпан");
   },
 
-  ask: async function (query, matchContext) {
+  /* ═══ Проверка: плохой ли ответ ═══ */
+  isWeakAnswer: function (text) {
+    if (!text) return true;
+    var t = String(text).toLowerCase();
+    var words = t.split(/\s+/).length;
+    if (words < 60) return true;
+    if (t.indexOf("не знаю") >= 0) return true;
+    if (t.indexOf("не уверен") >= 0) return true;
+    if (t.indexOf("уточни") >= 0) return true;
+    if (t.indexOf("не могу точно") >= 0) return true;
+    if (t.indexOf("попробуй переформулировать") >= 0) return true;
+    return false;
+  },
+
+  /* ═══ Автоматический поиск при плохом ответе ═══ */
+  ask: async function (query, matchContext, onStage) {
     if (!this.enabled) throw new Error("external-ai-disabled");
     if (this.busy) throw new Error("busy");
 
@@ -326,8 +382,29 @@ var ExternalAI = {
 
     this.busy = true;
     this.lastError = null;
+
     try {
-      return await this.askMistral(query, matchContext, heroAbilitiesInfo);
+      /* Первый запрос без поиска */
+      if (onStage) onStage("first");
+      var text1 = await this.askMistral(query, matchContext, heroAbilitiesInfo, null);
+
+      /* Если ответ слабый — пробуем с поиском */
+      if (this.isWeakAnswer(text1) && typeof WebSearch !== "undefined") {
+        if (onStage) onStage("search");
+        console.log("[AutoSearch] Слабый ответ, ищу в интернете...");
+        var searchData = null;
+        try { searchData = await WebSearch.search(query); } catch (e) { console.warn("Search failed:", e.message); }
+
+        if (searchData && searchData.results && searchData.results.length) {
+          if (onStage) onStage("second");
+          try {
+            var text2 = await this.askMistral(query, matchContext, heroAbilitiesInfo, searchData);
+            if (text2 && text2.length > text1.length) return text2;
+          } catch (e2) { console.warn("Второй запрос упал:", e2.message); }
+        }
+      }
+
+      return text1;
     } catch (err) {
       console.warn("Mistral упал:", err.message);
       throw new Error("Сервис перегружен. Попробуй через минуту.");
@@ -337,7 +414,7 @@ var ExternalAI = {
   },
 
   shouldUseExternal: function () { return true; },
-  init: function () { console.log("external-ai v21.0 FINAL · без глубокого мышления"); }
+  init: function () { console.log("external-ai v22.0 FINAL · авто-поиск + длинные ответы"); }
 };
 
 if (typeof Store !== "undefined") {
