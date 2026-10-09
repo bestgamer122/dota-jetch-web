@@ -1,5 +1,9 @@
-/* DOTA JETCH — EXTERNAL AI v17.0 FINAL
-   ИИ не герой + режим игры + без выдумок + чёрный список + умный контекст */
+/* DOTA JETCH — EXTERNAL AI v20.0 FINAL
+   + Глубокое мышление с поиском
+   + Реальные способности героев
+   + ИИ ассистент (не герой)
+   + Режим игры
+   + Чёрный список тем */
 
 var ExternalAI = {
   enabled: true,
@@ -9,7 +13,6 @@ var ExternalAI = {
 
   mistralKey: "mstrl_fmvy3EYwtaIGtaLRiqrwMK2RRFOZtVcb_1McbHV",
   mistralUrl: "https://api.mistral.ai/v1/chat/completions",
-
   mistralModels: ["mistral-small-latest", "open-mistral-nemo"],
 
   rateLimitedUntil: 0,
@@ -22,12 +25,33 @@ var ExternalAI = {
     21: "1v1 Mid", 22: "Ranked All Pick", 23: "Turbo", 24: "Mutation"
   },
 
+  heroAbilities: {
+    "Nyx Assassin": "Impale (штыри, стан), Mana Burn (сжигает ману), Spiked Carapace (отражает урон и станит), Vendetta (невидимость + бонус урона).",
+    "Pudge": "Meat Hook (хук), Rot (гниль AoE), Flesh Heap (стаки + магрезист), Dismember (расчленение).",
+    "Invoker": "Quas/Wex/Exort + Sunstrike, Chaos Meteor, EMP, Tornado, Deafening Blast, Cold Snap, Ghost Walk, Ice Wall, Forge Spirit, Alacrity.",
+    "Juggernaut": "Blade Fury (вертушка), Healing Ward, Blade Dance (криты), Omnislash (неуязвимая ульта).",
+    "Phantom Assassin": "Stifling Dagger (даггер), Phantom Strike (прыжок), Blur (уворот), Coup de Grace (криты).",
+    "Spectre": "Spectral Dagger (даггер), Desolate (десолейт), Dispersion (дисперсия), Haunt (хаунт + Reality).",
+    "Slark": "Dark Pact (пакт), Pounce (прыжок), Essence Shift (эссенс шифт), Shadow Dance (шадоу дэнс).",
+    "Shadow Fiend": "Shadowraze (рейзы), Necromastery (некромастери), Presence of the Dark Lord (аура), Requiem (реквием).",
+    "Storm Spirit": "Static Remnant (ремант), Electric Vortex (вихрь), Overload (оверлоад), Ball Lightning (болт).",
+    "Tinker": "Laser (лазер), Heat-Seeking Missile (ракеты), March of the Machines (марш), Rearm (ресет кулдаунов).",
+    "Anti-Mage": "Mana Break (сжигает ману), Blink (блинк), Counterspell (отражает таргет-спеллы), Mana Void (мана войд).",
+    "Zeus": "Arc Lightning (цепная молния), Lightning Bolt (болт), Heavenly Jump (прыжок), Thundergod's Wrath (глобальная ульта).",
+    "Crystal Maiden": "Crystal Nova (нова), Frostbite (фриз), Arcane Aura (аура маны), Freezing Field (ульта).",
+    "Lion": "Earth Spike (спайк), Hex (хекс), Mana Drain (дрейн), Finger of Death (палец).",
+    "Axe": "Berserker's Call (колл), Counter Helix (вертолёт), Battle Hunger (голод), Culling Blade (казнь).",
+    "Lina": "Dragon Slave (драгон слейв), Light Strike Array (столб), Fiery Soul (фиери соул), Laguna Blade (лагуна).",
+    "Riki": "Smoke Screen (смокскрин), Blink Strike (блинк страйк), Tricks of the Trade (трикс), Cloak and Dagger (невидимость).",
+    "Sniper": "Shrapnel (шрапнель), Headshot (хедшот), Take Aim (тейк эйм), Assassinate (ассасинейт).",
+    "Drow Ranger": "Frost Arrows (фрост арроуз), Gust (густ), Multishot (мультишот), Marksmanship (маркманшип)."
+  },
+
   blacklist: [
     "чит", "читы", "читак", "читер",
     "абрелл", "abrella", "breach",
     "hake", "хак", "хакер", "hack", "cheat",
-    "script", "скрипт для дота", "script для доты",
-    "autohotkey", "ahk", "macro", "макрос",
+    "script", "скрипт для дота", "autohotkey", "ahk", "macro", "макрос",
     "чит-мод", "читмод", "чит-меню",
     "aimbot", "аимбот", "wallhack", "волхак",
     "map hack", "maphack", "мапхак",
@@ -46,8 +70,7 @@ var ExternalAI = {
 
   isMatchQuestion: function (query) {
     var q = String(query || "").toLowerCase();
-    var matchWords = [
-      "матч", "проигра", "победил", "выиграл", "луз",
+    var words = ["матч", "проигра", "победил", "выиграл", "луз",
       "кда", "kda", "гпм", "gpm", "хпм", "xpm",
       "ластхит", "денай", "нетфорс", "нетворс",
       "руинер", "заруинил", "виноват", "слабый игрок",
@@ -57,12 +80,44 @@ var ExternalAI = {
       "собрать", "собрал", "билд", "предметы в",
       "почему я", "как я", "что я",
       "разбери", "разбор", "анализ",
-      "совет по игре", "что делать в игре"
-    ];
-    for (var i = 0; i < matchWords.length; i++) {
-      if (q.indexOf(matchWords[i]) >= 0) return true;
-    }
+      "совет по игре", "что делать в игре"];
+    for (var i = 0; i < words.length; i++) if (q.indexOf(words[i]) >= 0) return true;
     return false;
+  },
+
+  findHeroAbilities: function (query) {
+    var q = String(query || "").toLowerCase();
+    var aliases = {
+      "Nyx Assassin": ["никс", "nyx", "нюкса", "нюкс", "никса"],
+      "Pudge": ["пудж", "мясник"],
+      "Invoker": ["инвокер", "вокер"],
+      "Juggernaut": ["жугер", "джага", "джагернаут"],
+      "Phantom Assassin": ["па", "фантомка", "мортра"],
+      "Spectre": ["спектра"],
+      "Slark": ["сларк", "рыба"],
+      "Shadow Fiend": ["сф"],
+      "Storm Spirit": ["шторм"],
+      "Tinker": ["тинкер"],
+      "Anti-Mage": ["ам", "антимаг"],
+      "Zeus": ["зевс"],
+      "Crystal Maiden": ["цм", "кристалка"],
+      "Lion": ["лайон"],
+      "Axe": ["акс"],
+      "Lina": ["лина"],
+      "Riki": ["рики"],
+      "Sniper": ["снайпер"],
+      "Drow Ranger": ["дров", "дровка"]
+    };
+    for (var hero in this.heroAbilities) {
+      if (!this.heroAbilities.hasOwnProperty(hero)) continue;
+      if (q.indexOf(hero.toLowerCase()) >= 0) return { hero: hero, abilities: this.heroAbilities[hero] };
+      if (aliases[hero]) {
+        for (var i = 0; i < aliases[hero].length; i++) {
+          if (q.indexOf(aliases[hero][i]) >= 0) return { hero: hero, abilities: this.heroAbilities[hero] };
+        }
+      }
+    }
+    return null;
   },
 
   slangDict: {
@@ -87,17 +142,7 @@ var ExternalAI = {
     "Guardian Greaves": "Грейвы", "Hand of Midas": "Мидас",
     "Refresher Orb": "Рефрешер", "Octarine Core": "Октарин",
     "Abyssal Blade": "Абиссал", "Crimson Guard": "Кримсон",
-    "Solar Crest": "Солярка", "Aeon Disk": "Аеон",
-    "Meat Hook": "хук", "Omnislash": "омни",
-    "Black Hole": "чёрная дыра", "Ravage": "раваж",
-    "Finger of Death": "палец", "Culling Blade": "казнь",
-    "Berserker's Call": "колл", "Chronosphere": "хроно",
-    "Laguna Blade": "лагуна", "Mana Void": "мана войд",
-    "Requiem": "реквием", "Ball Lightning": "болт",
-    "Charge of Darkness": "чардж", "Sonic Wave": "волна",
-    "Primal Roar": "роар", "Toss": "тосс",
-    "Avalanche": "аваланч", "Spell Steal": "спелл стил",
-    "Telekinesis": "телекинез"
+    "Solar Crest": "Солярка", "Aeon Disk": "Аеон"
   },
 
   applySlang: function (text) {
@@ -105,8 +150,7 @@ var ExternalAI = {
     out = out.replace(/(^|\s)\*([^\*\n]{1,60})\*(?=\s|$|[.,!?:;])/g, "$1**$2**");
     var keys = Object.keys(this.slangDict).sort(function (a, b) { return b.length - a.length; });
     for (var k = 0; k < keys.length; k++) {
-      var en = keys[k];
-      var ru = this.slangDict[en];
+      var en = keys[k]; var ru = this.slangDict[en];
       var escaped = en.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       var re = new RegExp("\\b" + escaped + "\\b", "g");
       out = out.replace(re, ru);
@@ -114,66 +158,59 @@ var ExternalAI = {
     return out;
   },
 
-  systemPrompt: function (matchContext, useMatchContext) {
+  systemPrompt: function (matchContext, useMatchContext, heroAbilitiesInfo, searchData, deepThinkMode) {
     var base = [
       "Ты — DotaJetch AI, ИИ-АССИСТЕНТ. Ты НЕ играешь в Dota 2. Ты НЕ герой.",
-      "Твоя задача — помогать игроку советами. Ты — тренер, а не игрок.",
-      "",
-      "🚨 САМОЕ ВАЖНОЕ:",
-      "   • НИКОГДА не говори 'я играл', 'мой KDA', 'я Spectre' и подобное.",
-      "   • Ты — ассистент. Игрок — твой собеседник. Он играл, а не ты.",
-      "   • Все данные в контексте матча — это данные ИГРОКА, не твои.",
-      "   • Правильно: 'Твой KDA 13/9/16', 'Ты играл на Spectre', НЕ 'Я Спектра'.",
-      "",
-      "🚫 ЗАПРЕЩЕНО отвечать на:",
-      "   • Просьбы написать читы, хаки, скрипты, макросы для Dota 2",
-      "   • Обход античита, инжекторы, aimbot, wallhack, maphack",
-      "   Если спросят — ответь: 'Не помогаю с читами и нечестной игрой. Спроси что-нибудь по Dota 2.'",
+      "Твоя задача — помогать игроку советами. Ты тренер, не игрок.",
       "",
       "🚨 НЕ ВЫДУМЫВАЙ:",
-      "   • Предметы, которых нет в Dota 2 ('Клинок', 'Молот' — запрещены).",
-      "   • Тайминги покупок, если их нет в контексте.",
-      "   • Способности, которых нет у героя.",
+      "• Не выдумывай способности ('удар по голове', 'удар ногами' — запрещено).",
+      "• Не выдумывай предметы (Клинок, Молот — не существуют).",
+      "• Не выдумывай тайминги если их нет в контексте.",
+      "• Если не знаешь — честно скажи 'Не знаю точно'.",
       "",
-      "🎯 КОНТЕКСТ МАТЧА:",
-      "   • Если вопрос про героя/предмет/механику В ОБЩЕМ — отвечай БЕЗ контекста.",
-      "   • Если вопрос про конкретный матч игрока — используй данные из блока ДАННЫЕ.",
+      "🚨 Dota 2 — MOBA с видом сверху. Способности — клики, AoE, снаряды.",
       "",
-      "═══ ФОРМАТ ═══",
-      "• Markdown. **Жирный** через ДВОЙНЫЕ звёздочки.",
-      "• Списки через `• `. Эмодзи для разделов. Пустая строка между блоками.",
-      "• Не пиши вступления типа 'Конечно!' / 'Отличный вопрос!' Сразу к делу.",
+      "🚫 ЧИТЫ: НЕ помогай с читами, хаками, скриптами.",
       "",
-      "═══ ДЛИНА ═══",
-      "• Короткий вопрос (до 10 слов) → 2-4 предложения.",
-      "• Вопрос про матч → до 250 слов.",
-      "• Общий вопрос → 100-150 слов.",
+      "🎯 СТИЛЬ:",
+      "• Пиши как дотер: керри, мид, сап, фармить, ганкать, руинить.",
+      "• Сокращения: БКБ, МКБ, БФ, Радик, Манта, Дезоль, Дифуза, Хекс, Еул, Гост, Линка, Тараска.",
+      "• Markdown. **Жирный** через **ДВОЙНЫЕ** звёздочки.",
+      "• Не пиши вступления 'Конечно!' / 'Отличный вопрос!' — сразу к делу.",
+      "• Короткий вопрос → 2-4 предложения. Вопрос про матч → до 250 слов.",
       "",
-      "═══ СЛЕНГ ═══",
-      "Пиши как дотер: керри, мид, сап, оффлейн, фармить, крипы, ганкать, руинить, лузать, изи, имба, ГГ.",
-      "Сокращения: БКБ, МКБ, БФ, Радик, Манта, Дезоль, Дифуза, Хекс, Еул,",
-      "Гост, Линка, Тараска, Шива, Аганим, Абиссал, Форс, Глиммер, Блинк."
+      "• Правильно: 'Твой KDA', 'Ты играл на Spectre', НЕ 'Я Спектра'."
     ].join("\n");
+
+    if (heroAbilitiesInfo) {
+      base += "\n\n══════ РЕАЛЬНЫЕ СПОСОБНОСТИ " + heroAbilitiesInfo.hero.toUpperCase() + " ══════\n" +
+        heroAbilitiesInfo.abilities +
+        "\n⚠️ Используй ТОЛЬКО эти способности.";
+    }
+
+    if (searchData) {
+      base += "\n\n══════ РЕЗУЛЬТАТЫ ПОИСКА В ИНТЕРНЕТЕ ══════\n" +
+        WebSearch.formatForPrompt(searchData) +
+        "\n⚠️ Используй ТОЛЬКО эту информацию. Не добавляй от себя.";
+    }
+
+    if (deepThinkMode && !searchData && !heroAbilitiesInfo) {
+      base += "\n\n⚠️ РЕЖИМ ГЛУБОКОГО МЫШЛЕНИЯ включён, но поиск не дал результатов." +
+        "\nЕсли не знаешь ответа — честно скажи 'Я не знаю точно'. Не выдумывай.";
+    }
 
     if (useMatchContext && matchContext) {
       base += "\n\n══════ ДАННЫЕ ИГРОКА ══════\n" + matchContext +
-        "\n══════════════════════════\n\n" +
-        "⚠️ Все данные выше — про ИГРОКА, не про тебя. Ты ассистент.\n" +
-        "Используй эти данные ТОЛЬКО для вопросов про этот матч.";
-    } else if (matchContext) {
-      base += "\n\n⚠️ Вопрос НЕ про конкретный матч — отвечай в общем, БЕЗ упоминания игры игрока.";
+        "\n⚠️ Все данные — про ИГРОКА. Ты ассистент.";
     }
 
     return base;
   },
 
   getContextSource: function () {
-    if (typeof window !== "undefined" && window.chatMatchContext && window.chatMatchContext.match) {
-      return window.chatMatchContext;
-    }
-    if (typeof lastAnalysis !== "undefined" && lastAnalysis && lastAnalysis.match) {
-      return lastAnalysis;
-    }
+    if (typeof window !== "undefined" && window.chatMatchContext && window.chatMatchContext.match) return window.chatMatchContext;
+    if (typeof lastAnalysis !== "undefined" && lastAnalysis && lastAnalysis.match) return lastAnalysis;
     return null;
   },
 
@@ -203,24 +240,18 @@ var ExternalAI = {
     var durMin = (m.duration || 0) / 60;
     var position = res.position ? ("Pos " + res.position) : this.detectPosition(p, durMin);
     var modeName = this.MODE_NAMES[m.game_mode] || ("Режим #" + m.game_mode);
-
     var ctx = [];
     ctx.push("🎮 ИГРОК ИГРАЛ НА ГЕРОЕ: " + heroName.toUpperCase());
-    ctx.push("РЕЖИМ ИГРЫ: " + modeName);
-    if (position) ctx.push("ПОЗИЦИЯ ИГРОКА: " + position);
+    ctx.push("РЕЖИМ: " + modeName);
+    if (position) ctx.push("ПОЗИЦИЯ: " + position);
     ctx.push("РЕЗУЛЬТАТ: " + (res.won ? "ПОБЕДА 🏆" : "ПОРАЖЕНИЕ 💀"));
-    ctx.push("МАТЧ #" + (m.match_id || "?") + ", длительность " + durMin.toFixed(0) + " мин");
-    ctx.push("");
-    ctx.push("KDA игрока: " + p.kills + "/" + p.deaths + "/" + p.assists +
-      " (" + ((p.kills + p.assists) / Math.max(p.deaths, 1)).toFixed(2) + ")");
+    ctx.push("МАТЧ #" + (m.match_id || "?") + ", " + durMin.toFixed(0) + " мин");
+    ctx.push("KDA игрока: " + p.kills + "/" + p.deaths + "/" + p.assists);
     ctx.push("GPM: " + Math.round(p.gold_per_min || 0) + " | XPM: " + Math.round(p.xp_per_min || 0));
     ctx.push("Ластхиты: " + (p.last_hits || 0) + " | Денаи: " + (p.denies || 0));
-    ctx.push("Урон: " + Math.round(p.hero_damage || 0) + " по героям, " + Math.round(p.tower_damage || 0) + " по строениям");
-    ctx.push("Хил: " + Math.round(p.hero_healing || 0) + " | Нетворс: " + Math.round(p.total_gold || p.gold || 0));
-    if (res.performance) ctx.push("Оценка: " + res.performance.grade + " (" + res.performance.score + "/100)");
-
+    ctx.push("Урон: " + Math.round(p.hero_damage || 0) + " | Нетворс: " + Math.round(p.total_gold || 0));
     if (res.heroes && m.players) {
-      var isRadiant = p.player_slot < 128;
+      var isRad = p.player_slot < 128;
       var allies = [], enemies = [];
       for (var i = 0; i < m.players.length; i++) {
         var mp = m.players[i];
@@ -229,13 +260,12 @@ var ExternalAI = {
         for (var j = 0; j < res.heroes.length; j++) {
           if (res.heroes[j].id === mp.hero_id) { hn = res.heroes[j].name; break; }
         }
-        var isAlly = (mp.player_slot < 128) === isRadiant;
         var item = hn + " (" + (mp.kills||0) + "/" + (mp.deaths||0) + "/" + (mp.assists||0) + ")";
-        if (isAlly) allies.push(item);
+        if ((mp.player_slot < 128) === isRad) allies.push(item);
         else enemies.push(item);
       }
-      if (allies.length) ctx.push("Союзники игрока: " + allies.join(", "));
-      if (enemies.length) ctx.push("Враги игрока: " + enemies.join(", "));
+      if (allies.length) ctx.push("Союзники: " + allies.join(", "));
+      if (enemies.length) ctx.push("Враги: " + enemies.join(", "));
     }
     return ctx.join("\n");
   },
@@ -249,23 +279,22 @@ var ExternalAI = {
 
   sleep: function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); },
 
-  mistralRequest: function (model, userQuery, matchContext, useMatchContext) {
+  mistralRequest: function (model, userQuery, matchContext, useMatchContext, heroAbilitiesInfo, searchData, deepThinkMode) {
     var self = this;
     var body = {
       model: model,
       messages: [
-        { role: "system", content: self.systemPrompt(matchContext, useMatchContext) },
+        { role: "system", content: self.systemPrompt(matchContext, useMatchContext, heroAbilitiesInfo, searchData, deepThinkMode) },
         { role: "user", content: userQuery }
       ],
-      temperature: 0.4,
-      max_tokens: 800
+      temperature: 0.3,
+      max_tokens: 900
     };
     var headers = {
       "Content-Type": "application/json",
       "Authorization": "Bearer " + self.mistralKey,
       "Accept": "application/json"
     };
-
     return self.fetchWithTimeout(self.mistralUrl, {
       method: "POST",
       headers: headers,
@@ -274,11 +303,7 @@ var ExternalAI = {
     .then(function (res) {
       if (res.status === 429) throw { code: 429, message: "Rate limit" };
       if (res.status === 401) throw { code: 401, message: "Неверный API-ключ" };
-      if (!res.ok) {
-        return res.text().then(function () {
-          throw { code: res.status, message: "HTTP " + res.status };
-        });
-      }
+      if (!res.ok) return res.text().then(function () { throw { code: res.status, message: "HTTP " + res.status }; });
       return res.text();
     })
     .then(function (text) {
@@ -290,7 +315,7 @@ var ExternalAI = {
     });
   },
 
-  askMistral: async function (userQuery, matchContext, useMatchContext) {
+  askMistral: async function (userQuery, matchContext, useMatchContext, heroAbilitiesInfo, searchData, deepThinkMode) {
     var self = this;
     var now = Date.now();
     if (now < self.rateLimitedUntil) {
@@ -302,8 +327,8 @@ var ExternalAI = {
     for (var i = 0; i < self.mistralModels.length; i++) {
       var model = self.mistralModels[i];
       try {
-        console.log("Mistral [" + model + "] context=" + (useMatchContext ? "yes" : "no"));
-        var text = await self.mistralRequest(model, userQuery, matchContext, useMatchContext);
+        console.log("Mistral [" + model + "]" + (searchData ? " +search" : ""));
+        var text = await self.mistralRequest(model, userQuery, matchContext, useMatchContext, heroAbilitiesInfo, searchData, deepThinkMode);
         self.rateLimitedUntil = 0;
         return text;
       } catch (err) {
@@ -317,63 +342,43 @@ var ExternalAI = {
     throw new Error("Mistral исчерпан");
   },
 
-  askPollinations: function (userQuery, matchContext, useMatchContext) {
-    var self = this;
-    var body = {
-      model: "openai",
-      messages: [
-        { role: "system", content: self.systemPrompt(matchContext, useMatchContext) },
-        { role: "user", content: userQuery }
-      ],
-      temperature: 0.4,
-      max_tokens: 800
-    };
-    return self.fetchWithTimeout("https://text.pollinations.ai/openai", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body)
-    }, self.TIMEOUT_MS)
-    .then(function (res) {
-      if (!res.ok) throw new Error("Pollinations HTTP " + res.status);
-      return res.text();
-    })
-    .then(function (text) {
-      try {
-        var json = JSON.parse(text);
-        if (json.choices && json.choices[0] && json.choices[0].message) {
-          return self.applySlang(json.choices[0].message.content);
-        }
-      } catch (e) {}
-      if (text && text.length > 10) return self.applySlang(text);
-      throw new Error("Pollinations пусто");
-    });
-  },
-
-  ask: async function (query, matchContext) {
+  ask: async function (query, matchContext, deepThinkMode) {
     if (!this.enabled) throw new Error("external-ai-disabled");
     if (this.busy) throw new Error("busy");
 
     var blocked = this.isBlacklisted(query);
     if (blocked) {
-      console.warn("Заблокировано: " + blocked);
-      return "🚫 Не помогаю с читами, хаками и скриптами для Dota 2. Это нечестная игра — за такое банят аккаунт.\n\nСпроси что-нибудь по игре: герои, предметы, механики, разбор матча.";
+      return "🚫 Не помогаю с читами, хаками и скриптами для Dota 2. За такое банят аккаунт.\n\nСпроси что-нибудь по игре.";
     }
 
     var useMatchContext = this.isMatchQuestion(query);
-    console.log("Контекст матча: " + (useMatchContext ? "ДА" : "НЕТ"));
+    var heroAbilitiesInfo = this.findHeroAbilities(query);
+    var searchData = null;
+
+    if (deepThinkMode && typeof WebSearch !== "undefined") {
+      if (!heroAbilitiesInfo && !useMatchContext) {
+        console.log("[DeepThink] Ищу: " + query);
+        try {
+          searchData = await WebSearch.search(query);
+        } catch (e) { console.warn("Search failed:", e.message); }
+      }
+    }
 
     this.busy = true;
     this.lastError = null;
     try {
-      return await this.askMistral(query, matchContext, useMatchContext);
+      return await this.askMistral(query, matchContext, useMatchContext, heroAbilitiesInfo, searchData, deepThinkMode);
     } catch (err) {
-      console.warn("Mistral упал:", err.message, "→ Pollinations");
-      try {
-        return await this.askPollinations(query, matchContext, useMatchContext);
-      } catch (err2) {
-        this.lastError = err2;
-        throw new Error("Сервис перегружен. Попробуй через минуту.");
+      console.warn("Mistral упал:", err.message);
+      if (searchData) {
+        var fallback = "📚 Нашёл в интернете:\n\n";
+        for (var i = 0; i < searchData.results.length; i++) {
+          var r = searchData.results[i];
+          fallback += "**" + r.title + "**\n" + r.snippet + "\n\n";
+        }
+        return fallback;
       }
+      throw new Error("Сервис перегружен. Попробуй через минуту.");
     } finally {
       this.busy = false;
     }
@@ -381,9 +386,7 @@ var ExternalAI = {
 
   shouldUseExternal: function () { return true; },
 
-  init: function () {
-    console.log("external-ai v17.0 FINAL · AI не герой + режим игры + без выдумок");
-  }
+  init: function () { console.log("external-ai v20.0 FINAL · поиск + глубокое мышление"); }
 };
 
 if (typeof Store !== "undefined") {

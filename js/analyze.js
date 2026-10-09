@@ -1,5 +1,5 @@
 /* DOTA JETCH — ANALYZE v3.5
-   Кнопка "Обсудить с ИИ" вместо встроенного AI-блока */
+   + Кнопка "Обсудить с ИИ" вместо встроенного AI-блока */
 
 var MODE_NAMES = {
   1: "All Pick", 2: "Captains Mode", 3: "Random Draft", 4: "Single Draft",
@@ -16,28 +16,20 @@ function analyzeTodayKey() {
   var d = new Date();
   return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0");
 }
-
 function analyzeQuota() {
   var today = analyzeTodayKey();
   var q = Store.get("analyzequota", null);
-  if (!q || typeof q !== "object" || q.date !== today) {
-    q = { date: today, count: 0 };
-    Store.set("analyzequota", q);
-  }
+  if (!q || typeof q !== "object" || q.date !== today) { q = { date: today, count: 0 }; Store.set("analyzequota", q); }
   return q;
 }
-
 function analyzeQuotaRemaining() {
   var plus = (typeof checkLicense === "function") ? checkLicense() : (Store.get("license.active", false) === true);
   if (plus) return Infinity;
   var q = analyzeQuota();
   return Math.max(0, ANALYZE_FREE_LIMIT - q.count);
 }
-
 function analyzeQuotaInc() {
-  var q = analyzeQuota();
-  q.count++;
-  Store.set("analyzequota", q);
+  var q = analyzeQuota(); q.count++; Store.set("analyzequota", q);
   if (typeof updateSidebarPlan === "function") updateSidebarPlan();
 }
 
@@ -149,7 +141,6 @@ function getItemRecs(p, hero, match, allHeroes) {
   return out.slice(0, 6);
 }
 
-/* Кнопка "Обсудить с ИИ" */
 function buildChatButton(res) {
   if (!res || !res.match || !res.hero) return null;
   var card = el("div", { class: "card" });
@@ -171,7 +162,6 @@ function buildChatButton(res) {
 function renderAnalyze() {
   var frag = document.createDocumentFragment();
   var plus = (typeof checkLicense === "function") ? checkLicense() : (Store.get("license.active", false) === true);
-
   if (lastAnalysis && lastAnalysis.match) {
     var resetBtn = UI.btn("🔄 Новый анализ", { variant: "ghost" });
     resetBtn.style.marginBottom = "14px";
@@ -281,8 +271,8 @@ function buildReport(r) {
   info.appendChild(kda);
   hInner.appendChild(info);
   var wl = el("div", { style: "text-align:right;" });
-  var wb = r.won ? UI.badge("ПОБЕДА", "var(--green)", "var(--green-bg)") : UI.badge("ПОРАЖЕНИЕ", "var(--red)", "var(--red-bg)");
-  wl.appendChild(wb); hInner.appendChild(wl);
+  wl.appendChild(r.won ? UI.badge("ПОБЕДА", "var(--green)", "var(--green-bg)") : UI.badge("ПОРАЖЕНИЕ", "var(--red)", "var(--red-bg)"));
+  hInner.appendChild(wl);
   head.appendChild(hInner);
   frag.appendChild(head);
 
@@ -376,4 +366,4 @@ function buildMetrics(r) {
   return card;
 }
 
-console.log("analyze v3.5 ready (chat button instead of AI block)");
+console.log("analyze v3.5 ready (chat button)");
