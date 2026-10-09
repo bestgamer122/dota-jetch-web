@@ -1,8 +1,11 @@
-/* DOTA JETCH — ИИ-АССИСТЕНТ v23.0
-   Красивый селектор матча + нейтральные сообщения. */
+/* DOTA JETCH — ИИ-АССИСТЕНТ v24.0
+   + Автопрокрутка с кнопкой "вниз"
+   + Анимация думанья с этапами
+   + Правильное отображение markdown (без кривых звёздочек) */
 
 var chatHistory = [];
 var isResponding = false;
+var userScrolledUp = false;
 
 async function loadChatMatchContext(matchId, heroName) {
   var match = await apiGet("/matches/" + matchId);
@@ -37,15 +40,38 @@ async function loadChatMatchContext(matchId, heroName) {
   };
 }
 
-/* ─── Кастомный красивый dropdown ─── */
+/* ─── Проверка: пользователь внизу чата? ─── */
+function isChatAtBottom(log) {
+  if (!log) return true;
+  return (log.scrollHeight - log.scrollTop - log.clientHeight) < 60;
+}
+
+function scrollChatToBottom(log) {
+  if (!log) return;
+  log.scrollTop = log.scrollHeight;
+  userScrolledUp = false;
+  var btn = qs("#chatScrollDownBtn");
+  if (btn) btn.style.display = "none";
+}
+
+/* ─── Кнопка "вниз" ─── */
+function updateScrollDownBtn(log) {
+  var btn = qs("#chatScrollDownBtn");
+  if (!btn || !log) return;
+  if (isChatAtBottom(log)) {
+    btn.style.display = "none";
+  } else {
+    btn.style.display = "flex";
+  }
+}
+
+/* ─── Красивый dropdown ─── */
 function buildMatchDropdown(history, onSelect) {
   var wrap = el("div", { style: "position:relative;user-select:none;" });
-
   var btn = el("button", {
     type: "button",
-    style: "width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 16px;background:var(--bg-elev);border:1px solid var(--border);border-radius:12px;color:var(--text);font-size:13px;font-weight:600;font-family:inherit;cursor:pointer;text-align:left;transition:border-color 0.2s ease,background 0.2s ease;"
+    style: "width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 16px;background:var(--bg-elev);border:1px solid var(--border);border-radius:12px;color:var(--text);font-size:13px;font-weight:600;font-family:inherit;cursor:pointer;text-align:left;transition:all 0.2s ease;"
   });
-
   var btnContent = el("div", { style: "flex:1;display:flex;align-items:center;gap:10px;min-width:0;" });
   var btnIcon = el("span", { style: "font-size:16px;" }, "🎯");
   var btnLabel = el("span", { style: "overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" },
@@ -61,14 +87,11 @@ function buildMatchDropdown(history, onSelect) {
   });
 
   var currentValue = "";
-  var currentHero = "";
 
   function renderItems() {
     list.innerHTML = "";
     if (!history.length) {
-      list.appendChild(el("div", {
-        style: "padding:14px;text-align:center;color:var(--text-muted);font-size:12px;"
-      }, "Разбери матч на вкладке «Анализ», чтобы он появился здесь"));
+      list.appendChild(el("div", { style: "padding:14px;text-align:center;color:var(--text-muted);font-size:12px;" }, "Разбери матч на вкладке «Анализ», чтобы он появился здесь"));
       return;
     }
     for (var i = 0; i < history.length; i++) {
@@ -80,32 +103,20 @@ function buildMatchDropdown(history, onSelect) {
         });
         row.addEventListener("mouseenter", function () { if (!isActive) row.style.background = "var(--bg-hover)"; });
         row.addEventListener("mouseleave", function () { if (!isActive) row.style.background = "transparent"; });
-
         var icon = el("span", { style: "font-size:16px;flex-shrink:0;" }, m.won ? "🏆" : "💀");
         row.appendChild(icon);
-
         var info = el("div", { style: "flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;" });
         var heroLine = el("div", { style: "display:flex;align-items:center;gap:6px;" });
         heroLine.appendChild(el("span", { style: "font-weight:700;color:" + (m.won ? "var(--green)" : "var(--red)") + ";" }, m.heroName || "?"));
         var kdaColor = (m.kills || 0) + (m.assists || 0) >= (m.deaths || 0) * 3 ? "var(--green)" : (m.deaths >= 8 ? "var(--red)" : "var(--text-muted)");
-        heroLine.appendChild(el("span", { style: "font-family:'JetBrains Mono',monospace;font-size:11px;color:" + kdaColor + ";" },
-          (m.kills||0) + "/" + (m.deaths||0) + "/" + (m.assists||0)));
+        heroLine.appendChild(el("span", { style: "font-family:'JetBrains Mono',monospace;font-size:11px;color:" + kdaColor + ";" }, (m.kills||0) + "/" + (m.deaths||0) + "/" + (m.assists||0)));
         info.appendChild(heroLine);
-
         var dt = m.ts ? new Date(m.ts) : null;
-        var dateStr = dt ? (String(dt.getDate()).padStart(2,"0") + "." + String(dt.getMonth()+1).padStart(2,"0") + "." + dt.getFullYear()) : "";
-        if (dateStr) {
-          info.appendChild(el("span", { style: "font-size:10px;color:var(--text-dim);" }, dateStr));
-        }
+        if (dt) info.appendChild(el("span", { style: "font-size:10px;color:var(--text-dim);" }, String(dt.getDate()).padStart(2,"0") + "." + String(dt.getMonth()+1).padStart(2,"0") + "." + dt.getFullYear()));
         row.appendChild(info);
-
-        if (isActive) {
-          row.appendChild(el("span", { style: "color:var(--green);font-weight:700;font-size:12px;" }, "✓"));
-        }
-
+        if (isActive) row.appendChild(el("span", { style: "color:var(--green);font-weight:700;font-size:12px;" }, "✓"));
         row.addEventListener("click", function () {
           currentValue = String(m.matchId);
-          currentHero = m.heroName || "";
           btnIcon.textContent = m.won ? "🏆" : "💀";
           btnLabel.textContent = (m.heroName || "?") + " · " + (m.kills||0) + "/" + (m.deaths||0) + "/" + (m.assists||0);
           btnLabel.style.color = m.won ? "var(--green)" : "var(--red)";
@@ -117,37 +128,23 @@ function buildMatchDropdown(history, onSelect) {
       })(history[i]);
     }
   }
-
   function openList() {
     renderItems();
-    list.style.opacity = "1";
-    list.style.transform = "translateY(0) scale(1)";
-    list.style.pointerEvents = "auto";
+    list.style.opacity = "1"; list.style.transform = "translateY(0) scale(1)"; list.style.pointerEvents = "auto";
     arrow.style.transform = "rotate(180deg)";
-    btn.style.borderColor = "var(--accent)";
-    btn.style.background = "var(--accent-bg)";
+    btn.style.borderColor = "var(--accent)"; btn.style.background = "var(--accent-bg)";
   }
   function closeList() {
-    list.style.opacity = "0";
-    list.style.transform = "translateY(-6px) scale(0.98)";
-    list.style.pointerEvents = "none";
+    list.style.opacity = "0"; list.style.transform = "translateY(-6px) scale(0.98)"; list.style.pointerEvents = "none";
     arrow.style.transform = "rotate(0deg)";
-    if (!currentValue) btn.style.background = "var(--bg-elev)";
+    btn.style.background = currentValue ? "var(--accent-bg)" : "var(--bg-elev)";
     btn.style.borderColor = currentValue ? "var(--accent)" : "var(--border)";
   }
-
-  btn.addEventListener("click", function (e) {
-    e.stopPropagation();
-    var isOpen = list.style.pointerEvents === "auto";
-    if (isOpen) closeList(); else openList();
-  });
-  document.addEventListener("click", function (e) {
-    if (!wrap.contains(e.target)) closeList();
-  });
-
+  btn.addEventListener("click", function (e) { e.stopPropagation(); if (list.style.pointerEvents === "auto") closeList(); else openList(); });
+  document.addEventListener("click", function (e) { if (!wrap.contains(e.target)) closeList(); });
   wrap.appendChild(btn);
   wrap.appendChild(list);
-  return { wrap: wrap, reset: function () { currentValue = ""; currentHero = ""; btnIcon.textContent = "🎯"; btnLabel.textContent = history.length ? "Выбери матч из истории" : "История матчей пуста"; btnLabel.style.color = ""; closeList(); } };
+  return { wrap: wrap };
 }
 
 function renderChat() {
@@ -156,75 +153,74 @@ function renderChat() {
 
   var frag = document.createDocumentFragment();
   var chatCard = UI.card("Чат с ИИ");
+
+  /* ─── Обёртка для лога + кнопки "вниз" ─── */
+  var logWrap = el("div", { style: "position:relative;" });
   var log = el("div", { id: "chatLog", style: "max-height:480px;overflow-y:auto;padding:4px 0;display:flex;flex-direction:column;gap:10px;" });
-  chatCard.appendChild(log);
+  logWrap.appendChild(log);
+
+  /* Кнопка "вниз" */
+  var scrollBtn = el("button", {
+    id: "chatScrollDownBtn",
+    type: "button",
+    style: "display:none;position:absolute;bottom:10px;right:20px;width:40px;height:40px;border-radius:50%;background:var(--accent);color:#fff;border:2px solid var(--bg-card);font-size:18px;cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,0.5);align-items:center;justify-content:center;z-index:50;transition:transform 0.15s ease;"
+  }, "▼");
+  scrollBtn.addEventListener("mouseenter", function () { scrollBtn.style.transform = "scale(1.1)"; });
+  scrollBtn.addEventListener("mouseleave", function () { scrollBtn.style.transform = "scale(1)"; });
+  scrollBtn.addEventListener("click", function () { scrollChatToBottom(log); });
+  logWrap.appendChild(scrollBtn);
+
+  chatCard.appendChild(logWrap);
   frag.appendChild(chatCard);
+
+  /* Отслеживаем скролл */
+  log.addEventListener("scroll", function () {
+    updateScrollDownBtn(log);
+  });
 
   var inputCard = el("div", { class: "card" });
   inputCard.appendChild(el("div", { class: "dim", style: "font-size:11px;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.08em;" }, "Выбери матч для контекста"));
 
   var history = Store.get("recentmatches", []) || [];
-
-  var statusEl = el("div", { id: "chatMatchStatus", style: "font-size:11px;margin:10px 0 10px;min-height:14px;line-height:1.4;" }, "");
+  var statusEl = el("div", { id: "chatMatchStatus", style: "font-size:11px;margin:10px 0;min-height:14px;line-height:1.4;" }, "");
 
   var inp = UI.input(history.length ? "Сначала выбери матч сверху..." : "История матчей пуста.");
-  inp.id = "chatInput";
-  inp.style.flex = "1";
-  inp.disabled = true;
+  inp.id = "chatInput"; inp.style.flex = "1"; inp.disabled = true;
   inp.addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); onChatSend(); } });
-
   var btn = UI.btn("Отправить", { id: "chatSendBtn" });
   btn.addEventListener("click", onChatSend);
   btn.disabled = true;
-
   var row = el("div", { class: "row" });
-  row.appendChild(inp);
-  row.appendChild(btn);
+  row.appendChild(inp); row.appendChild(btn);
 
   var dropdown = buildMatchDropdown(history, async function (matchId, heroName) {
-    var inputEl = qs("#chatInput");
-    var sendBtn = qs("#chatSendBtn");
-
+    var inputEl = qs("#chatInput"), sendBtn = qs("#chatSendBtn");
     if (!matchId) {
       window.chatMatchContext = null;
-      inputEl.disabled = true;
-      sendBtn.disabled = true;
+      inputEl.disabled = true; sendBtn.disabled = true;
       inputEl.placeholder = "Сначала выбери матч сверху...";
       if (statusEl) { statusEl.textContent = ""; statusEl.style.color = ""; }
       return;
     }
-
     if (statusEl) { statusEl.textContent = "Загружаю матч..."; statusEl.style.color = "var(--text-muted)"; }
-    inputEl.disabled = true;
-    sendBtn.disabled = true;
-
+    inputEl.disabled = true; sendBtn.disabled = true;
     try {
       var ctx = await loadChatMatchContext(parseInt(matchId, 10), heroName);
       window.chatMatchContext = ctx;
-      inputEl.disabled = false;
-      sendBtn.disabled = false;
-      inputEl.placeholder = "Спроси про матч...";
-      inputEl.focus();
-      if (statusEl) {
-        statusEl.textContent = "Готово. Спрашивай.";
-        statusEl.style.color = "var(--green)";
-      }
+      inputEl.disabled = false; sendBtn.disabled = false;
+      inputEl.placeholder = "Спроси про матч..."; inputEl.focus();
+      if (statusEl) { statusEl.textContent = "Готово. Спрашивай."; statusEl.style.color = "var(--green)"; }
     } catch (e) {
       console.error("loadChatMatchContext:", e);
       window.chatMatchContext = null;
-      inputEl.disabled = true;
-      sendBtn.disabled = true;
-      if (statusEl) {
-        statusEl.textContent = "Ошибка загрузки матча. Попробуй другой.";
-        statusEl.style.color = "var(--red)";
-      }
+      inputEl.disabled = true; sendBtn.disabled = true;
+      if (statusEl) { statusEl.textContent = "Ошибка загрузки матча. Попробуй другой."; statusEl.style.color = "var(--red)"; }
     }
   });
 
   inputCard.appendChild(dropdown.wrap);
   inputCard.appendChild(statusEl);
   inputCard.appendChild(row);
-
   frag.appendChild(inputCard);
 
   setTimeout(function () {
@@ -273,18 +269,62 @@ function addChatMessage(log, role, text, scroll) {
   return bubble;
 }
 
+/* ─── Красивая анимация думанья с этапами ─── */
 function addThinkingBlock(log) {
-  var wrap = el("div", { style: "display:flex;gap:10px;align-items:flex-start;opacity:0.8;" });
+  var wrap = el("div", { style: "display:flex;gap:10px;align-items:flex-start;opacity:0.85;" });
   var avatar = el("div", { style: "width:30px;height:30px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:bold;background:var(--accent-bg);color:var(--accent-light);border:1px solid var(--accent);" }, "AI");
-  var box = el("div", { style: "flex:1;padding:10px 14px;border-radius:12px;font-size:12px;line-height:1.6;background:var(--bg-card);border:1px dashed var(--accent);color:var(--text-muted);font-family:'JetBrains Mono',monospace;" });
-  box.textContent = "Думаю...";
+  var box = el("div", { style: "flex:1;padding:12px 16px;border-radius:12px;font-size:12px;line-height:1.7;background:var(--bg-card);border:1px dashed var(--accent);color:var(--text-muted);font-family:'JetBrains Mono',monospace;" });
+
+  var stepsContainer = el("div");
+  box.appendChild(stepsContainer);
   wrap.appendChild(avatar); wrap.appendChild(box);
-  log.appendChild(wrap); log.scrollTop = log.scrollHeight;
+  log.appendChild(wrap);
+  if (isChatAtBottom(log)) log.scrollTop = log.scrollHeight;
+
+  var steps = [];
+  var currentStepIdx = -1;
+
+  function renderSteps() {
+    stepsContainer.innerHTML = "";
+    for (var i = 0; i < steps.length; i++) {
+      var isCurrent = i === currentStepIdx;
+      var isDone = i < currentStepIdx;
+      var icon = isDone ? "✓" : (isCurrent ? "⏳" : "○");
+      var color = isDone ? "var(--green)" : (isCurrent ? "var(--accent-light)" : "var(--text-dim)");
+      var opacity = isCurrent ? 1 : (isDone ? 0.75 : 0.4);
+      var line = el("div", {
+        style: "display:flex;align-items:center;gap:8px;padding:3px 0;color:" + color + ";opacity:" + opacity + ";transition:all 0.3s ease;"
+      });
+      line.appendChild(el("span", { style: "font-size:11px;width:14px;text-align:center;" }, icon));
+      line.appendChild(el("span", {}, steps[i]));
+      stepsContainer.appendChild(line);
+    }
+    /* Прогресс-бар */
+    if (steps.length > 0) {
+      var pct = ((currentStepIdx + 1) / steps.length) * 100;
+      var bar = el("div", { style: "margin-top:8px;height:3px;background:var(--bg-elev);border-radius:2px;overflow:hidden;" });
+      var fill = el("div", { style: "height:100%;width:" + pct + "%;background:linear-gradient(90deg,var(--accent),var(--cyan));border-radius:2px;transition:width 0.4s ease;" });
+      bar.appendChild(fill);
+      stepsContainer.appendChild(bar);
+    }
+  }
+
   return {
+    addStep: function (text) {
+      steps.push(text);
+      currentStepIdx = steps.length - 1;
+      renderSteps();
+      if (isChatAtBottom(log)) log.scrollTop = log.scrollHeight;
+    },
+    completeStep: function () {
+      if (currentStepIdx < steps.length - 1) currentStepIdx++;
+      renderSteps();
+    },
     finalize: function () { wrap.remove(); }
   };
 }
 
+/* ─── Печатная машинка с автопрокруткой ─── */
 function typeWriter(el, text, speed, callback) {
   speed = speed || 12;
   var i = 0;
@@ -294,13 +334,63 @@ function typeWriter(el, text, speed, callback) {
       el.textContent += text.charAt(i);
       i++;
       var log = qs("#chatLog");
-      if (log) log.scrollTop = log.scrollHeight;
+      if (log && !userScrolledUp) log.scrollTop = log.scrollHeight;
+      if (i % 3 === 0) updateScrollDownBtn(log);
       setTimeout(tick, speed);
     } else {
       if (callback) callback();
     }
   }
   tick();
+}
+
+/* ─── Простой markdown → HTML (без кривых звёздочек) ─── */
+function renderInline(text) {
+  var h = text;
+  /* Жирный **текст** */
+  h = h.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  /* Курсив _текст_ */
+  h = h.replace(/(^|[^\w])_(.+?)_([^\w]|$)/g, '$1<em style="color:var(--text-muted);">$2</em>$3');
+  return h;
+}
+
+function renderMarkdownFull(text) {
+  if (!text) return "";
+  var lines = String(text).split("\n");
+  var out = [];
+  for (var i = 0; i < lines.length; i++) {
+    var line = lines[i];
+    /* Экранируем */
+    line = line.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    if (line.trim() === "") {
+      out.push('<div style="height:8px;"></div>');
+      continue;
+    }
+    if (/^---+$/.test(line.trim())) {
+      out.push('<hr style="border:none;border-top:1px solid var(--border);margin:8px 0;">');
+      continue;
+    }
+    /* Заголовки ### и ## */
+    var h3 = line.match(/^###\s+(.+)$/);
+    if (h3) {
+      out.push('<div style="margin-top:10px;font-size:13px;font-weight:700;color:var(--accent-light);">' + renderInline(h3[1]) + '</div>');
+      continue;
+    }
+    var h2 = line.match(/^##\s+(.+)$/);
+    if (h2) {
+      out.push('<div style="margin-top:12px;font-size:14px;font-weight:700;color:var(--accent-light);">' + renderInline(h2[1]) + '</div>');
+      continue;
+    }
+    /* Список */
+    var li = line.match(/^[-•]\s+(.+)$/);
+    if (li) {
+      out.push('<div style="padding:2px 0 2px 14px;position:relative;">• ' + renderInline(li[1]) + '</div>');
+      continue;
+    }
+    /* Обычная строка */
+    out.push('<div>' + renderInline(line) + '</div>');
+  }
+  return out.join("");
 }
 
 async function onChatSend() {
@@ -322,9 +412,7 @@ async function onChatSend() {
   if (!q) return;
 
   isResponding = true;
-  inp.disabled = true;
-  btn.disabled = true;
-  inp.value = "";
+  inp.disabled = true; btn.disabled = true; inp.value = "";
   btn.textContent = "Думаю...";
 
   addChatMessage(log, "user", q);
@@ -333,34 +421,60 @@ async function onChatSend() {
   if (typeof Daily !== "undefined") Daily.bump("chat");
   if (typeof Achievements !== "undefined") Achievements.check();
 
+  /* Скролл вниз перед началом */
+  scrollChatToBottom(log);
+
   var think = addThinkingBlock(log);
+  think.addStep("Читаю данные матча...");
 
   try {
     var matchCtx = ExternalAI.buildMatchContext();
-    var externalText = await ExternalAI.ask(q, matchCtx);
-    think.finalize();
+    think.addStep("Анализирую контекст игры...");
+    await new Promise(function (r) { setTimeout(r, 400); });
 
+    think.addStep("Формулирую ответ...");
+    var externalText = await ExternalAI.ask(q, matchCtx);
+
+    think.finalize();
     var finalText = externalText || "Не удалось получить ответ.";
     var bubble = addChatMessage(log, "assistant", "", false);
-    typeWriter(bubble, finalText, 12, function () {
-      chatHistory.push({ role: "assistant", text: finalText });
-      Store.set("chathistory", chatHistory.slice(-100));
-      isResponding = false;
-      inp.disabled = false;
-      btn.disabled = false;
-      btn.textContent = "Отправить";
-      inp.focus();
-    });
+    bubble.innerHTML = renderMarkdownFull(finalText);
+
+    /* Прогрессивная печать через HTML */
+    bubble.innerHTML = "";
+    var plainText = finalText;
+    var i = 0;
+    var fullHTML = renderMarkdownFull(plainText);
+    /* Печатаем символы, но с сохранением разметки — упрощённый вариант: постепенно увеличиваем plainText */
+    function typeTick() {
+      if (i < plainText.length) {
+        i += 3;
+        if (i > plainText.length) i = plainText.length;
+        bubble.innerHTML = renderMarkdownFull(plainText.slice(0, i));
+        if (!userScrolledUp) log.scrollTop = log.scrollHeight;
+        if (i % 6 === 0) updateScrollDownBtn(log);
+        setTimeout(typeTick, 12);
+      } else {
+        bubble.innerHTML = fullHTML;
+        if (!userScrolledUp) log.scrollTop = log.scrollHeight;
+        updateScrollDownBtn(log);
+        chatHistory.push({ role: "assistant", text: finalText });
+        Store.set("chathistory", chatHistory.slice(-100));
+        isResponding = false;
+        inp.disabled = false; btn.disabled = false;
+        btn.textContent = "Отправить";
+        inp.focus();
+      }
+    }
+    typeTick();
   } catch (err) {
     console.warn("External AI failed:", err);
     think.finalize();
     var errBubble = addChatMessage(log, "assistant", "", false);
-    typeWriter(errBubble, "Не получилось получить ответ. Попробуй ещё раз через несколько секунд.", 12, function () {
-      isResponding = false;
-      inp.disabled = false;
-      btn.disabled = false;
-      btn.textContent = "Отправить";
-      inp.focus();
-    });
+    errBubble.textContent = "Не получилось получить ответ. Попробуй ещё раз через несколько секунд.";
+    isResponding = false;
+    inp.disabled = false; btn.disabled = false;
+    btn.textContent = "Отправить";
+    inp.focus();
   }
 }
