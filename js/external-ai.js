@@ -1,21 +1,32 @@
-/* DOTA JETCH — EXTERNAL AI v9.0
-   Использует window.chatMatchContext (выбранный матч в чате).
-   Fallback: lastAnalysis. Mistral + CORS-прокси. */
+/* DOTA JETCH — EXTERNAL AI v10.0
+   Mistral с retry (429 fix) + ротация моделей + рабочие CORS-прокси + Pollinations fallback. */
 
 var ExternalAI = {
   enabled: true,
   busy: false,
   lastError: null,
-  TIMEOUT_MS: 15000,
+  TIMEOUT_MS: 20000,
 
   mistralKey: "mstrl_fmvy3EYwtaIGtaLRiqrwMK2RRFOZtVcb_1McbHV",
-  mistralModel: "mistral-small-latest",
   mistralUrl: "https://api.mistral.ai/v1/chat/completions",
-  corsProxies: [
-    "https://api.allorigins.win/raw?url=",
-    "https://corsproxy.io/?",
-    "https://api.codetabs.com/v1/proxy?quest="
+
+  /* Модели по приоритету — если одна упирается в лимит, берём следующую */
+  mistralModels: [
+    "mistral-small-latest",
+    "open-mistral-nemo",
+    "open-mixtral-8x7b",
+    "mistral-tiny"
   ],
+
+  /* Рабочие CORS-прокси для POST с headers (2026) */
+  corsProxies: [
+    "https://cors.eu.org/",
+    "https://test.cors.workers.dev/?"
+  ],
+
+  /* Внутреннее состояние: блокировка после 429 */
+  rateLimitedUntil: 0,
+  currentModelIdx: 0,
 
   systemPrompt: function (matchContext) {
     var base = "Ты DotaJetch AI — эксперт по Dota 2 на патче 7.38+. " +
@@ -95,10 +106,16 @@ var ExternalAI = {
     return fetch(url, options).finally(function () { clearTimeout(timeoutId); });
   },
 
-  askMistral: function (userQuery, matchContext) {
+  /* ─── Пауза ─── */
+  sleep: function (ms) {
+    return new Promise(function (r) { setTimeout(r, ms); });
+  },
+
+  /* ─── Один запрос к Mistral (с указанной моделью) ─── */
+  mistralRequest: function (model, userQuery, matchContext) {
     var self = this;
     var body = {
-      model: self.mistralModel,
+      model: model,
       messages: [
         { role: "system", content: self.systemPrompt(matchContext) },
         { role: "user", content: userQuery }
@@ -106,88 +123,195 @@ var ExternalAI = {
       temperature: 0.7,
       max_tokens: 1000
     };
-
-    var directHeaders = {
+    var headers = {
       "Content-Type": "application/json",
       "Authorization": "Bearer " + self.mistralKey,
       "Accept": "application/json"
     };
 
-    var direct = self.fetchWithTimeout(self.mistralUrl, {
+    return self.fetchWithTimeout(self.mistralUrl, {
       method: "POST",
-      headers: directHeaders,
+      headers: headers,
       body: JSON.stringify(body)
     }, self.TIMEOUT_MS)
     .then(function (res) {
+      if (res.status === 429) {
+        throw { code: 429, message: "Rate limit" };
+      }
       if (!res.ok) {
         return res.text().then(function (t) {
-          throw new Error("Mistral direct HTTP " + res.status + ": " + t.slice(0, 150));
+          throw { code: res.status, message: "HTTP " + res.status + ": " + t.slice(0, 150) };
         });
       }
       return res.text();
+    })
+    .then(function (text) {
+      var json = JSON.parse(text);
+      if (json.choices && json.choices[0] && json.choices[0].message) {
+        return json.choices[0].message.content;
+      }
+      throw { code: -1, message: "Пустой ответ" };
     });
-
-    var proxyChain = Promise.reject(new Error("start"));
-    for (var i = 0; i < self.corsProxies.length; i++) {
-      (function (proxy) {
-        proxyChain = proxyChain.catch(function () {
-          var proxiedUrl = proxy + encodeURIComponent(self.mistralUrl);
-          console.log("Trying CORS proxy:", proxy);
-          return self.fetchWithTimeout(proxiedUrl, {
-            method: "POST",
-            headers: directHeaders,
-            body: JSON.stringify(body)
-          }, self.TIMEOUT_MS)
-          .then(function (res) {
-            if (!res.ok) throw new Error("Proxy HTTP " + res.status);
-            return res.text();
-          });
-        });
-      })(self.corsProxies[i]);
-    }
-
-    return direct
-      .catch(function (err) {
-        console.warn("Mistral direct failed:", err.message, "→ CORS-прокси");
-        return proxyChain;
-      })
-      .then(function (text) {
-        try {
-          var json = JSON.parse(text);
-          if (json.choices && json.choices[0]) {
-            if (json.choices[0].message && json.choices[0].message.content) {
-              return json.choices[0].message.content;
-            }
-            if (json.choices[0].text) return json.choices[0].text;
-          }
-          if (json.contents) return String(json.contents);
-        } catch (e) {}
-        if (text && text.length > 10) return text;
-        throw new Error("Mistral: пустой ответ");
-      });
   },
 
-  ask: function (query, matchContext) {
+  /* ─── Через CORS-прокси ─── */
+  mistralViaProxy: function (proxy, model, userQuery, matchContext) {
     var self = this;
-    if (!this.enabled) return Promise.reject(new Error("external-ai-disabled"));
-    if (this.busy) return Promise.reject(new Error("busy"));
+    var body = {
+      model: model,
+      messages: [
+        { role: "system", content: self.systemPrompt(matchContext) },
+        { role: "user", content: userQuery }
+      ],
+      temperature: 0.7,
+      max_tokens: 1000
+    };
+    var headers = {
+      "Content-Type": "application/json",
+      "Authorization": "Bearer " + self.mistralKey,
+      "Accept": "application/json"
+    };
+    var proxiedUrl = proxy + self.mistralUrl;
+
+    return self.fetchWithTimeout(proxiedUrl, {
+      method: "POST",
+      headers: headers,
+      body: JSON.stringify(body)
+    }, self.TIMEOUT_MS)
+    .then(function (res) {
+      if (res.status === 429) throw { code: 429, message: "Rate limit" };
+      if (!res.ok) throw { code: res.status, message: "Proxy HTTP " + res.status };
+      return res.text();
+    })
+    .then(function (text) {
+      var json = JSON.parse(text);
+      if (json.choices && json.choices[0] && json.choices[0].message) {
+        return json.choices[0].message.content;
+      }
+      throw { code: -1, message: "Пустой ответ" };
+    });
+  },
+
+  /* ─── Полный цикл Mistral с retry и ротацией моделей ─── */
+  askMistral: async function (userQuery, matchContext) {
+    var self = this;
+
+    /* Если недавно был 429 — сразу переходим к следующей модели */
+    var now = Date.now();
+    if (now < self.rateLimitedUntil) {
+      var waitMs = self.rateLimitedUntil - now;
+      console.log("Rate limited, жду " + Math.round(waitMs/1000) + " сек...");
+      await self.sleep(Math.min(waitMs, 4000));
+    }
+
+    /* Пробуем каждую модель по очереди */
+    var startIdx = self.currentModelIdx;
+    for (var i = 0; i < self.mistralModels.length; i++) {
+      var modelIdx = (startIdx + i) % self.mistralModels.length;
+      var model = self.mistralModels[modelIdx];
+
+      /* 2 попытки прямого запроса к Mistral */
+      for (var attempt = 0; attempt < 2; attempt++) {
+        try {
+          console.log("Mistral [" + model + "] попытка " + (attempt+1));
+          var text = await self.mistralRequest(model, userQuery, matchContext);
+          self.currentModelIdx = modelIdx;
+          self.rateLimitedUntil = 0;
+          return text;
+        } catch (err) {
+          if (err.code === 429) {
+            console.warn("Mistral " + model + " 429 (rate limit)");
+            self.rateLimitedUntil = Date.now() + 3000;
+            if (attempt === 0) {
+              await self.sleep(2000);
+              continue;
+            }
+            /* Переходим к следующей модели */
+            break;
+          }
+          /* Другие ошибки (сеть, CORS) — пробуем через прокси */
+          console.warn("Mistral direct [" + model + "] failed:", err.message || err);
+          break;
+        }
+      }
+
+      /* Пробуем через CORS-прокси */
+      for (var p = 0; p < self.corsProxies.length; p++) {
+        try {
+          console.log("Proxy [" + self.corsProxies[p] + "] model [" + model + "]");
+          var ptext = await self.mistralViaProxy(self.corsProxies[p], model, userQuery, matchContext);
+          self.currentModelIdx = modelIdx;
+          return ptext;
+        } catch (err) {
+          if (err.code === 429) {
+            self.rateLimitedUntil = Date.now() + 3000;
+            break;
+          }
+          console.warn("Proxy failed:", err.message || err);
+        }
+      }
+    }
+
+    throw new Error("Все модели Mistral исчерпаны");
+  },
+
+  /* ─── Pollinations ─── */
+  askPollinations: function (userQuery, matchContext) {
+    var self = this;
+    var body = {
+      model: "openai",
+      messages: [
+        { role: "system", content: self.systemPrompt(matchContext) },
+        { role: "user", content: userQuery }
+      ],
+      temperature: 0.7,
+      max_tokens: 1000
+    };
+    return self.fetchWithTimeout("https://text.pollinations.ai/openai", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    }, self.TIMEOUT_MS)
+    .then(function (res) {
+      if (!res.ok) throw new Error("Pollinations HTTP " + res.status);
+      return res.text();
+    })
+    .then(function (text) {
+      try {
+        var json = JSON.parse(text);
+        if (json.choices && json.choices[0] && json.choices[0].message) return json.choices[0].message.content;
+      } catch (e) {}
+      if (text && text.length > 10) return text;
+      throw new Error("Pollinations пусто");
+    });
+  },
+
+  /* ─── Главный вызов ─── */
+  ask: async function (query, matchContext) {
+    if (!this.enabled) throw new Error("external-ai-disabled");
+    if (this.busy) throw new Error("busy");
     this.busy = true;
     this.lastError = null;
 
-    return this.askMistral(query, matchContext)
-      .catch(function (err) {
-        self.lastError = err;
-        throw err;
-      })
-      .finally(function () { self.busy = false; });
+    try {
+      return await this.askMistral(query, matchContext);
+    } catch (err) {
+      console.warn("Mistral exhausted:", err.message, "→ Pollinations");
+      try {
+        return await this.askPollinations(query, matchContext);
+      } catch (err2) {
+        this.lastError = err2;
+        throw new Error("Все внешние ИИ недоступны");
+      }
+    } finally {
+      this.busy = false;
+    }
   },
 
-  shouldUseExternal: function () {
-    return true;
-  },
+  shouldUseExternal: function () { return true; },
 
   init: function () {
-    console.log("external-ai v9.0 ready · Mistral + chatMatchContext");
+    console.log("external-ai v10.0 ready · Mistral (4 модели + retry) + 2 CORS-прокси + Pollinations");
   }
 };
 

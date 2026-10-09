@@ -1,6 +1,5 @@
-/* DOTA JETCH — ИИ-АССИСТЕНТ v22.0
-   Выбор матча из истории + блокировка чата до выбора.
-   Mistral получает контекст выбранного матча. */
+/* DOTA JETCH — ИИ-АССИСТЕНТ v23.0
+   Красивый селектор матча + нейтральные сообщения. */
 
 var chatHistory = [];
 var isResponding = false;
@@ -38,12 +37,117 @@ async function loadChatMatchContext(matchId, heroName) {
   };
 }
 
-function buildMatchOption(m) {
-  var won = m.won ? "🏆" : "💀";
-  var kda = (m.kills || 0) + "/" + (m.deaths || 0) + "/" + (m.assists || 0);
-  var dt = m.ts ? new Date(m.ts) : null;
-  var dateStr = dt ? (String(dt.getDate()).padStart(2,"0") + "." + String(dt.getMonth()+1).padStart(2,"0")) : "?";
-  return won + " " + (m.heroName || "?") + " · " + kda + " · " + dateStr;
+/* ─── Кастомный красивый dropdown ─── */
+function buildMatchDropdown(history, onSelect) {
+  var wrap = el("div", { style: "position:relative;user-select:none;" });
+
+  var btn = el("button", {
+    type: "button",
+    style: "width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 16px;background:var(--bg-elev);border:1px solid var(--border);border-radius:12px;color:var(--text);font-size:13px;font-weight:600;font-family:inherit;cursor:pointer;text-align:left;transition:border-color 0.2s ease,background 0.2s ease;"
+  });
+
+  var btnContent = el("div", { style: "flex:1;display:flex;align-items:center;gap:10px;min-width:0;" });
+  var btnIcon = el("span", { style: "font-size:16px;" }, "🎯");
+  var btnLabel = el("span", { style: "overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" },
+    history.length ? "Выбери матч из истории" : "История матчей пуста");
+  btnContent.appendChild(btnIcon);
+  btnContent.appendChild(btnLabel);
+  btn.appendChild(btnContent);
+  var arrow = el("span", { style: "color:var(--text-muted);font-size:10px;transition:transform 0.2s ease;" }, "▼");
+  btn.appendChild(arrow);
+
+  var list = el("div", {
+    style: "position:absolute;top:calc(100% + 6px);left:0;right:0;z-index:100;background:var(--bg-card);border:1px solid var(--accent);border-radius:12px;padding:6px;max-height:280px;overflow-y:auto;box-shadow:0 20px 60px -20px rgba(0,0,0,0.9);opacity:0;transform:translateY(-6px) scale(0.98);pointer-events:none;transition:opacity 0.2s,transform 0.2s;"
+  });
+
+  var currentValue = "";
+  var currentHero = "";
+
+  function renderItems() {
+    list.innerHTML = "";
+    if (!history.length) {
+      list.appendChild(el("div", {
+        style: "padding:14px;text-align:center;color:var(--text-muted);font-size:12px;"
+      }, "Разбери матч на вкладке «Анализ», чтобы он появился здесь"));
+      return;
+    }
+    for (var i = 0; i < history.length; i++) {
+      (function (m) {
+        var isActive = String(m.matchId) === currentValue;
+        var row = el("button", {
+          type: "button",
+          style: "display:flex;align-items:center;gap:10px;width:100%;padding:10px 12px;background:" + (isActive ? "var(--accent-bg)" : "transparent") + ";border:none;border-radius:9px;color:var(--text);font-family:inherit;font-size:12px;cursor:pointer;text-align:left;transition:background 0.15s ease;"
+        });
+        row.addEventListener("mouseenter", function () { if (!isActive) row.style.background = "var(--bg-hover)"; });
+        row.addEventListener("mouseleave", function () { if (!isActive) row.style.background = "transparent"; });
+
+        var icon = el("span", { style: "font-size:16px;flex-shrink:0;" }, m.won ? "🏆" : "💀");
+        row.appendChild(icon);
+
+        var info = el("div", { style: "flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;" });
+        var heroLine = el("div", { style: "display:flex;align-items:center;gap:6px;" });
+        heroLine.appendChild(el("span", { style: "font-weight:700;color:" + (m.won ? "var(--green)" : "var(--red)") + ";" }, m.heroName || "?"));
+        var kdaColor = (m.kills || 0) + (m.assists || 0) >= (m.deaths || 0) * 3 ? "var(--green)" : (m.deaths >= 8 ? "var(--red)" : "var(--text-muted)");
+        heroLine.appendChild(el("span", { style: "font-family:'JetBrains Mono',monospace;font-size:11px;color:" + kdaColor + ";" },
+          (m.kills||0) + "/" + (m.deaths||0) + "/" + (m.assists||0)));
+        info.appendChild(heroLine);
+
+        var dt = m.ts ? new Date(m.ts) : null;
+        var dateStr = dt ? (String(dt.getDate()).padStart(2,"0") + "." + String(dt.getMonth()+1).padStart(2,"0") + "." + dt.getFullYear()) : "";
+        if (dateStr) {
+          info.appendChild(el("span", { style: "font-size:10px;color:var(--text-dim);" }, dateStr));
+        }
+        row.appendChild(info);
+
+        if (isActive) {
+          row.appendChild(el("span", { style: "color:var(--green);font-weight:700;font-size:12px;" }, "✓"));
+        }
+
+        row.addEventListener("click", function () {
+          currentValue = String(m.matchId);
+          currentHero = m.heroName || "";
+          btnIcon.textContent = m.won ? "🏆" : "💀";
+          btnLabel.textContent = (m.heroName || "?") + " · " + (m.kills||0) + "/" + (m.deaths||0) + "/" + (m.assists||0);
+          btnLabel.style.color = m.won ? "var(--green)" : "var(--red)";
+          btn.style.borderColor = "var(--accent)";
+          closeList();
+          onSelect(String(m.matchId), m.heroName || "");
+        });
+        list.appendChild(row);
+      })(history[i]);
+    }
+  }
+
+  function openList() {
+    renderItems();
+    list.style.opacity = "1";
+    list.style.transform = "translateY(0) scale(1)";
+    list.style.pointerEvents = "auto";
+    arrow.style.transform = "rotate(180deg)";
+    btn.style.borderColor = "var(--accent)";
+    btn.style.background = "var(--accent-bg)";
+  }
+  function closeList() {
+    list.style.opacity = "0";
+    list.style.transform = "translateY(-6px) scale(0.98)";
+    list.style.pointerEvents = "none";
+    arrow.style.transform = "rotate(0deg)";
+    if (!currentValue) btn.style.background = "var(--bg-elev)";
+    btn.style.borderColor = currentValue ? "var(--accent)" : "var(--border)";
+  }
+
+  btn.addEventListener("click", function (e) {
+    e.stopPropagation();
+    var isOpen = list.style.pointerEvents === "auto";
+    if (isOpen) closeList(); else openList();
+  });
+  document.addEventListener("click", function (e) {
+    if (!wrap.contains(e.target)) closeList();
+  });
+
+  wrap.appendChild(btn);
+  wrap.appendChild(list);
+  return { wrap: wrap, reset: function () { currentValue = ""; currentHero = ""; btnIcon.textContent = "🎯"; btnLabel.textContent = history.length ? "Выбери матч из истории" : "История матчей пуста"; btnLabel.style.color = ""; closeList(); } };
 }
 
 function renderChat() {
@@ -57,95 +161,71 @@ function renderChat() {
   frag.appendChild(chatCard);
 
   var inputCard = el("div", { class: "card" });
-
-  var selectLabel = el("div", { class: "dim", style: "font-size:11px;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.08em;" }, "📊 Выбери матч для контекста");
-  inputCard.appendChild(selectLabel);
+  inputCard.appendChild(el("div", { class: "dim", style: "font-size:11px;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.08em;" }, "Выбери матч для контекста"));
 
   var history = Store.get("recentmatches", []) || [];
-  var selectWrap = el("div", { style: "margin-bottom:12px;position:relative;" });
-  var select = el("select", {
-    id: "chatMatchSelect",
-    style: "width:100%;padding:11px 14px;background:var(--bg-elev);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:13px;font-family:inherit;font-weight:600;cursor:pointer;outline:none;"
-  });
 
-  var placeholder = el("option", { value: "" }, history.length ? "— Выбери матч из истории —" : "— История матчей пуста —");
-  select.appendChild(placeholder);
+  var statusEl = el("div", { id: "chatMatchStatus", style: "font-size:11px;margin:10px 0 10px;min-height:14px;line-height:1.4;" }, "");
 
-  for (var i = 0; i < history.length; i++) {
-    var opt = el("option", { value: String(history[i].matchId) }, buildMatchOption(history[i]));
-    opt.setAttribute("data-hero", history[i].heroName || "");
-    select.appendChild(opt);
-  }
-  selectWrap.appendChild(select);
-  inputCard.appendChild(selectWrap);
-
-  var statusEl = el("div", { id: "chatMatchStatus", style: "font-size:11px;margin-bottom:10px;min-height:14px;line-height:1.4;" }, "");
-  inputCard.appendChild(statusEl);
-
-  var row = el("div", { class: "row" });
-  var inp = UI.input(history.length ? "Сначала выбери матч сверху..." : "История матчей пуста. Разбери матч сначала.");
+  var inp = UI.input(history.length ? "Сначала выбери матч сверху..." : "История матчей пуста.");
   inp.id = "chatInput";
   inp.style.flex = "1";
   inp.disabled = true;
   inp.addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); onChatSend(); } });
+
   var btn = UI.btn("Отправить", { id: "chatSendBtn" });
   btn.addEventListener("click", onChatSend);
   btn.disabled = true;
+
+  var row = el("div", { class: "row" });
   row.appendChild(inp);
   row.appendChild(btn);
-  inputCard.appendChild(row);
 
-  frag.appendChild(inputCard);
-
-  select.addEventListener("change", async function () {
-    var val = select.value;
-    var statusMsg = qs("#chatMatchStatus");
+  var dropdown = buildMatchDropdown(history, async function (matchId, heroName) {
     var inputEl = qs("#chatInput");
     var sendBtn = qs("#chatSendBtn");
 
-    if (!val) {
+    if (!matchId) {
       window.chatMatchContext = null;
       inputEl.disabled = true;
       sendBtn.disabled = true;
       inputEl.placeholder = "Сначала выбери матч сверху...";
-      if (statusMsg) { statusMsg.textContent = ""; statusMsg.style.color = ""; }
+      if (statusEl) { statusEl.textContent = ""; statusEl.style.color = ""; }
       return;
     }
 
-    var hero = "";
-    for (var k = 0; k < select.options.length; k++) {
-      if (select.options[k].value === val) { hero = select.options[k].getAttribute("data-hero") || ""; break; }
-    }
-
-    if (statusMsg) {
-      statusMsg.textContent = "⏳ Загружаю матч...";
-      statusMsg.style.color = "var(--text-muted)";
-    }
+    if (statusEl) { statusEl.textContent = "Загружаю матч..."; statusEl.style.color = "var(--text-muted)"; }
     inputEl.disabled = true;
     sendBtn.disabled = true;
 
     try {
-      var ctx = await loadChatMatchContext(parseInt(val, 10), hero);
+      var ctx = await loadChatMatchContext(parseInt(matchId, 10), heroName);
       window.chatMatchContext = ctx;
       inputEl.disabled = false;
       sendBtn.disabled = false;
       inputEl.placeholder = "Спроси про матч...";
       inputEl.focus();
-      if (statusMsg) {
-        statusMsg.textContent = "✓ Контекст загружен: " + ctx.hero.name + " (" + (ctx.won ? "победа" : "поражение") + ") — можешь спрашивать";
-        statusMsg.style.color = "var(--green)";
+      if (statusEl) {
+        statusEl.textContent = "Готово. Спрашивай.";
+        statusEl.style.color = "var(--green)";
       }
     } catch (e) {
       console.error("loadChatMatchContext:", e);
       window.chatMatchContext = null;
       inputEl.disabled = true;
       sendBtn.disabled = true;
-      if (statusMsg) {
-        statusMsg.textContent = "✕ Ошибка загрузки: " + (e.message || e);
-        statusMsg.style.color = "var(--red)";
+      if (statusEl) {
+        statusEl.textContent = "Ошибка загрузки матча. Попробуй другой.";
+        statusEl.style.color = "var(--red)";
       }
     }
   });
+
+  inputCard.appendChild(dropdown.wrap);
+  inputCard.appendChild(statusEl);
+  inputCard.appendChild(row);
+
+  frag.appendChild(inputCard);
 
   setTimeout(function () {
     var l = qs("#chatLog");
@@ -153,7 +233,7 @@ function renderChat() {
     if (!history.length) {
       addChatMessage(l, "assistant", "Привет. Чтобы я мог отвечать с учётом твоей игры — сначала разбери матч на вкладке «Анализ». После этого он появится в списке выше.");
     } else {
-      addChatMessage(l, "assistant", "Привет. Выбери матч из списка выше — я загружу его контекст (герой, KDA, врагов, союзников) и буду отвечать с учётом этой игры.");
+      addChatMessage(l, "assistant", "Привет. Выбери матч из списка выше — я загружу его данные и буду отвечать с учётом этой игры.");
     }
     l.scrollTop = l.scrollHeight;
   }, 0);
@@ -193,17 +273,14 @@ function addChatMessage(log, role, text, scroll) {
   return bubble;
 }
 
-function addThinkingBlock(log, label) {
-  var wrap = el("div", { style: "display:flex;gap:10px;align-items:flex-start;opacity:0.7;" });
+function addThinkingBlock(log) {
+  var wrap = el("div", { style: "display:flex;gap:10px;align-items:flex-start;opacity:0.8;" });
   var avatar = el("div", { style: "width:30px;height:30px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:bold;background:var(--accent-bg);color:var(--accent-light);border:1px solid var(--accent);" }, "AI");
-  var box = el("div", { style: "flex:1;padding:10px 14px;border-radius:12px;font-size:12px;line-height:1.6;background:var(--bg-card);border:1px dashed var(--accent);color:var(--text-muted);font-family:'JetBrains Mono',monospace;white-space:pre-wrap;" });
-  var line = el("div", {}, label || "Думаю...");
-  box.appendChild(line);
+  var box = el("div", { style: "flex:1;padding:10px 14px;border-radius:12px;font-size:12px;line-height:1.6;background:var(--bg-card);border:1px dashed var(--accent);color:var(--text-muted);font-family:'JetBrains Mono',monospace;" });
+  box.textContent = "Думаю...";
   wrap.appendChild(avatar); wrap.appendChild(box);
   log.appendChild(wrap); log.scrollTop = log.scrollHeight;
   return {
-    addStep: function (text) { box.appendChild(el("div", { style: "margin-top:2px;padding-left:10px;opacity:0.75;" }, "→ " + text)); log.scrollTop = log.scrollHeight; },
-    setStep: function (text) { line.textContent = text; log.scrollTop = log.scrollHeight; },
     finalize: function () { wrap.remove(); }
   };
 }
@@ -233,7 +310,7 @@ async function onChatSend() {
 
   if (!window.chatMatchContext) {
     var log0 = qs("#chatLog");
-    if (log0) addChatMessage(log0, "assistant", "⚠ Сначала выбери матч из списка сверху — без него я не могу отвечать.");
+    if (log0) addChatMessage(log0, "assistant", "Сначала выбери матч из списка сверху.");
     return;
   }
 
@@ -256,19 +333,11 @@ async function onChatSend() {
   if (typeof Daily !== "undefined") Daily.bump("chat");
   if (typeof Achievements !== "undefined") Achievements.check();
 
-  var think = addThinkingBlock(log, "Думаю...");
+  var think = addThinkingBlock(log);
 
   try {
-    think.setStep("Читаю выбранный матч...");
-    await new Promise(function (r) { setTimeout(r, 250 + Math.random() * 200); });
-
-    think.addStep("Передаю Mistral с контекстом матча...");
     var matchCtx = ExternalAI.buildMatchContext();
     var externalText = await ExternalAI.ask(q, matchCtx);
-
-    think.addStep("✓ Mistral ответил");
-    think.setStep("Формулирую ответ...");
-    await new Promise(function (r) { setTimeout(r, 200 + Math.random() * 200); });
     think.finalize();
 
     var finalText = externalText || "Не удалось получить ответ.";
@@ -286,7 +355,7 @@ async function onChatSend() {
     console.warn("External AI failed:", err);
     think.finalize();
     var errBubble = addChatMessage(log, "assistant", "", false);
-    typeWriter(errBubble, "⚠ Не смог получить ответ от Mistral.\n\nОшибка: " + (err.message || err) + "\n\nПопробуй ещё раз через несколько секунд.", 12, function () {
+    typeWriter(errBubble, "Не получилось получить ответ. Попробуй ещё раз через несколько секунд.", 12, function () {
       isResponding = false;
       inp.disabled = false;
       btn.disabled = false;
