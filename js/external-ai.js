@@ -1,6 +1,5 @@
-/* DOTA JETCH — EXTERNAL AI v12.0
-   FIX: полный словарь дотерского сленга, исправлен * → **, позиция в контексте,
-   короткие ответы на короткие вопросы, улучшенная обработка 429. */
+/* DOTA JETCH — EXTERNAL AI v14.0 FINAL
+   ВСЕ ФИКСЫ: без выдумок, чистый сленг, точная позиция, запрет таймингов. */
 
 var ExternalAI = {
   enabled: true,
@@ -11,273 +10,195 @@ var ExternalAI = {
   mistralKey: "mstrl_fmvy3EYwtaIGtaLRiqrwMK2RRFOZtVcb_1McbHV",
   mistralUrl: "https://api.mistral.ai/v1/chat/completions",
 
-  mistralModels: [
-    "mistral-small-latest",
-    "open-mistral-nemo"
-  ],
+  mistralModels: ["mistral-small-latest", "open-mistral-nemo"],
 
   rateLimitedUntil: 0,
   currentModelIdx: 0,
 
-  /* ═══ ПОЛНЫЙ СЛОВАРЬ ДОТЕРСКОГО СЛЕНГА ═══ */
+  /* ═══ СЛЕНГ — ТОЛЬКО УНИВЕРСАЛЬНЫЕ СОКРАЩЕНИЯ ═══ */
   slangDict: {
-    /* ─── Предметы ─── */
+    /* Предметы */
     "Aghanim's Scepter": "Аганим",
     "Aghanim's Shard": "Шард",
-    "Ancient Tango of Essifation": "Танго",
-    "Animal Courier": "Курица",
-    "Assault Cuirass": "АС",
-    "Aeon Disk": "Аеон",
     "Abyssal Blade": "Абиссал",
     "Battle Fury": "БФ",
     "Black King Bar": "БКБ",
     "Blade Mail": "БМ",
     "Blink Dagger": "Блинк",
-    "Bloodthorn": "Бладорн",
-    "Bracer": "Брасер",
     "Butterfly": "Бабочка",
-    "Consecrated Wraps": "Бинты",
     "Crimson Guard": "Кримсон",
     "Dagon": "Дагон",
     "Desolator": "Дезоль",
     "Diffusal Blade": "Дифуза",
     "Divine Rapier": "Рапира",
-    "Essence Distiller": "Кальян",
     "Eul's Scepter of Divinity": "Еул",
     "Eye of Skadi": "Скади",
     "Force Staff": "Форс",
     "Ghost Scepter": "Гост",
     "Glimmer Cape": "Глиммер",
-    "Guardian Greaves": "Грейвы",
     "Hand of Midas": "Мидас",
     "Heart of Tarrasque": "Тараска",
-    "Healing Salve": "Сальва",
-    "Hurricane Pike": "Пика",
     "Linken's Sphere": "Линка",
-    "Lothar's Edge": "Лотар",
     "Maelstrom": "Маель",
     "Manta Style": "Манта",
     "Mask of Madness": "МоМ",
     "Magic Wand": "Стик",
     "Mekansm": "Мека",
     "Monkey King Bar": "МКБ",
-    "Necronomicon": "Некро",
-    "Null Talisman": "Нуль",
     "Octarine Core": "Октарин",
     "Orchid Malevolence": "Орчид",
-    "Observer Ward": "Вард",
-    "Phase Boots": "Фейзы",
-    "Pipe of Insight": "Пайп",
     "Power Treads": "Треды",
     "Radiance": "Радик",
     "Refresher Orb": "Рефрешер",
-    "Sange and Yasha": "СиЯ",
     "Satanic": "Сатаник",
     "Scythe of Vyse": "Хекс",
     "Shadow Blade": "ШБ",
     "Shiva's Guard": "Шива",
     "Silver Edge": "Сильвер",
     "Spirit Vessel": "Вессел",
-    "Tranquil Boots": "Транквилы",
     "Urn of Shadows": "Урна",
     "Vanguard": "Вангард",
     "Wraith Band": "Бэнд",
-    "Solar Crest": "Солярка",
-    "Sentry Ward": "Сентри",
-    "Town Portal Scroll": "ТП",
     "Boots of Travel": "Тревела",
     "Smoke of Deceit": "Смок",
     "Gem of True Sight": "Гем",
     "Dust of Appearance": "Даст",
-    "Helm of the Dominator": "Домик",
+    "Phase Boots": "Фейзы",
+    "Arcane Boots": "Арканы",
+    "Tranquil Boots": "Транквилы",
+    "Pipe of Insight": "Пайп",
+    "Sentry Ward": "Сентри",
+    "Observer Ward": "Вард",
+    "Town Portal Scroll": "ТП",
+    "Solar Crest": "Солярка",
+    "Bloodthorn": "Бладорн",
+    "Aeon Disk": "Аеон",
+    "Guardian Greaves": "Грейвы",
 
-    /* ─── Скиллы ─── */
-    "Shadowraze": "Разряд",
-    "Necromastery": "Некромастери",
-    "Presence of the Dark Lord": "Аура СФ",
-    "Requiem": "Реквием",
-    "Spectral Dagger": "Клинок",
-    "Desolate": "Опустошение",
-    "Dispersion": "Рассеивание",
-    "Haunt": "Преследование",
-    "Reality": "Реальность",
-    "Omnislash": "Омни",
-    "Blade Fury": "Вертушка",
-    "Healing Ward": "Вард",
-    "Meat Hook": "Хук",
-    "Rot": "Гниль",
-    "Dismember": "Расчленение",
-    "Ravage": "Раваж",
-    "Anchor Smash": "Краш",
-    "Black Hole": "Чёрная дыра",
-    "Midnight Pulse": "Пульс",
-    "Malefice": "Малефис",
+    /* Spectre */
+    "Spectral Dagger": "даггер",
+    "Desolate": "десолейт",
+    "Dispersion": "дисперсия",
+    "Haunt": "хаунт",
+    "Reality": "прыжок",
+
+    /* Скиллы */
+    "Meat Hook": "хук",
+    "Rot": "гниль",
+    "Dismember": "расчленение",
+    "Omnislash": "омни",
+    "Blade Fury": "вертушка",
+    "Healing Ward": "вард",
+    "Ravage": "раваж",
+    "Black Hole": "чёрная дыра",
     "Reverse Polarity": "РП",
-    "Skewer": "Скивер",
-    "Empower": "Эмпауэр",
-    "Chronosphere": "Хроно",
-    "Time Walk": "Тайм вок",
-    "Time Lock": "Тайм лок",
-    "Laguna Blade": "Лагуна",
-    "Dragon Slave": "Драгон слейв",
-    "Light Strike Array": "Столб",
-    "Finger of Death": "Палец",
-    "Earth Spike": "Спайк",
-    "Hex": "Хекс",
-    "Mana Void": "Мана войд",
-    "Mana Break": "Мана брейк",
-    "Culling Blade": "Казнь",
-    "Berserker's Call": "Колл",
-    "Counter Helix": "Вертолёт",
-    "Epicenter": "Эпицентр",
-    "Burrowstrike": "Бурст",
-    "Nether Strike": "Незер",
-    "Charge of Darkness": "Чардж",
-    "Greater Bash": "Баш",
-    "Static Remnant": "Ремнант",
-    "Ball Lightning": "Болт",
-    "Overload": "Оверлоад",
-    "Sleight of Fist": "Слейт",
-    "Searing Chains": "Цепи",
-    "Flame Guard": "Флейм гард",
-    "Fire Remnant": "Ремнант",
-    "Sun Strike": "Санстрайк",
-    "Chaos Meteor": "Метеор",
-    "Deafening Blast": "Бласт",
-    "Tornado": "Торнадо",
-    "EMP": "ЕМП",
-    "Cold Snap": "Колд снап",
-    "Forge Spirit": "Фордж",
-    "Alacrity": "Алакрити",
-    "Ice Wall": "Айс волл",
-    "Ghost Walk": "Гост волк",
-    "Assassinate": "Ассасинейт",
-    "Shrapnel": "Шрапнель",
-    "Headshot": "Хедшот",
-    "Take Aim": "Тейк эйм",
-    "Blur": "Блюр",
-    "Stifling Dagger": "Даггер",
-    "Phantom Strike": "Прыжок",
-    "Coup de Grace": "Криты",
-    "Blink Strike": "Блинк страйк",
-    "Tricks of the Trade": "Трикс",
-    "Smoke Screen": "Смокскрин",
-    "Pounce": "Прыжок",
-    "Dark Pact": "Пакт",
-    "Essence Shift": "Эссенс шифт",
-    "Shadow Dance": "Шадоу дэнс",
-    "Frost Arrows": "Фрост арроу",
-    "Gust": "Густ",
-    "Multishot": "Мультишот",
-    "Marksmanship": "Маркманшип",
-    "Burning Spear": "Копьё",
-    "Inner Vitality": "Виталити",
-    "Berserker's Blood": "Блад",
-    "Life Break": "Лайф брейк",
-    "Rupture": "Разрыв",
-    "Blood Rite": "Блад райт",
-    "Thirst": "Жажда",
-    "Reaper's Scythe": "Коса",
-    "Death Pulse": "Пульс",
-    "Sadist": "Садист",
-    "Ghost Shroud": "Шрауд",
-    "Soul Assumption": "Соул ассампшн",
-    "Grave Chill": "Чилл",
-    "Summon Familiars": "Фамильяры",
-    "Penitence": "Пенитенс",
-    "Holy Persuasion": "Персуэйжн",
-    "Hand of God": "Хэнд оф гад",
-    "Omnislash": "Омни",
-    "Hook": "Хук",
-    "Chakram": "Чакрам",
-    "Timber Chain": "Чейн",
-    "Whirling Death": "Вирл",
-    "Reactive Armor": "Броня",
-    "Sonic Wave": "Волна",
-    "Blink": "Блинк",
-    "Scream of Pain": "Скрим",
-    "Shadow Strike": "Дарт",
-    "Astral Step": "Астрал",
-    "Resonant Pulse": "Пульс",
-    "Aether Remnant": "Ремнант",
-    "Dissimilate": "Диссимилейт",
-    "Primal Roar": "Роар",
-    "Call of the Wild": "Калл",
-    "Wild Axes": "Топоры",
-    "Toss": "Тосс",
-    "Avalanche": "Аваланч",
-    "Tree Grab": "Дерево",
-    "Walrus Punch": "Панч",
-    "Snowball": "Сноуболл",
-    "Ice Shards": "Шарды",
-    "Tag Team": "Тэг тим",
-    "Spell Steal": "Спелл стил",
-    "Telekinesis": "Телекинез",
-    "Fade Bolt": "Фейд болт",
-    "Nether Ward": "Вард",
-    "Life Drain": "Дрейн",
-    "Decrepify": "Декреп",
-    "Soul Rip": "Соул рип",
-    "Decay": "Декей",
-    "Tombstone": "Томбстоун",
-    "Flesh Golem": "Голем"
+    "Chronosphere": "хроно",
+    "Laguna Blade": "лагуна",
+    "Finger of Death": "палец",
+    "Mana Void": "мана войд",
+    "Culling Blade": "казнь",
+    "Berserker's Call": "колл",
+    "Epicenter": "эпицентр",
+    "Charge of Darkness": "чардж",
+    "Static Remnant": "ремант",
+    "Ball Lightning": "болт",
+    "Sleight of Fist": "слейт",
+    "Sun Strike": "санстрайк",
+    "Chaos Meteor": "метеор",
+    "Tornado": "торнадо",
+    "Alacrity": "алакрити",
+    "Stifling Dagger": "даггер",
+    "Phantom Strike": "прыжок",
+    "Coup de Grace": "криты",
+    "Dark Pact": "пакт",
+    "Frost Arrows": "фрост арроуз",
+    "Gust": "густ",
+    "Life Break": "лайф брейк",
+    "Rupture": "разрыв",
+    "Reaper's Scythe": "коса",
+    "Death Pulse": "пульс",
+    "Hand of God": "хэнд оф гад",
+    "Timber Chain": "чейн",
+    "Sonic Wave": "волна",
+    "Primal Roar": "роар",
+    "Wild Axes": "топоры",
+    "Toss": "тосс",
+    "Avalanche": "аваланч",
+    "Walrus Punch": "панч",
+    "Snowball": "сноуболл",
+    "Spell Steal": "спелл стил",
+    "Telekinesis": "телекинез",
+    "Fade Bolt": "фейд болт",
+    "Life Drain": "дрейн",
+    "Soul Rip": "соул рип",
+    "Decay": "декей",
+    "Tombstone": "томбстоун",
+    "Requiem": "реквием",
+    "Shadowraze": "рейзы",
+    "Chakram": "чакрам",
+    "Astral Step": "астрал",
+    "Pounce": "прыжок",
+    "Essence Shift": "эссенс шифт"
   },
 
-  /* ─── Автозамена сленга в ответе ─── */
   applySlang: function (text) {
     var out = String(text);
-    /* Сначала убираем одинарные звёздочки-выделения (Mistral иногда использует * вместо **) */
+    /* *текст* → **текст** */
     out = out.replace(/(^|\s)\*([^\*\n]{1,60})\*(?=\s|$|[.,!?:;])/g, "$1**$2**");
-    /* Затем заменяем названия на сленг */
-    for (var en in this.slangDict) {
-      if (!this.slangDict.hasOwnProperty(en)) continue;
+    var keys = Object.keys(this.slangDict).sort(function (a, b) { return b.length - a.length; });
+    for (var k = 0; k < keys.length; k++) {
+      var en = keys[k];
       var ru = this.slangDict[en];
-      var re = new RegExp("\\b" + en.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + "\\b", "g");
+      var escaped = en.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      var re = new RegExp("\\b" + escaped + "\\b", "g");
       out = out.replace(re, ru);
     }
     return out;
   },
 
-  /* ─── Промпт ─── */
   systemPrompt: function (matchContext) {
     var base = [
       "Ты DotaJetch AI — дотерский тренер. Общаешься как опытный игрок 7000+ MMR с другом.",
       "",
-      "🚨 ПРАВИЛА:",
+      "🚨 КРИТИЧЕСКИЕ ПРАВИЛА:",
       "",
-      "1. **Все названия предметов и способностей — ТОЛЬКО по-русски, коротко, как говорят дотеры.**",
-      "   Примеры предметов: Aghanim's Scepter → Аганим, Eul's Scepter → Еул, Black King Bar → БКБ,",
-      "   Blink Dagger → Блинк, Ghost Scepter → Гост, Manta Style → Манта, Radiance → Радик,",
-      "   Scythe of Vyse → Хекс, Orchid Malevolence → Орчид, Heart of Tarrasque → Тараска,",
-      "   Linken's Sphere → Линка, Assault Cuirass → АС, Monkey King Bar → МКБ.",
-      "   Примеры скиллов: Shadowraze → Разряд, Spectral Dagger → Клинок, Dispersion → Рассеивание,",
-      "   Requiem → Реквием, Haunt → Преследование, Omnislash → Омни, Rot → Гниль, Hook → Хук.",
-      "   Английские аббревиатуры (BKB, MKB, DPS, GPM) — можно оставить.",
+      "1. **НИКОГДА не выдумывай факты о матче.**",
+      "   • НЕ упоминай предметы, если их нет в контексте.",
+      "   • НЕ упоминай тайминги покупки предметов ('радик на 40-й минуте'),",
+      "     если их нет в контексте. Ты НЕ видишь когда игрок что купил.",
+      "   • Пиши только ОБЩИЕ рекомендации: 'собери МКБ против уклонения'.",
       "",
-      "2. **Формат**: markdown. **Жирный** через ДВОЙНЫЕ звёздочки, НЕ через одинарные.",
+      "2. **Все названия — коротко, как говорят дотеры:**",
+      "   Black King Bar → БКБ, Monkey King Bar → МКБ, Battle Fury → БФ,",
+      "   Manta Style → Манта, Radiance → Радик, Scythe of Vyse → Хекс,",
+      "   Blink Dagger → Блинк, Heart of Tarrasque → Тараска, Linken's → Линка.",
+      "   НЕ используй непонятные сокращения. Если сомневаешься — пиши полное название.",
+      "",
+      "3. **Формат**: markdown. **Жирный** через **ДВОЙНЫЕ** звёздочки.",
       "   Списки через `• `. Эмодзи для разделов. Пустая строка между блоками.",
       "",
-      "3. **Длина ответа зависит от вопроса:**",
-      "   • Короткий вопрос (до 10 слов) → 2-4 предложения, без разбора KDA.",
-      "   • Вопрос про матч → 150-300 слов, разбор по делу.",
-      "   • Общий вопрос про героя → 100-200 слов.",
-      "   НЕ лей воду. НЕ разбирай KDA если не спрашивают.",
+      "4. **Длина ответа:**",
+      "   • Короткий вопрос (до 10 слов) → 2-4 предложения, БЕЗ разбора KDA.",
+      "   • Вопрос про матч → до 250 слов.",
+      "   • Общий вопрос → 100-150 слов.",
       "",
-      "4. **Сленг дотеров**: керри, мид, сап, оффлейн, фармить, крипы, ганкать, руинить,",
-      "   харасить, килить, лузать, изи, имба, ГГ, байбек, хайграунд, фейт.",
+      "5. **Сленг**: керри, мид, сап, оффлейн, фармить, крипы, ганкать,",
+      "   руинить, харасить, килить, лузать, изи, имба, ГГ.",
       "",
-      "5. **Не пиши вступления типа 'Конечно!' или 'Отличный вопрос!'**. Сразу к делу.",
+      "6. **Не пиши вступления** типа 'Конечно!' / 'Отличный вопрос!' Сразу к делу.",
       "",
-      "6. **Если вопрос про матч** — опирайся на данные ниже. Учитывай позицию игрока (Pos 1-5).",
-      "   Если игрок был Pos 5 — не советуй ему фармить крипов и делать БКБ на 20-й минуте.",
-      "",
-      "7. **Запрещено**: длинные вступления, повторение одного и того же, разбор метрик,",
-      "   о которых не спрашивали, объяснение базовых механик (все и так знают)."
+      "7. **Позиция игрока** указана в контексте. Учитывай её:",
+      "   Pos 1 (керри) — фарм, криты, лейт.",
+      "   Pos 2 (мид) — соло, ганги, руны.",
+      "   Pos 3 (оффлейн) — инициация, дизейбл, танк.",
+      "   Pos 4 (роум) — ганги, варды, помощь всем.",
+      "   Pos 5 (сапорт) — сейв керри, варды, хил."
     ].join("\n");
 
     if (matchContext) {
       base += "\n\n══════ ДАННЫЕ МАТЧА ══════\n" + matchContext +
-        "\n══════════════════════════";
+        "\n══════════════════════════\n\n" +
+        "⚠️ Используй ТОЛЬКО данные выше. Ничего не придумывай.";
     }
     return base;
   },
@@ -292,32 +213,26 @@ var ExternalAI = {
     return null;
   },
 
-  /* ─── Определение позиции по эвристике ─── */
   detectPosition: function (p, durMin) {
-    if (!p || !durMin) return null;
-    var lh = (p.last_hits || 0) / durMin;
+    if (!p) return null;
+    var lane = p.lane_role;
+    var isRoaming = p.is_roaming === true;
+    var lhPerMin = (p.last_hits || 0) / Math.max(durMin, 1);
+
+    if (isRoaming) return "Pos 4 (роум)";
+    if (lane === 1) return lhPerMin >= 4 ? "Pos 1 (керри)" : "Pos 5 (сапорт)";
+    if (lane === 2) return "Pos 2 (мид)";
+    if (lane === 3) return lhPerMin >= 3 ? "Pos 3 (оффлейн)" : "Pos 4 (роум)";
+    if (lane === 4) return "Pos 4 (роум)";
+
     var gpm = p.gold_per_min || 0;
-    var laneRole = p.lane_role;
-
-    /* Если есть lane_role — используем */
-    if (laneRole === 1) {
-      return lh >= 4 ? "Pos 1 (керри)" : "Pos 5 (сапорт)";
-    }
-    if (laneRole === 2) return "Pos 2 (мид)";
-    if (laneRole === 3) {
-      return lh >= 3 ? "Pos 3 (оффлейн)" : "Pos 4 (роум)";
-    }
-    if (laneRole === 4) return "Pos 4 (роум)";
-
-    /* Без lane_role — эвристика по GPM/LH */
-    if (gpm >= 500 && lh >= 5) return "Pos 1 (керри)";
-    if (gpm >= 450 && lh >= 3.5) return "Pos 2 (мид)";
-    if (gpm >= 380 && lh >= 2.5) return "Pos 3 (оффлейн)";
+    if (gpm >= 550 && lhPerMin >= 6) return "Pos 1 (керри)";
+    if (gpm >= 480 && lhPerMin >= 4) return "Pos 2 (мид)";
+    if (gpm >= 380 && lhPerMin >= 2.5) return "Pos 3 (оффлейн)";
     if (gpm >= 280) return "Pos 4 (роум)";
     return "Pos 5 (сапорт)";
   },
 
-  /* ─── Контекст ─── */
   buildMatchContext: function () {
     var res = this.getContextSource();
     if (!res) return null;
@@ -330,7 +245,7 @@ var ExternalAI = {
     ctx.push("🎮 ГЕРОЙ ИГРОКА: " + heroName.toUpperCase());
     if (position) ctx.push("ПОЗИЦИЯ: " + position);
     ctx.push("Результат: " + (res.won ? "ПОБЕДА 🏆" : "ПОРАЖЕНИЕ 💀"));
-    ctx.push("Матч: #" + (m.match_id || "?") + ", " + durMin.toFixed(0) + " мин");
+    ctx.push("Матч #" + (m.match_id || "?") + ", " + durMin.toFixed(0) + " мин");
 
     ctx.push("KDA: " + p.kills + "/" + p.deaths + "/" + p.assists +
       " (" + ((p.kills + p.assists) / Math.max(p.deaths, 1)).toFixed(2) + ")");
@@ -362,15 +277,6 @@ var ExternalAI = {
       if (enemies.length) ctx.push("Враги: " + enemies.join(", "));
     }
 
-    if (res.items && m.players) {
-      var meItems = [];
-      for (var k = 0; k < 6; k++) {
-        var itemId = p["item_" + k] || 0;
-        if (itemId > 0 && res.items[itemId]) meItems.push(res.items[itemId].name);
-      }
-      if (meItems.length) ctx.push("Инвентарь: " + meItems.join(", "));
-    }
-
     return ctx.join("\n");
   },
 
@@ -391,7 +297,7 @@ var ExternalAI = {
         { role: "system", content: self.systemPrompt(matchContext) },
         { role: "user", content: userQuery }
       ],
-      temperature: 0.6,
+      temperature: 0.5,
       max_tokens: 800
     };
     var headers = {
@@ -409,8 +315,8 @@ var ExternalAI = {
       if (res.status === 429) throw { code: 429, message: "Rate limit" };
       if (res.status === 401) throw { code: 401, message: "Неверный API-ключ" };
       if (!res.ok) {
-        return res.text().then(function (t) {
-          throw { code: res.status, message: "HTTP " + res.status + ": " + t.slice(0, 200) };
+        return res.text().then(function () {
+          throw { code: res.status, message: "HTTP " + res.status };
         });
       }
       return res.text();
@@ -426,52 +332,30 @@ var ExternalAI = {
 
   askMistral: async function (userQuery, matchContext) {
     var self = this;
-
     var now = Date.now();
     if (now < self.rateLimitedUntil) {
       var waitMs = self.rateLimitedUntil - now;
-      console.log("Mistral cooldown " + Math.round(waitMs/1000) + " сек...");
-      if (waitMs > 8000) throw new Error("Mistral в cooldown");
-      await self.sleep(waitMs);
+      if (waitMs > 20000) throw new Error("Mistral cooldown");
+      await self.sleep(Math.min(waitMs, 20000));
     }
 
-    var startIdx = self.currentModelIdx;
     var lastError = null;
-
     for (var i = 0; i < self.mistralModels.length; i++) {
-      var modelIdx = (startIdx + i) % self.mistralModels.length;
-      var model = self.mistralModels[modelIdx];
-
-      for (var attempt = 0; attempt < 3; attempt++) {
-        try {
-          console.log("Mistral [" + model + "] #" + (attempt+1));
-          var text = await self.mistralRequest(model, userQuery, matchContext);
-          self.currentModelIdx = modelIdx;
-          self.rateLimitedUntil = 0;
-          return text;
-        } catch (err) {
-          lastError = err;
-
-          if (err.code === 429) {
-            console.warn("429 " + model + " attempt " + (attempt+1));
-            var backoff = 3000 * Math.pow(2, attempt); /* 3s → 6s → 12s */
-            if (attempt < 2) {
-              await self.sleep(backoff);
-              continue;
-            }
-            self.rateLimitedUntil = Date.now() + 15000;
-            break;
-          }
-
-          if (err.code === 401) throw new Error("Неверный API-ключ Mistral");
-
-          console.warn(model + " failed:", err.message);
-          break;
-        }
+      var model = self.mistralModels[i];
+      try {
+        console.log("Mistral [" + model + "]");
+        var text = await self.mistralRequest(model, userQuery, matchContext);
+        self.rateLimitedUntil = 0;
+        return text;
+      } catch (err) {
+        lastError = err;
+        if (err.code === 429) { console.warn("429 " + model); continue; }
+        if (err.code === 401) throw new Error("Неверный API-ключ");
+        console.warn(model + " failed: " + err.message);
       }
     }
-
-    throw new Error("Mistral исчерпан: " + (lastError ? lastError.message : "?"));
+    self.rateLimitedUntil = Date.now() + 60000;
+    throw new Error("Mistral исчерпан");
   },
 
   askPollinations: function (userQuery, matchContext) {
@@ -482,7 +366,7 @@ var ExternalAI = {
         { role: "system", content: self.systemPrompt(matchContext) },
         { role: "user", content: userQuery }
       ],
-      temperature: 0.6,
+      temperature: 0.5,
       max_tokens: 800
     };
     return self.fetchWithTimeout("https://text.pollinations.ai/openai", {
@@ -511,7 +395,6 @@ var ExternalAI = {
     if (this.busy) throw new Error("busy");
     this.busy = true;
     this.lastError = null;
-
     try {
       return await this.askMistral(query, matchContext);
     } catch (err) {
@@ -520,7 +403,7 @@ var ExternalAI = {
         return await this.askPollinations(query, matchContext);
       } catch (err2) {
         this.lastError = err2;
-        throw new Error("Не могу получить ответ. Попробуй через 30 секунд.");
+        throw new Error("Сервис перегружен. Попробуй через минуту.");
       }
     } finally {
       this.busy = false;
@@ -530,7 +413,7 @@ var ExternalAI = {
   shouldUseExternal: function () { return true; },
 
   init: function () {
-    console.log("external-ai v12.0 ready · полный сленг + позиция + короткие ответы");
+    console.log("external-ai v14.0 FINAL · без выдумок, чистый сленг");
   }
 };
 
