@@ -1,6 +1,7 @@
-/* DOTA JETCH — ИИ-АССИСТЕНТ v31.0 FINAL
-   + Этапы генерации вернулись
-   + Авто-поиск в интернете
+/* DOTA JETCH — ИИ-АССИСТЕНТ v32.0 FINAL
+   + Использует checkLicense() вместо Store (работает с forever-лицензией)
+   + Убраны упоминания несуществующей кнопки «Глубокое мышление»
+   + Защита от отсутствия ExternalAI / WebSearch
    + Надёжный рендер markdown */
 
 var chatHistory = [];
@@ -9,6 +10,17 @@ var userScrolledUp = false;
 
 if (typeof window !== "undefined") {
   window.__chatPending = null;
+}
+
+/* ═══ ЕДИНАЯ ПРОВЕРКА ПОДПИСКИ ═══ */
+function _isPlus() {
+  if (typeof checkLicense === "function") {
+    try { return checkLicense() === true; } catch (e) {}
+  }
+  if (Store.get("license.forever", false) === true) return true;
+  var exp = Store.get("license.expires", null);
+  if (!exp) return Store.get("license.active", false) === true;
+  try { return new Date(exp) > new Date(); } catch (e) { return false; }
 }
 
 /* ═══ НАДЁЖНЫЙ рендер inline markdown ═══ */
@@ -197,8 +209,7 @@ function buildMatchDropdown(history, onSelect) {
 
 /* ═══ Главный рендер чата ═══ */
 function renderChat() {
-  var plus = Store.get("license.active", false) === true;
-  if (!plus) return renderChatLocked();
+  if (!_isPlus()) return renderChatLocked();
 
   var frag = document.createDocumentFragment();
   var chatCard = UI.card("Чат с ИИ");
@@ -400,14 +411,7 @@ function addThinkingBlock(log) {
 
 async function onChatSend() {
   if (isResponding) return;
-  var plus = Store.get("license.active", false) === true;
-  if (!plus) return;
-
-  if (!window.chatMatchContext) {
-    var log0 = qs("#chatLog");
-    if (log0) addChatMessage(log0, "assistant", "Сначала выбери матч из списка сверху.");
-    return;
-  }
+  if (!_isPlus()) return;
 
   var inp = qs("#chatInput");
   var log = qs("#chatLog");
@@ -415,6 +419,16 @@ async function onChatSend() {
   if (!inp || !log) return;
   var q = (inp.value || "").trim();
   if (!q) return;
+
+  if (!window.chatMatchContext) {
+    addChatMessage(log, "assistant", "Сначала выбери матч из списка сверху — без него я не смогу дать разбор.");
+    return;
+  }
+
+  if (typeof ExternalAI === "undefined" || !ExternalAI) {
+    addChatMessage(log, "assistant", "ИИ-модуль не загружен. Перезагрузи страницу (Ctrl+F5).");
+    return;
+  }
 
   isResponding = true;
   inp.disabled = true; btn.disabled = true; inp.value = "";
@@ -437,7 +451,6 @@ async function onChatSend() {
     var matchCtx = ExternalAI.buildMatchContext();
     var heroAbilities = ExternalAI.findHeroAbilities(q);
 
-    /* Этап 1: подготовка */
     if (heroAbilities) {
       think.addStep("Знаю способности " + heroAbilities.hero + " ✓");
     } else {
@@ -446,31 +459,20 @@ async function onChatSend() {
     await new Promise(function (r) { setTimeout(r, 300); });
     forceScrollToBottom(log);
 
-    /* Этап 2: запрос к AI */
     think.addStep("Анализирую вопрос...");
     await new Promise(function (r) { setTimeout(r, 300); });
     forceScrollToBottom(log);
 
     window.__chatPending = { query: q, matchContext: matchCtx, result: null };
 
-    /* Этап 3 (опционально): поиск */
-    var stage = "first";
-    var stageSearch = false;
     var externalText = await ExternalAI.ask(q, matchCtx, function (s) {
       if (s === "search") {
-        stageSearch = true;
         think.addStep("Проверяю ответ...");
       } else if (s === "second") {
         think.updateStep("Нашёл информацию в интернете ✓");
       }
     });
 
-    /* Если был поиск — добавляем видимый этап */
-    if (stageSearch) {
-      forceScrollToBottom(log);
-    }
-
-    /* Финальный этап */
     think.updateStep("Формулирую ответ...");
     forceScrollToBottom(log);
     await new Promise(function (r) { setTimeout(r, 250); });
@@ -482,7 +484,6 @@ async function onChatSend() {
     var bubble = addChatMessage(log, "assistant", "", false);
     forceScrollToBottom(log);
 
-    /* Печать с балансировкой */
     var i = 0;
     userScrolledUp = false;
     function typeTick() {
@@ -533,3 +534,4 @@ async function onChatSend() {
     else userScrolledUp = true;
   }, true);
 })();
+

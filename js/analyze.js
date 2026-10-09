@@ -1,5 +1,6 @@
-/* DOTA JETCH — ANALYZE v3.5
-   + Кнопка "Обсудить с ИИ" вместо встроенного AI-блока */
+/* DOTA JETCH — ANALYZE v3.6
+   + Кнопка "Обсудить с ИИ" показывается только для JETCH+
+   + Использует checkLicense() (работает с forever-лицензией) */
 
 var MODE_NAMES = {
   1: "All Pick", 2: "Captains Mode", 3: "Random Draft", 4: "Single Draft",
@@ -12,6 +13,16 @@ var POS_NAMES = { 1:"Pos 1 Керри", 2:"Pos 2 Мид", 3:"Pos 3 Оффлей�
 var ANALYZE_FREE_LIMIT = 5;
 var lastAnalysis = null;
 
+function _isPlusA() {
+  if (typeof checkLicense === "function") {
+    try { return checkLicense() === true; } catch (e) {}
+  }
+  if (Store.get("license.forever", false) === true) return true;
+  var exp = Store.get("license.expires", null);
+  if (!exp) return Store.get("license.active", false) === true;
+  try { return new Date(exp) > new Date(); } catch (e) { return false; }
+}
+
 function analyzeTodayKey() {
   var d = new Date();
   return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0");
@@ -23,8 +34,7 @@ function analyzeQuota() {
   return q;
 }
 function analyzeQuotaRemaining() {
-  var plus = (typeof checkLicense === "function") ? checkLicense() : (Store.get("license.active", false) === true);
-  if (plus) return Infinity;
+  if (_isPlusA()) return Infinity;
   var q = analyzeQuota();
   return Math.max(0, ANALYZE_FREE_LIMIT - q.count);
 }
@@ -143,6 +153,22 @@ function getItemRecs(p, hero, match, allHeroes) {
 
 function buildChatButton(res) {
   if (!res || !res.match || !res.hero) return null;
+
+  /* Для FREE — показать кнопку активации JETCH+ */
+  if (!_isPlusA()) {
+    var lockedCard = el("div", { class: "card" });
+    lockedCard.style.cssText = "background:linear-gradient(135deg,rgba(251,191,36,0.10),var(--bg-card));border-color:var(--gold);text-align:center;";
+    lockedCard.appendChild(el("div", { style: "font-size:32px;margin-bottom:8px;" }, "🔒"));
+    lockedCard.appendChild(el("div", { style: "font-size:15px;font-weight:700;color:var(--gold);margin-bottom:6px;" }, "Обсудить с ИИ — JETCH+"));
+    lockedCard.appendChild(el("div", { class: "dim", style: "font-size:12px;line-height:1.5;margin-bottom:16px;max-width:340px;margin-left:auto;margin-right:auto;" },
+      "ИИ-чат с разбором матча доступен только с подпиской JETCH+."));
+    var actBtn = UI.btn("Активировать JETCH+");
+    actBtn.style.cssText = "width:100%;padding:14px;font-size:14px;font-weight:800;";
+    actBtn.addEventListener("click", function () { switchPage("settings"); });
+    lockedCard.appendChild(actBtn);
+    return lockedCard;
+  }
+
   var card = el("div", { class: "card" });
   card.style.cssText = "background:linear-gradient(135deg,rgba(139,92,246,0.15),var(--bg-card));border-color:var(--accent);text-align:center;";
   card.appendChild(el("div", { style: "font-size:32px;margin-bottom:8px;" }, "💬"));
@@ -161,7 +187,6 @@ function buildChatButton(res) {
 
 function renderAnalyze() {
   var frag = document.createDocumentFragment();
-  var plus = (typeof checkLicense === "function") ? checkLicense() : (Store.get("license.active", false) === true);
   if (lastAnalysis && lastAnalysis.match) {
     var resetBtn = UI.btn("🔄 Новый анализ", { variant: "ghost" });
     resetBtn.style.marginBottom = "14px";
@@ -175,6 +200,7 @@ function renderAnalyze() {
     return frag;
   }
 
+  var plus = _isPlusA();
   var left = analyzeQuotaRemaining();
   var form = UI.card("Новый анализ");
   var qt = el("div", { style: "font-size:12px;font-weight:600;margin-bottom:14px;color:" + (plus ? "var(--gold)" : (left > 0 ? "var(--text-muted)" : "var(--red)")) + ";" },
@@ -208,7 +234,7 @@ function renderAnalyze() {
 }
 
 async function onAnalyzeClick() {
-  var plus = (typeof checkLicense === "function") ? checkLicense() : (Store.get("license.active", false) === true);
+  var plus = _isPlusA();
   if (!plus && analyzeQuotaRemaining() <= 0) {
     var h = qs("#analyzeHint");
     if (h) { h.textContent = "Лимит исчерпан. Активируй JETCH+ в настройках."; h.style.color = "var(--red)"; }
@@ -237,6 +263,8 @@ async function onAnalyzeClick() {
     if (typeof History !== "undefined") History.add(res);
     if (typeof Achievements !== "undefined") Achievements.onAnalyze(res);
     if (typeof Daily !== "undefined") Daily.bump("analyze");
+    if (typeof BrainSharedMemory !== "undefined") { try { BrainSharedMemory.recordMatch(res); } catch (e) {} }
+    if (typeof BrainInsights !== "undefined") { try { BrainInsights.recordMatch(res); } catch (e) {} }
     hint.textContent = "Готово!"; hint.style.color = "var(--green)";
     if (typeof updateSidebarPlan === "function") updateSidebarPlan();
   } catch (e) {
@@ -366,4 +394,5 @@ function buildMetrics(r) {
   return card;
 }
 
-console.log("analyze v3.5 ready (chat button)");
+console.log("analyze v3.6 ready (chat button only for JETCH+)");
+

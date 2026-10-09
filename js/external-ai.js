@@ -1,7 +1,8 @@
-/* DOTA JETCH — EXTERNAL AI v22.0 FINAL
-   + Автоматический поиск при плохом ответе
-   + Увеличен max_tokens (2500) — текст не обрывается
-   + Речевые правила (денаи, ластхиты, крипы) */
+/* DOTA JETCH — EXTERNAL AI v23.0 FINAL
+   + Авто-поиск при слабом ответе (Wikipedia + DuckDuckGo)
+   + max_tokens 2500 — длинные ответы не обрываются
+   + Защита от отсутствия WebSearch
+   + Умный isWeakAnswer (не триггерит поиск зря) */
 
 var ExternalAI = {
   enabled: true,
@@ -131,11 +132,8 @@ var ExternalAI = {
     [/\bденан(?:ы|ов|а|у|ом|е)?\b/gi, "денаи"],
     [/\bденануть\b/gi, "заденаить"],
     [/\bластхитс\b/gi, "ластхиты"],
-    [/\bластхит(?!ы|а|ов|у|е|ом)\b/gi, "ластхит"],
     [/\bкрипс\b/gi, "крипы"],
-    [/\bвардс\b/gi, "варды"],
-    [/\bгангнуть\b/gi, "гангнуть"],
-    [/\bпофармить\b/gi, "пофармить"]
+    [/\bвардс\b/gi, "варды"]
   ],
 
   applySpeechFixes: function (text) {
@@ -206,10 +204,13 @@ var ExternalAI = {
         "\n⚠️ Используй ТОЛЬКО эти способности.";
     }
 
-    if (searchData) {
-      base += "\n\n══════ РЕЗУЛЬТАТЫ ПОИСКА ══════\n" +
-        WebSearch.formatForPrompt(searchData) +
-        "\n⚠️ Используй ТОЛЬКО эту информацию. Не добавляй от себя.";
+    if (searchData && typeof WebSearch !== "undefined" && WebSearch && typeof WebSearch.formatForPrompt === "function") {
+      var formatted = WebSearch.formatForPrompt(searchData);
+      if (formatted) {
+        base += "\n\n══════ РЕЗУЛЬТАТЫ ПОИСКА ══════\n" +
+          formatted +
+          "\n⚠️ Используй ТОЛЬКО эту информацию. Не добавляй от себя.";
+      }
     }
 
     if (matchContext) {
@@ -246,7 +247,7 @@ var ExternalAI = {
 
   buildMatchContext: function () {
     var res = this.getContextSource();
-    if (!res) return null;
+    if (!res || !res.player || !res.match) return null;
     var p = res.player, m = res.match;
     var heroName = res.hero ? res.hero.name : "?";
     var durMin = (m.duration || 0) / 60;
@@ -354,17 +355,20 @@ var ExternalAI = {
     throw new Error("Mistral исчерпан");
   },
 
-  /* ═══ Проверка: плохой ли ответ ═══ */
+  /* ═══ УМНАЯ проверка: плохой ли ответ ═══ */
   isWeakAnswer: function (text) {
     if (!text) return true;
     var t = String(text).toLowerCase();
-    var words = t.split(/\s+/).length;
-    if (words < 60) return true;
+    var words = t.split(/\s+/).filter(function (w) { return w.length > 0; }).length;
+    /* Явные признаки плохого ответа */
     if (t.indexOf("не знаю") >= 0) return true;
     if (t.indexOf("не уверен") >= 0) return true;
-    if (t.indexOf("уточни") >= 0) return true;
     if (t.indexOf("не могу точно") >= 0) return true;
     if (t.indexOf("попробуй переформулировать") >= 0) return true;
+    if (t.indexOf("уточни") >= 0 && words < 30) return true;
+    if (t.indexOf("извини") >= 0 && words < 25) return true;
+    /* Очень короткий ответ на существенный запрос */
+    if (words < 15) return true;
     return false;
   },
 
@@ -389,7 +393,8 @@ var ExternalAI = {
       var text1 = await this.askMistral(query, matchContext, heroAbilitiesInfo, null);
 
       /* Если ответ слабый — пробуем с поиском */
-      if (this.isWeakAnswer(text1) && typeof WebSearch !== "undefined") {
+      var canSearch = (typeof WebSearch !== "undefined") && WebSearch && (typeof WebSearch.search === "function");
+      if (this.isWeakAnswer(text1) && canSearch) {
         if (onStage) onStage("search");
         console.log("[AutoSearch] Слабый ответ, ищу в интернете...");
         var searchData = null;
@@ -414,9 +419,10 @@ var ExternalAI = {
   },
 
   shouldUseExternal: function () { return true; },
-  init: function () { console.log("external-ai v22.0 FINAL · авто-поиск + длинные ответы"); }
+  init: function () { console.log("external-ai v23.0 FINAL · авто-поиск + длинные ответы"); }
 };
 
 if (typeof Store !== "undefined") {
   setTimeout(function () { ExternalAI.init(); }, 100);
 }
+
