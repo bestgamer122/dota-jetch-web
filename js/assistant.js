@@ -1,5 +1,6 @@
-/* DOTA JETCH — ИИ-АССИСТЕНТ v28.0 FINAL
-   + Кнопка "Глубокое мышление"
+/* DOTA JETCH — ИИ-АССИСТЕНТ v29.0 FINAL
+   + НАДЁЖНЫЙ рендер markdown через split **
+   + Балансировка звёздочек при typing
    + Автоскролл при отправке */
 
 var chatHistory = [];
@@ -10,6 +11,86 @@ if (typeof window !== "undefined") {
   window.__chatPending = null;
 }
 
+/* ═══ НАДЁЖНЫЙ рендер inline markdown ═══ */
+function renderInline(text) {
+  var h = String(text);
+
+  /* Жирный: split по ** и оборачиваем нечётные части */
+  var parts = h.split("**");
+  var out = "";
+  for (var i = 0; i < parts.length; i++) {
+    if (i % 2 === 1) {
+      out += "<strong>" + parts[i] + "</strong>";
+    } else {
+      out += parts[i];
+    }
+  }
+
+  /* Курсив: _текст_ */
+  out = out.replace(/(^|[^\w])_(.+?)_([^\w]|$)/g, '$1<em style="color:var(--text-muted);">$2</em>$3');
+
+  /* Убираем все оставшиеся одиночные * (они бесполезны) */
+  out = out.replace(/\*/g, "");
+
+  return out;
+}
+
+/* ═══ Балансировка звёздочек для typing ═══ */
+function balanceAsterisks(text) {
+  var count = (text.match(/\*\*/g) || []).length;
+  if (count % 2 === 1) {
+    /* Непарная ** — отрезаем всё после последней */
+    var idx = text.lastIndexOf("**");
+    if (idx > 0) text = text.slice(0, idx);
+  }
+  return text;
+}
+
+/* ═══ Полный рендер markdown ═══ */
+function renderMarkdownFull(text) {
+  if (!text) return "";
+  var lines = String(text).split("\n");
+  var out = [];
+  for (var i = 0; i < lines.length; i++) {
+    var line = lines[i];
+    /* HTML escape */
+    line = line.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+    /* Пустая строка */
+    if (line.trim() === "") { out.push('<div style="height:8px;"></div>'); continue; }
+
+    /* HR */
+    if (/^---+$/.test(line.trim())) {
+      out.push('<hr style="border:none;border-top:1px solid var(--border);margin:8px 0;">');
+      continue;
+    }
+
+    /* Заголовки ### и ## */
+    var h3 = line.match(/^###\s+(.+)$/);
+    if (h3) {
+      out.push('<div style="margin-top:10px;font-size:13px;font-weight:700;color:var(--accent-light);">' + renderInline(h3[1]) + '</div>');
+      continue;
+    }
+    var h2 = line.match(/^##\s+(.+)$/);
+    if (h2) {
+      out.push('<div style="margin-top:12px;font-size:14px;font-weight:700;color:var(--accent-light);">' + renderInline(h2[1]) + '</div>');
+      continue;
+    }
+
+    /* Списки */
+    var li = line.match(/^[-•]\s+(.+)$/);
+    if (li) {
+      out.push('<div style="padding:2px 0 2px 14px;">• ' + renderInline(li[1]) + '</div>');
+      continue;
+    }
+
+    /* Обычная строка */
+    out.push('<div>' + renderInline(line) + '</div>');
+  }
+  return out.join("");
+}
+
+/* ═══ Загрузка контекста матча ═══ */
 async function loadChatMatchContext(matchId, heroName) {
   var match = await apiGet("/matches/" + matchId);
   if (!match || !match.players) throw new Error("Матч не найден");
@@ -31,6 +112,7 @@ async function loadChatMatchContext(matchId, heroName) {
   return { match: match, player: player, hero: hero, heroes: heroes, won: won, durMin: durMin, position: null };
 }
 
+/* ═══ Скролл ═══ */
 function isChatAtBottom(log) {
   if (!log) return true;
   return (log.scrollHeight - log.scrollTop - log.clientHeight) < 40;
@@ -48,6 +130,7 @@ function updateScrollDownBtn(log) {
   else { btn.style.opacity = "1"; btn.style.pointerEvents = "auto"; }
 }
 
+/* ═══ Красивый dropdown ═══ */
 function buildMatchDropdown(history, onSelect) {
   var wrap = el("div", { style: "position:relative;user-select:none;" });
   var btn = el("button", {
@@ -132,13 +215,13 @@ function buildMatchDropdown(history, onSelect) {
   } };
 }
 
+/* ═══ Кнопка "Глубокое мышление" ═══ */
 function buildDeepThinkToggle() {
   var wrap = el("div", { style: "display:flex;align-items:center;gap:8px;margin-bottom:10px;" });
   var enabled = Store.get("deepthink", false) === true;
 
   var btn = el("button", {
-    type: "button",
-    id: "deepThinkBtn",
+    type: "button", id: "deepThinkBtn",
     style: "display:flex;align-items:center;gap:8px;padding:8px 14px;background:" + (enabled ? "linear-gradient(135deg,rgba(139,92,246,0.25),rgba(34,211,238,0.15))" : "var(--bg-elev)") + ";border:1px solid " + (enabled ? "var(--accent)" : "var(--border)") + ";border-radius:10px;color:" + (enabled ? "var(--accent-light)" : "var(--text-muted)") + ";font-size:12px;font-weight:600;font-family:inherit;cursor:pointer;transition:all 0.2s ease;"
   });
   var icon = el("span", { style: "font-size:14px;" }, "🧠");
@@ -151,14 +234,11 @@ function buildDeepThinkToggle() {
     Store.set("deepthink", enabled);
     if (enabled) {
       btn.style.background = "linear-gradient(135deg,rgba(139,92,246,0.25),rgba(34,211,238,0.15))";
-      btn.style.borderColor = "var(--accent)";
-      btn.style.color = "var(--accent-light)";
+      btn.style.borderColor = "var(--accent)"; btn.style.color = "var(--accent-light)";
       status.textContent = "вкл";
     } else {
-      btn.style.background = "var(--bg-elev)";
-      btn.style.borderColor = "var(--border)";
-      btn.style.color = "var(--text-muted)";
-      status.textContent = "выкл";
+      btn.style.background = "var(--bg-elev)"; btn.style.borderColor = "var(--border)";
+      btn.style.color = "var(--text-muted)"; status.textContent = "выкл";
     }
   });
 
@@ -166,6 +246,7 @@ function buildDeepThinkToggle() {
   return wrap;
 }
 
+/* ═══ Главный рендер чата ═══ */
 function renderChat() {
   var plus = Store.get("license.active", false) === true;
   if (!plus) return renderChatLocked();
@@ -368,32 +449,6 @@ function addThinkingBlock(log) {
   };
 }
 
-function renderInline(text) {
-  var h = text;
-  h = h.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-  h = h.replace(/(^|[^\w])_(.+?)_([^\w]|$)/g, '$1<em style="color:var(--text-muted);">$2</em>$3');
-  return h;
-}
-function renderMarkdownFull(text) {
-  if (!text) return "";
-  var lines = String(text).split("\n");
-  var out = [];
-  for (var i = 0; i < lines.length; i++) {
-    var line = lines[i];
-    line = line.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-    if (line.trim() === "") { out.push('<div style="height:8px;"></div>'); continue; }
-    if (/^---+$/.test(line.trim())) { out.push('<hr style="border:none;border-top:1px solid var(--border);margin:8px 0;">'); continue; }
-    var h3 = line.match(/^###\s+(.+)$/);
-    if (h3) { out.push('<div style="margin-top:10px;font-size:13px;font-weight:700;color:var(--accent-light);">' + renderInline(h3[1]) + '</div>'); continue; }
-    var h2 = line.match(/^##\s+(.+)$/);
-    if (h2) { out.push('<div style="margin-top:12px;font-size:14px;font-weight:700;color:var(--accent-light);">' + renderInline(h2[1]) + '</div>'); continue; }
-    var li = line.match(/^[-•]\s+(.+)$/);
-    if (li) { out.push('<div style="padding:2px 0 2px 14px;">• ' + renderInline(li[1]) + '</div>'); continue; }
-    out.push('<div>' + renderInline(line) + '</div>');
-  }
-  return out.join("");
-}
-
 async function onChatSend() {
   if (isResponding) return;
   var plus = Store.get("license.active", false) === true;
@@ -460,20 +515,23 @@ async function onChatSend() {
     var bubble = addChatMessage(log, "assistant", "", false);
     forceScrollToBottom(log);
 
-    var fullHTML = renderMarkdownFull(finalText);
-    var plainText = finalText;
+    /* ═══ Плавная печать с балансировкой markdown ═══ */
     var i = 0;
     userScrolledUp = false;
     function typeTick() {
-      if (i < plainText.length) {
+      if (i < finalText.length) {
         i += 3;
-        if (i > plainText.length) i = plainText.length;
-        bubble.innerHTML = renderMarkdownFull(plainText.slice(0, i));
+        if (i > finalText.length) i = finalText.length;
+        var partial = finalText.slice(0, i);
+        /* Балансируем ** перед рендером */
+        partial = balanceAsterisks(partial);
+        bubble.innerHTML = renderMarkdownFull(partial);
         if (!userScrolledUp) log.scrollTop = log.scrollHeight;
         if (i % 6 === 0) updateScrollDownBtn(log);
         setTimeout(typeTick, 12);
       } else {
-        bubble.innerHTML = fullHTML;
+        /* Финальный рендер полного текста */
+        bubble.innerHTML = renderMarkdownFull(finalText);
         if (!userScrolledUp) log.scrollTop = log.scrollHeight;
         updateScrollDownBtn(log);
         chatHistory.push({ role: "assistant", text: finalText });

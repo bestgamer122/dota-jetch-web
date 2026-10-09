@@ -1,6 +1,5 @@
 /* DOTA JETCH — WEB SEARCH v1.0
-   Поиск в интернете без API-ключа: Wikipedia + DuckDuckGo via CORS proxy.
-   Используется в режиме "Глубокое мышление". */
+   Поиск в интернете без API-ключа: Wikipedia + DuckDuckGo via CORS proxy. */
 
 var WebSearch = {
   proxies: [
@@ -30,7 +29,7 @@ var WebSearch = {
         }
         return results;
       })
-      .catch(function (e) { return null; });
+      .catch(function () { return null; });
   },
 
   fetchWikipediaPage: function (title, lang) {
@@ -71,20 +70,11 @@ var WebSearch = {
         var results = [];
         var rx = /<a[^>]*class="result__a"[^>]*href="([^"]+)"[^>]*>([^<]+)<\/a>/g;
         var snipRx = /<a[^>]*class="result__snippet"[^>]*>([^<]+)<\/a>/g;
-        var match;
-        var snippets = [];
-        var sm;
-        while ((sm = snipRx.exec(html)) !== null) {
-          snippets.push(sm[1].replace(/&[^;]+;/g, " ").trim());
-        }
+        var match, snippets = [], sm;
+        while ((sm = snipRx.exec(html)) !== null) snippets.push(sm[1].replace(/&[^;]+;/g, " ").trim());
         var idx = 0;
         while ((match = rx.exec(html)) !== null && idx < 3) {
-          results.push({
-            title: match[2].trim(),
-            snippet: snippets[idx] || "",
-            url: match[1],
-            source: "DuckDuckGo"
-          });
+          results.push({ title: match[2].trim(), snippet: snippets[idx] || "", url: match[1], source: "DuckDuckGo" });
           idx++;
         }
         return results.length ? results : null;
@@ -108,15 +98,13 @@ var WebSearch = {
     if (!all.length) return null;
     all = all.slice(0, 4);
     var detailed = null;
-    if (wikiRu && wikiRu.length > 0) {
-      detailed = await this.fetchWikipediaPage(wikiRu[0].title, "ru");
-    }
+    if (wikiRu && wikiRu.length > 0) detailed = await this.fetchWikipediaPage(wikiRu[0].title, "ru");
     return { results: all, detailed: detailed };
   },
 
   formatForPrompt: function (searchData) {
     if (!searchData || !searchData.results || !searchData.results.length) return null;
-    var lines = ["📚 НАЙДЕННАЯ ИНФОРМАЦИЯ ИЗ ИНТЕРНЕТА (используй ТОЛЬКО это):"];
+    var lines = ["📚 НАЙДЕННАЯ ИНФОРМАЦИЯ ИЗ ИНТЕРНЕТА:"];
     for (var i = 0; i < searchData.results.length; i++) {
       var r = searchData.results[i];
       lines.push("");
@@ -133,4 +121,4 @@ var WebSearch = {
   }
 };
 
-console.log("web-search v1.0 ready · Wikipedia + DuckDuckGo");
+console.log("web-search v1.0 ready");

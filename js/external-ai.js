@@ -1,9 +1,5 @@
 /* DOTA JETCH — EXTERNAL AI v20.0 FINAL
-   + Глубокое мышление с поиском
-   + Реальные способности героев
-   + ИИ ассистент (не герой)
-   + Режим игры
-   + Чёрный список тем */
+   Глубокое мышление + реальные способности + режим игры + чёрный список */
 
 var ExternalAI = {
   enabled: true,
@@ -147,7 +143,8 @@ var ExternalAI = {
 
   applySlang: function (text) {
     var out = String(text);
-    out = out.replace(/(^|\s)\*([^\*\n]{1,60})\*(?=\s|$|[.,!?:;])/g, "$1**$2**");
+    /* Одиночные * → ** только если рядом нет звёздочек */
+    out = out.replace(/(^|[\s.,!?:;])\*([^\*\n]{1,60})\*(?=[\s.,!?:;]|$)/g, "$1**$2**");
     var keys = Object.keys(this.slangDict).sort(function (a, b) { return b.length - a.length; });
     for (var k = 0; k < keys.length; k++) {
       var en = keys[k]; var ru = this.slangDict[en];
@@ -173,13 +170,20 @@ var ExternalAI = {
       "",
       "🚫 ЧИТЫ: НЕ помогай с читами, хаками, скриптами.",
       "",
-      "🎯 СТИЛЬ:",
+      "═══ ФОРМАТ ОТВЕТА ═══",
+      "• Используй **жирный** для ключевых слов (ДВОЙНЫЕ звёздочки, не одинарные).",
+      "• Списки через `• `. Эмодзи для разделов. Пустая строка между блоками.",
+      "• Заголовки через `###` для разделов.",
+      "• НЕ пиши вступления 'Конечно!' / 'Отличный вопрос!' — сразу к делу.",
+      "",
+      "═══ ДЛИНА ═══",
+      "• Короткий вопрос (до 10 слов) → 2-4 предложения.",
+      "• Вопрос про матч → до 250 слов.",
+      "• Общий вопрос → 100-150 слов.",
+      "",
+      "═══ СТИЛЬ ═══",
       "• Пиши как дотер: керри, мид, сап, фармить, ганкать, руинить.",
       "• Сокращения: БКБ, МКБ, БФ, Радик, Манта, Дезоль, Дифуза, Хекс, Еул, Гост, Линка, Тараска.",
-      "• Markdown. **Жирный** через **ДВОЙНЫЕ** звёздочки.",
-      "• Не пиши вступления 'Конечно!' / 'Отличный вопрос!' — сразу к делу.",
-      "• Короткий вопрос → 2-4 предложения. Вопрос про матч → до 250 слов.",
-      "",
       "• Правильно: 'Твой KDA', 'Ты играл на Spectre', НЕ 'Я Спектра'."
     ].join("\n");
 
@@ -189,15 +193,14 @@ var ExternalAI = {
         "\n⚠️ Используй ТОЛЬКО эти способности.";
     }
 
-    if (searchData) {
-      base += "\n\n══════ РЕЗУЛЬТАТЫ ПОИСКА В ИНТЕРНЕТЕ ══════\n" +
+    if (searchData && typeof WebSearch !== "undefined") {
+      base += "\n\n══════ РЕЗУЛЬТАТЫ ПОИСКА ══════\n" +
         WebSearch.formatForPrompt(searchData) +
-        "\n⚠️ Используй ТОЛЬКО эту информацию. Не добавляй от себя.";
+        "\n⚠️ Используй ТОЛЬКО эту информацию.";
     }
 
     if (deepThinkMode && !searchData && !heroAbilitiesInfo) {
-      base += "\n\n⚠️ РЕЖИМ ГЛУБОКОГО МЫШЛЕНИЯ включён, но поиск не дал результатов." +
-        "\nЕсли не знаешь ответа — честно скажи 'Я не знаю точно'. Не выдумывай.";
+      base += "\n\n⚠️ РЕЖИМ ГЛУБОКОГО МЫШЛЕНИЯ, но поиск не дал результатов. Если не знаешь — скажи 'Не знаю точно'.";
     }
 
     if (useMatchContext && matchContext) {
@@ -358,9 +361,7 @@ var ExternalAI = {
     if (deepThinkMode && typeof WebSearch !== "undefined") {
       if (!heroAbilitiesInfo && !useMatchContext) {
         console.log("[DeepThink] Ищу: " + query);
-        try {
-          searchData = await WebSearch.search(query);
-        } catch (e) { console.warn("Search failed:", e.message); }
+        try { searchData = await WebSearch.search(query); } catch (e) { console.warn("Search failed:", e.message); }
       }
     }
 
@@ -385,8 +386,7 @@ var ExternalAI = {
   },
 
   shouldUseExternal: function () { return true; },
-
-  init: function () { console.log("external-ai v20.0 FINAL · поиск + глубокое мышление"); }
+  init: function () { console.log("external-ai v20.0 FINAL"); }
 };
 
 if (typeof Store !== "undefined") {
