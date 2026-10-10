@@ -1,7 +1,4 @@
-/* DOTA JETCH — EXTERNAL AI v39.0
-   + Убран heroAbilities (Llama знает сама)
-   + Алиасы сокращены до 15 частых
-   + Промпт-правило + автозамены */
+/* DOTA JETCH — EXTERNAL AI v39.1 (фикс заглушки findHeroAbilities) */
 
 var WORKER_URL = "https://gigachatwork.yiiwarsssss.workers.dev/";
 var WORKER_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
@@ -14,8 +11,6 @@ var POS_BENCHMARKS = {
   5: { name: "саппорт (Pos 5)", gpm: 320, xpm: 420, lh10: 12, kda: 2.5, heroDmgMin: 400, deathsMax: 9 }
 };
 
-/* Только частые короткие алиасы — для определения, О КОМ спрашивает юзер.
-   Нужно чтобы не подкладывать контекст другого героя. */
 var HERO_ALIASES = {
   "Anti-Mage": ["ам", "антимаг"],
   "Invoker": ["инвокер", "вокер"],
@@ -65,6 +60,9 @@ var ExternalAI = {
     }
     return null;
   },
+
+  /* Заглушка — оставлена для совместимости с assistant.js */
+  findHeroAbilities: function () { return null; },
 
   _hasWord: function (text, word) {
     if (!word) return false;
@@ -469,7 +467,7 @@ var ExternalAI = {
   },
 
   shouldUseExternal: function () { return true; },
-  init: function () { console.log("external-ai v39.0 · без heroAbilities, промпт + автозамены"); }
+  init: function () { console.log("external-ai v39.1 · фикс заглушки findHeroAbilities"); }
 };
 
 if (typeof Store !== "undefined") {
