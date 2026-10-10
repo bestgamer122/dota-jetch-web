@@ -1,6 +1,13 @@
-/* DOTA JETCH — EXTERNAL AI v26.2 (GigaChat + надёжный CORS-прокси)
-   Фикс: SyntaxError (ключ вынесен из строки), 403 через corsproxy.io
-   + Авто-обновление токена, авто-поиск, этапы, способности, чёрный список */
+/* DOTA JETCH — EXTERNAL AI v27.1 (GigaChat настроен)
+   URL воркера: https://gigachatwork.yiiwarsssss.workers.dev/
+   + Авто-поиск, этапы, способности, чёрный список */
+
+/* ═══════════════════════════════════════════════════════════
+   НАСТРОЙКА
+   ═══════════════════════════════════════════════════════════ */
+var AI_ENGINE = "gigachat";
+var WORKER_URL = "https://gigachatwork.yiiwarsssss.workers.dev/?url=";
+/* ═══════════════════════════════════════════════════════════ */
 
 var ExternalAI = {
   enabled: true,
@@ -8,22 +15,20 @@ var ExternalAI = {
   lastError: null,
   TIMEOUT_MS: 60000,
 
-  /* ═══ GIGACHAT ═══ */
-  /* Ключ вынесен в отдельную переменную, чтобы избежать проблем с экранированием */
+  /* GIGACHAT */
   gigaAuthKey: "MDFhMTI1ZjQtNjU5OS03ZDA3LWE1Y2QtYzAxYjAzNzNiMTllOmRkY2VkNDA5LWJkOTItNDY2YS1hMTY4LWEyZGFhZWJkNmE5Mw==",
   gigaOAuthUrl: "https://ngw.devices.sberbank.ru:9443/api/v2/oauth",
   gigaScope: "GIGACHAT_API_PERS",
   gigaBaseUrl: "https://api.giga.chat/v1",
   gigaModel: "GigaChat-3-Ultra",
-
-  /* CORS-прокси. corsproxy.io — самый надёжный для POST-запросов */
-  proxies: [
-    "https://corsproxy.io/?url=",
-    "https://api.allorigins.win/raw?url="
-  ],
-
   gigaAccessToken: null,
   gigaTokenExpiresAt: 0,
+
+  /* MISTRAL (запасной) */
+  mistralKey: "mstrl_fmvy3EYwtaIGtaLRiqrwMK2RRFOZtVcb_1McbHV",
+  mistralUrl: "https://api.mistral.ai/v1/chat/completions",
+  mistralModels: ["mistral-small-latest", "open-mistral-nemo"],
+
   rateLimitedUntil: 0,
 
   MODE_NAMES: {
@@ -113,7 +118,6 @@ var ExternalAI = {
 
   speechFixes: [
     [/\bденан(?:ы|ов|а|у|ом|е)?\b/gi, "денаи"],
-    [/\bденануть\b/gi, "заденаить"],
     [/\bластхитс\b/gi, "ластхиты"],
     [/\bкрипс\b/gi, "крипы"],
     [/\bвардс\b/gi, "варды"]
@@ -274,15 +278,10 @@ var ExternalAI = {
     });
   },
 
-  _proxyUrl: function (targetUrl, proxyIdx) {
-    var proxy = this.proxies[proxyIdx];
-    if (proxy.indexOf("?url=") >= 0 || proxy.indexOf("?quest=") >= 0) {
-      return proxy + encodeURIComponent(targetUrl);
-    }
-    return proxy + targetUrl;
+  _gigaProxy: function (targetUrl) {
+    return WORKER_URL + encodeURIComponent(targetUrl);
   },
 
-  /* ═══ ПОЛУЧЕНИЕ ТОКЕНА ═══ */
   getAccessToken: async function () {
     var now = Date.now();
     if (this.gigaAccessToken && now < this.gigaTokenExpiresAt - 120000) {
@@ -297,132 +296,133 @@ var ExternalAI = {
       "Authorization": "Basic " + this.gigaAuthKey
     };
 
-    var lastError = null;
-    for (var p = 0; p < this.proxies.length; p++) {
-      var proxiedUrl = this._proxyUrl(this.gigaOAuthUrl, p);
-      console.log("[GigaChat] OAuth через прокси " + (p + 1) + "/" + this.proxies.length + "...");
-      try {
-        var res = await this.fetchWithTimeout(proxiedUrl, {
-          method: "POST",
-          headers: headers,
-          body: body
-        }, 20000);
+    console.log("[GigaChat] OAuth через воркер...");
+    var res = await this.fetchWithTimeout(this._gigaProxy(this.gigaOAuthUrl), {
+      method: "POST",
+      headers: headers,
+      body: body
+    }, 20000);
 
-        if (!res.ok) {
-          var errText = await res.text();
-          lastError = "OAuth HTTP " + res.status + ": " + errText.slice(0, 150);
-          console.warn("[GigaChat] Прокси " + (p + 1) + " вернул " + res.status);
-          continue;
-        }
-
-        var json = await res.json();
-        if (!json.access_token) {
-          lastError = "OAuth: нет access_token";
-          continue;
-        }
-
-        this.gigaAccessToken = json.access_token;
-        this.gigaTokenExpiresAt = (json.expires_at ? json.expires_at * 1000 : now + 25 * 60 * 1000);
-        console.log("[GigaChat] ✓ Токен получен через прокси " + (p + 1));
-        return this.gigaAccessToken;
-      } catch (e) {
-        lastError = e.message || String(e);
-        console.warn("[GigaChat] Прокси " + (p + 1) + " упал: " + lastError);
-      }
+    if (!res.ok) {
+      var errText = await res.text();
+      throw new Error("OAuth HTTP " + res.status + ": " + errText.slice(0, 200));
     }
-    throw { code: -1, message: "Все CORS-прокси недоступны. Последняя ошибка: " + lastError };
+
+    var json = await res.json();
+    if (!json.access_token) throw new Error("OAuth: нет access_token");
+
+    this.gigaAccessToken = json.access_token;
+    this.gigaTokenExpiresAt = (json.expires_at ? json.expires_at * 1000 : now + 25 * 60 * 1000);
+    console.log("[GigaChat] ✓ Токен получен");
+    return this.gigaAccessToken;
   },
 
-  /* ═══ ЗАПРОС К GIGACHAT ═══ */
-  gigaRequest: async function (userQuery, matchContext, heroAbilitiesInfo, searchData) {
-    var self = this;
-    var token = await self.getAccessToken();
-
+  gigaChat: async function (userQuery, matchContext, heroAbilitiesInfo, searchData) {
+    var token = await this.getAccessToken();
     var body = {
-      model: self.gigaModel,
+      model: this.gigaModel,
       messages: [
-        { role: "system", content: self.systemPrompt(matchContext, heroAbilitiesInfo, searchData) },
+        { role: "system", content: this.systemPrompt(matchContext, heroAbilitiesInfo, searchData) },
         { role: "user", content: userQuery }
       ],
       temperature: 0.3,
       max_tokens: 2500
     };
-
     var headers = {
       "Content-Type": "application/json",
       "Accept": "application/json",
       "Authorization": "Bearer " + token
     };
-
-    var targetUrl = self.gigaBaseUrl + "/chat/completions";
-    var lastError = null;
-
-    for (var p = 0; p < self.proxies.length; p++) {
-      var proxiedUrl = self._proxyUrl(targetUrl, p);
-      try {
-        var res = await self.fetchWithTimeout(proxiedUrl, {
-          method: "POST",
-          headers: headers,
-          body: JSON.stringify(body)
-        }, self.TIMEOUT_MS);
-
-        if (res.status === 401) {
-          self.gigaAccessToken = null;
-          self.gigaTokenExpiresAt = 0;
-          throw { code: 401, message: "Токен просрочен" };
-        }
-        if (res.status === 429) throw { code: 429, message: "Rate limit" };
-        if (!res.ok) {
-          var errBody = await res.text();
-          lastError = "HTTP " + res.status + ": " + errBody.slice(0, 150);
-          continue;
-        }
-
-        var text = await res.text();
-        var json = JSON.parse(text);
-        if (json.choices && json.choices[0] && json.choices[0].message && json.choices[0].message.content) {
-          return self.applySlang(json.choices[0].message.content);
-        }
-        lastError = "Пустой ответ";
-      } catch (e) {
-        if (e.code === 401 || e.code === 429) throw e;
-        lastError = e.message || String(e);
-        console.warn("[GigaChat] Запрос через прокси " + (p + 1) + " упал: " + lastError);
-      }
+    var res = await this.fetchWithTimeout(
+      this._gigaProxy(this.gigaBaseUrl + "/chat/completions"),
+      { method: "POST", headers: headers, body: JSON.stringify(body) },
+      this.TIMEOUT_MS
+    );
+    if (res.status === 401) {
+      this.gigaAccessToken = null;
+      this.gigaTokenExpiresAt = 0;
+      throw new Error("GigaChat 401 — нужен новый токен");
     }
-    throw { code: -1, message: "Все прокси упали: " + lastError };
+    if (res.status === 429) throw new Error("GigaChat 429 — rate limit");
+    if (!res.ok) {
+      var errBody = await res.text();
+      throw new Error("GigaChat HTTP " + res.status + ": " + errBody.slice(0, 200));
+    }
+    var text = await res.text();
+    var json = JSON.parse(text);
+    if (json.choices && json.choices[0] && json.choices[0].message && json.choices[0].message.content) {
+      return this.applySlang(json.choices[0].message.content);
+    }
+    throw new Error("Пустой ответ GigaChat");
   },
 
   askGigaChat: async function (userQuery, matchContext, heroAbilitiesInfo, searchData) {
-    var self = this;
     var now = Date.now();
-    if (now < self.rateLimitedUntil) {
-      var waitMs = self.rateLimitedUntil - now;
+    if (now < this.rateLimitedUntil) {
+      var waitMs = this.rateLimitedUntil - now;
       if (waitMs > 20000) throw new Error("GigaChat cooldown");
-      await self.sleep(Math.min(waitMs, 20000));
+      await this.sleep(Math.min(waitMs, 20000));
     }
-
     for (var attempt = 0; attempt < 2; attempt++) {
       try {
-        console.log("GigaChat [" + self.gigaModel + "]" + (searchData ? " +search" : "") + " attempt=" + (attempt + 1));
-        var text = await self.gigaRequest(userQuery, matchContext, heroAbilitiesInfo, searchData);
-        self.rateLimitedUntil = 0;
+        console.log("GigaChat [" + this.gigaModel + "]" + (searchData ? " +search" : "") + " attempt=" + (attempt + 1));
+        var text = await this.gigaChat(userQuery, matchContext, heroAbilitiesInfo, searchData);
+        this.rateLimitedUntil = 0;
         return text;
       } catch (err) {
-        if (err.code === 401 && attempt === 0) {
-          console.warn("GigaChat 401 — обновляю токен");
-          self.gigaAccessToken = null;
-          self.gigaTokenExpiresAt = 0;
+        if (err.message && err.message.indexOf("401") >= 0 && attempt === 0) {
+          this.gigaAccessToken = null;
+          this.gigaTokenExpiresAt = 0;
           continue;
-        }
-        if (err.code === 429) {
-          self.rateLimitedUntil = Date.now() + 30000;
-          throw new Error("Слишком много запросов. Подожди 30 секунд.");
         }
         if (attempt === 1) throw err;
       }
     }
     throw new Error("GigaChat недоступен");
+  },
+
+  mistral: async function (model, userQuery, matchContext, heroAbilitiesInfo, searchData) {
+    var body = {
+      model: model,
+      messages: [
+        { role: "system", content: this.systemPrompt(matchContext, heroAbilitiesInfo, searchData) },
+        { role: "user", content: userQuery }
+      ],
+      temperature: 0.3,
+      max_tokens: 2500
+    };
+    var headers = {
+      "Content-Type": "application/json",
+      "Authorization": "Bearer " + this.mistralKey,
+      "Accept": "application/json"
+    };
+    var res = await this.fetchWithTimeout(this.mistralUrl, {
+      method: "POST",
+      headers: headers,
+      body: JSON.stringify(body)
+    }, this.TIMEOUT_MS);
+    if (res.status === 429) throw { code: 429 };
+    if (res.status === 401) throw new Error("Mistral 401");
+    if (!res.ok) throw new Error("Mistral HTTP " + res.status);
+    var text = await res.text();
+    var json = JSON.parse(text);
+    if (json.choices && json.choices[0] && json.choices[0].message) {
+      return this.applySlang(json.choices[0].message.content);
+    }
+    throw new Error("Пустой ответ Mistral");
+  },
+
+  askMistral: async function (userQuery, matchContext, heroAbilitiesInfo, searchData) {
+    for (var i = 0; i < this.mistralModels.length; i++) {
+      try {
+        console.log("Mistral [" + this.mistralModels[i] + "]" + (searchData ? " +search" : ""));
+        return await this.mistral(this.mistralModels[i], userQuery, matchContext, heroAbilitiesInfo, searchData);
+      } catch (err) {
+        if (err.code === 429) continue;
+        throw err;
+      }
+    }
+    throw new Error("Mistral исчерпан");
   },
 
   isWeakAnswer: function (text) {
@@ -439,6 +439,13 @@ var ExternalAI = {
     return false;
   },
 
+  _askEngine: function (q, matchContext, heroAbilities, searchData) {
+    if (AI_ENGINE === "mistral") {
+      return this.askMistral(q, matchContext, heroAbilities, searchData);
+    }
+    return this.askGigaChat(q, matchContext, heroAbilities, searchData);
+  },
+
   ask: async function (query, matchContext, onStage) {
     if (!this.enabled) throw new Error("external-ai-disabled");
     if (this.busy) throw new Error("busy");
@@ -448,14 +455,14 @@ var ExternalAI = {
       return "🚫 Не помогаю с читами, хаками и скриптами для Dota 2. За такое банят аккаунт.\n\nСпроси что-нибудь по игре.";
     }
 
-    var heroAbilitiesInfo = this.findHeroAbilities(query);
+    var heroAbilities = this.findHeroAbilities(query);
 
     this.busy = true;
     this.lastError = null;
 
     try {
       if (onStage) onStage("first");
-      var text1 = await this.askGigaChat(query, matchContext, heroAbilitiesInfo, null);
+      var text1 = await this._askEngine(query, matchContext, heroAbilities, null);
 
       var canSearch = (typeof WebSearch !== "undefined") && WebSearch && (typeof WebSearch.search === "function");
       if (this.isWeakAnswer(text1) && canSearch) {
@@ -467,7 +474,7 @@ var ExternalAI = {
         if (searchData && searchData.results && searchData.results.length) {
           if (onStage) onStage("second");
           try {
-            var text2 = await self.askGigaChat(query, matchContext, heroAbilitiesInfo, searchData);
+            var text2 = await this._askEngine(query, matchContext, heroAbilities, searchData);
             if (text2 && text2.length > text1.length) return text2;
           } catch (e2) { console.warn("Второй запрос упал:", e2.message); }
         }
@@ -475,7 +482,7 @@ var ExternalAI = {
 
       return text1;
     } catch (err) {
-      console.warn("GigaChat упал:", err.message);
+      console.warn("AI упал:", err.message);
       throw new Error(err.message || "Сервис перегружен. Попробуй через минуту.");
     } finally {
       this.busy = false;
@@ -483,7 +490,7 @@ var ExternalAI = {
   },
 
   shouldUseExternal: function () { return true; },
-  init: function () { console.log("external-ai v26.2 · GigaChat-3-Ultra + надёжный прокси"); }
+  init: function () { console.log("external-ai v27.1 · engine=" + AI_ENGINE + " · worker=" + WORKER_URL.split("?")[0]); }
 };
 
 if (typeof Store !== "undefined") {
