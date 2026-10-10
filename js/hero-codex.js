@@ -1,6 +1,4 @@
-/* DOTA JETCH — HERO CODEX v1.3
-   + Только финальные предметы в билдах (без компонентов)
-   + Контрпики без процентов, только текст */
+/* DOTA JETCH — HERO CODEX v1.5 (без дублей, старт бай) */
 
 var CODEX_STATE = { view: "list", heroId: null, filterAttr: "all", filterRole: "all", search: "" };
 var ATTR_RU = { str: "Сила", agi: "Ловкость", int: "Интеллект", all: "Универсал" };
@@ -8,27 +6,23 @@ var ROLE_RU = { carry: "Керри", mid: "Мид", offlane: "Оффлейн", r
 
 var HeroCodex = {
   heroes: [], items: {}, heroStats: null, loaded: false, cache: {},
-  componentIds: null, /* Set id'ов предметов которые являются компонентами других */
+  componentIds: null,
 
   init: async function () {
     if (this.loaded) return;
-    console.log("[Codex] init...");
     try { this.heroes = await getHeroes(); }
-    catch (e) { console.error("[Codex] heroes fail:", e); this.heroes = []; }
+    catch (e) { this.heroes = []; }
     try { this.items = await getItemCatalog(); } catch (e) { this.items = {}; }
     try { this.heroStats = await apiGet("/heroStats"); } catch (e) { this.heroStats = null; }
-    try { await this.loadComponentSet(); } catch (e) { console.warn("[Codex] comps fail:", e); this.componentIds = {}; }
+    try { await this.loadComponentSet(); } catch (e) { this.componentIds = {}; }
     this.loaded = true;
     console.log("[Codex] ready");
   },
 
-  /* Загружаем set id'ов компонентов — они не должны показываться в билдах */
   loadComponentSet: async function () {
     if (this.componentIds) return this.componentIds;
     var raw = await apiGet("/constants/items");
     var comps = {};
-    /* Проходим по всем предметам, смотрим их components — какие предметы в них входят.
-       Всё что входит в другие — это компонент, не показываем. */
     var keyToId = {};
     for (var key in raw) {
       if (!raw.hasOwnProperty(key)) continue;
@@ -40,18 +34,13 @@ var HeroCodex = {
       if (!item) continue;
       if (item.components && Array.isArray(item.components)) {
         for (var c = 0; c < item.components.length; c++) {
-          var compKey = item.components[c];
-          var compId = keyToId[compKey];
+          var compId = keyToId[item.components[c]];
           if (compId) comps[compId] = true;
         }
       }
-      /* Также отсекаем сами рецепты */
-      if (key2.indexOf("recipe_") === 0 && item.id) {
-        comps[item.id] = true;
-      }
+      if (key2.indexOf("recipe_") === 0 && item.id) comps[item.id] = true;
     }
     this.componentIds = comps;
-    console.log("[Codex] components loaded:", Object.keys(comps).length);
     return comps;
   },
 
@@ -106,22 +95,39 @@ var HeroCodex = {
     return it ? it.name : null;
   },
 
-  /* Возвращает только финальные предметы (не компоненты) */
-  getPhaseItems: function (phaseData, limit) {
+  /* Возвращает top-N предметов из фазы, исключая уже использованные ID */
+  _getTopItems: function (phaseData, excludeSet, limit) {
     if (!phaseData) return [];
     var comps = this.componentIds || {};
     var arr = [];
     for (var id in phaseData) {
       if (!phaseData.hasOwnProperty(id)) continue;
       var numId = parseInt(id, 10);
-      /* Пропускаем компоненты */
       if (comps[numId]) continue;
+      if (excludeSet[numId]) continue;
       var name = this.getItemName(numId);
       if (!name) continue;
       arr.push({ id: numId, name: name, count: phaseData[id] });
     }
     arr.sort(function (a, b) { return b.count - a.count; });
-    return arr.slice(0, limit || 6);
+    return arr.slice(0, limit);
+  },
+
+  /* Собирает все фазы сразу с дедупликацией: предмет из старта не появится в ранней и т.д. */
+  buildPhases: function (itemsData, perPhase) {
+    perPhase = perPhase || 6;
+    var order = ["start_game_items", "early_game_items", "mid_game_items", "late_game_items"];
+    var used = {};
+    var result = {};
+    for (var i = 0; i < order.length; i++) {
+      var key = order[i];
+      var pData = itemsData[key];
+      var arr = this._getTopItems(pData, used, perPhase);
+      result[key] = arr;
+      /* Помечаем использованные */
+      for (var j = 0; j < arr.length; j++) used[arr[j].id] = true;
+    }
+    return result;
   },
 
   filterHeroes: function () {
@@ -314,21 +320,22 @@ async function loadHeroDetailData(hero) {
   if (data.items) {
     var buildCard = UI.card("🛒 Билд по стадиям игры");
     buildCard.appendChild(el("div", { class: "dim", style: "font-size:11px;margin-bottom:10px;line-height:1.5;" },
-      "Только финальные предметы — компоненты и рецепты скрыты."));
+      "Только самые популярные предметы. Один предмет не повторяется на разных стадиях."));
 
     var phases = [
-      { key: "start_game_items", label: "🏁 Старт",            desc: "Что берут на выкуп",          color: "var(--cyan)",         limit: 8 },
-      { key: "early_game_items", label: "⚔️ Ранняя игра",      desc: "Первые серьёзные покупки",    color: "var(--green)",        limit: 8 },
-      { key: "mid_game_items",   label: "🛡️ Мид",              desc: "Ключевые предметы для драки", color: "var(--accent-light)", limit: 8 },
-      { key: "late_game_items",  label: "🏆 Лейт",             desc: "Финальный слот инвентаря",    color: "var(--gold)",         limit: 8 }
+      { key: "start_game_items", label: "🏁 Старт бай",              desc: "Что берут на линию в самом начале",  color: "var(--cyan)" },
+      { key: "early_game_items", label: "⚔️ Ранняя игра (0-15 мин)", desc: "Первые серьёзные покупки",          color: "var(--green)" },
+      { key: "mid_game_items",   label: "🛡️ Середина игры (15-35)",  desc: "Ключевые предметы для драки",       color: "var(--accent-light)" },
+      { key: "late_game_items",  label: "🏆 Поздняя игра (35+ мин)", desc: "Финальный инвентарь",               color: "var(--gold)" }
     ];
+
+    /* Собираем все фазы разом с дедупликацией */
+    var built = HeroCodex.buildPhases(data.items, 6);
 
     var anyPhase = false;
     for (var p = 0; p < phases.length; p++) {
       var ph = phases[p];
-      var pData = data.items[ph.key];
-      if (!pData) continue;
-      var arr = HeroCodex.getPhaseItems(pData, ph.limit);
+      var arr = built[ph.key] || [];
       if (!arr.length) continue;
       anyPhase = true;
 
@@ -372,37 +379,26 @@ async function loadHeroDetailData(hero) {
     for (var m = 0; m < data.matchups.length; m++) {
       var mm = data.matchups[m];
       if (mm.games_played >= 100) {
-        valid.push({
-          hero_id: mm.hero_id,
-          games: mm.games_played,
-          wins: mm.wins,
-          wr: (mm.wins / mm.games_played) * 100
-        });
+        valid.push({ hero_id: mm.hero_id, games: mm.games_played, wins: mm.wins, wr: (mm.wins / mm.games_played) * 100 });
       }
     }
     valid.sort(function (a, b) { return b.wr - a.wr; });
 
     var good = [];
-    for (var gi = 0; gi < valid.length && good.length < 8; gi++) {
-      if (valid[gi].wr >= 55) good.push(valid[gi]);
-    }
+    for (var gi = 0; gi < valid.length && good.length < 8; gi++) if (valid[gi].wr >= 55) good.push(valid[gi]);
     if (!good.length) good = valid.slice(0, 4);
 
     var bad = [];
-    for (var bi = valid.length - 1; bi >= 0 && bad.length < 8; bi--) {
-      if (valid[bi].wr <= 45) bad.push(valid[bi]);
-    }
+    for (var bi = valid.length - 1; bi >= 0 && bad.length < 8; bi--) if (valid[bi].wr <= 45) bad.push(valid[bi]);
     if (!bad.length) bad = valid.slice(-4).reverse();
 
     if (good.length) {
       var gc = UI.card("✅ " + hero.name + " хорошо играет против");
-      gc.appendChild(el("div", { class: "dim", style: "font-size:11px;margin-bottom:10px;line-height:1.5;" },
-        "Этих героев " + hero.name + " обычно обыгрывает. Если враг их пикнет — тебе проще."));
+      gc.appendChild(el("div", { class: "dim", style: "font-size:11px;margin-bottom:10px;line-height:1.5;" }, "Этих героев " + hero.name + " обычно обыгрывает."));
       var gList = el("div", { style: "display:flex;flex-direction:column;gap:6px;" });
       for (var gI = 0; gI < good.length; gI++) {
         var gh = HeroCodex.getHeroById(good[gI].hero_id);
-        if (!gh) continue;
-        gList.appendChild(buildMatchupRow(gh, good[gI], "good"));
+        if (gh) gList.appendChild(buildMatchupRow(gh, good[gI], "good"));
       }
       gc.appendChild(gList);
       container.appendChild(gc);
@@ -410,20 +406,17 @@ async function loadHeroDetailData(hero) {
 
     if (bad.length) {
       var bc = UI.card("🔴 " + hero.name + " плохо играет против");
-      bc.appendChild(el("div", { class: "dim", style: "font-size:11px;margin-bottom:10px;line-height:1.5;" },
-        "Эти герои контрят " + hero.name + ". Если враг их пикнет — будь осторожен."));
+      bc.appendChild(el("div", { class: "dim", style: "font-size:11px;margin-bottom:10px;line-height:1.5;" }, "Эти герои контрят " + hero.name + "."));
       var bList = el("div", { style: "display:flex;flex-direction:column;gap:6px;" });
       for (var bI = 0; bI < bad.length; bI++) {
         var bh = HeroCodex.getHeroById(bad[bI].hero_id);
-        if (!bh) continue;
-        bList.appendChild(buildMatchupRow(bh, bad[bI], "bad"));
+        if (bh) bList.appendChild(buildMatchupRow(bh, bad[bI], "bad"));
       }
       bc.appendChild(bList);
       container.appendChild(bc);
     }
   }
 
-  /* ═══ ЛОКАЛЬНЫЕ ЗНАНИЯ ═══ */
   if (typeof BrainCounters !== "undefined") {
     var cInfo = BrainCounters.getCountersFor(hero.name);
     if (cInfo) {
@@ -452,7 +445,6 @@ async function loadHeroDetailData(hero) {
   }
 }
 
-/* Строка матчапа без процентов, только текст */
 function buildMatchupRow(enemyHero, data, kind) {
   var wr = data.wr;
   var isGood = kind === "good";
@@ -489,4 +481,4 @@ function buildMatchupRow(enemyHero, data, kind) {
   return row;
 }
 
-console.log("hero-codex v1.3 ready");
+console.log("hero-codex v1.5 ready (no duplicates, старт бай)");
