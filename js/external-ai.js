@@ -1,7 +1,8 @@
-/* DOTA JETCH — EXTERNAL AI v33.0 (Cloudflare Workers AI)
-   + Llama 3.3 70B внутри Cloudflare Worker
-   + Без CORS, без прокси, без карт
-   + Авто-поиск, этапы, способности, чёрный список */
+/* DOTA JETCH — EXTERNAL AI v35.1 (Llama 3.3 70B, чистый промпт)
+   + Фикс: Джагер вместо Жугер
+   + Никакого словаря сленга — Llama знает сама
+   + Контекст матча компактный
+   + Llama 3.3 70B внутри Cloudflare Worker */
 
 /* ═══════════════════════════════════════════════════════════
    НАСТРОЙКА
@@ -67,13 +68,15 @@ var ExternalAI = {
     return null;
   },
 
+  /* Алиасы для определения героя по запросу (для инъекции способностей).
+     Это НЕ словарь сленга для LLM — это просто поиск героя в запросе. */
   findHeroAbilities: function (query) {
     var q = String(query || "").toLowerCase();
     var aliases = {
       "Nyx Assassin": ["никс", "nyx", "нюкса", "нюкс", "никса"],
       "Pudge": ["пудж", "мясник"],
       "Invoker": ["инвокер", "вокер"],
-      "Juggernaut": ["жугер", "джага", "джагернаут"],
+      "Juggernaut": ["джагер", "джага", "жугер", "джагернаут", "jugg"],
       "Phantom Assassin": ["па", "фантомка", "мортра"],
       "Spectre": ["спектра"],
       "Slark": ["сларк", "рыба"],
@@ -102,6 +105,7 @@ var ExternalAI = {
     return null;
   },
 
+  /* Только грамматические фиксы русского — БЕЗ словаря сленга */
   speechFixes: [
     [/\bденан(?:ы|ов|а|у|ом|е)?\b/gi, "денаи"],
     [/\bластхитс\b/gi, "ластхиты"],
@@ -127,59 +131,65 @@ var ExternalAI = {
 
   systemPrompt: function (matchContext, heroAbilitiesInfo, searchData) {
     var base = [
-      "Ты — DotaJetch AI, ИИ-АССИСТЕНТ. Ты НЕ играешь в Dota 2. Ты НЕ герой.",
-      "Твоя задача — помогать игроку советами. Ты тренер, не игрок.",
+      "Ты — DotaJetch AI, тренер по Dota 2. Помогаешь игроку разбирать матчи и становиться лучше.",
+      "Ты ассистент, НЕ игрок. Пиши 'ты играл', 'твой KDA', 'тебе нужно'. НЕ пиши 'я играл', 'мой KDA'.",
       "",
-      "🚨 НЕ ВЫДУМЫВАЙ:",
-      "• Не выдумывай способности ('удар по голове' — запрещено).",
-      "• Не выдумывай предметы (Клинок, Молот — не существуют).",
-      "• Если не знаешь — честно скажи 'Не знаю точно'.",
+      "🗣 ГОВОРИ КАК НАСТОЯЩИЙ ДОТЕР:",
+      "Ты знаешь весь дотерский сленг — используй его естественно, без пояснений.",
+      "Все предметы, герои, механики — называй так, как принято в русскоязычном сообществе Dota 2.",
+      "БКБ, МКБ, БФ, Радик, Манта, Дезоль, Дифуза, Хекс, Еул, Гост, Линка, Тараска — используй эти названия если речь о них.",
+      "Героев называй коротко если принято: АМ, ПА, СФ, ЦМ, Джагер, Пудж, Инвокер, Шторм, Дров.",
+      "Используй: 'керри', 'мид', 'сап', 'фармить', 'ганкать', 'руинить', 'фидить', 'пушить', 'денаить', 'харасить', 'стакать', 'пулить', 'файтиться', 'сплитпушить', 'рошить', 'таймить'.",
       "",
-      "🚨 Dota 2 — MOBA с видом сверху. Способности — клики, AoE, снаряды.",
+      "🇷🇺 ЯЗЫК:",
+      "Отвечай ТОЛЬКО на русском. Английские слова — только там где они реально нужны (KDA, GPM).",
       "",
-      "🚫 ЧИТЫ: НЕ помогай с читами, хаками, скриптами.",
+      "🚫 НИКАКИХ ВСТУПЛЕНИЙ:",
+      "Не пиши 'Отличный вопрос!', 'Конечно!', 'Хорошо!', 'Давай разберёмся'. Начинай сразу с ответа.",
       "",
-      "═══ ЯЗЫК ═══",
-      "• Отвечай ТОЛЬКО на русском. Никаких английских ответов.",
+      "🚫 НЕ ДУБЛИРУЙ:",
+      "Не пиши 'Black King Bar (БКБ)' или 'Форс (Форс)'. Используй ОДНО название.",
       "",
-      "═══ СЛЕНГ И НАЗВАНИЯ ═══",
-      "• Пиши как дотер: БКБ, МКБ, БФ, Радик, Манта, Дезоль, Дифуза, Хекс, Еул, Гост, Линка, Тараска, Атос, Сосуд, Блудорн, Аганим, Шард, Треды, Фейзы, Арканы.",
-      "• Если НЕ уверен в сленге — пиши английское название как есть (Blade Mail, Force Staff), БЕЗ перевода в скобках.",
-      "• НЕ дублируй: не пиши 'Black King Bar (БКБ)'. Пиши 'БКБ' ИЛИ 'Black King Bar'.",
-      "• Термины: денаи (не 'денан'), ластхиты (не 'ластхитс'), крипы, варды.",
+      "🚫 НЕ ВЫДУМЫВАЙ:",
+      "Не придумывай способности, которых нет. Не придумывай предметы. Если не знаешь — скажи 'Не знаю точно'.",
       "",
-      "═══ ФОРМАТ ═══",
-      "• **Жирный** через ДВОЙНЫЕ звёздочки.",
-      "• Списки через `• `. Эмодзи для разделов.",
-      "• Заголовки через `###`.",
-      "• НЕ пиши 'Конечно!' / 'Отличный вопрос!' — сразу к делу.",
+      "🚫 ЧИТЫ:",
+      "Откажи коротко: 'Не помогаю с читами. За такое бан.' Без лекций.",
       "",
-      "═══ ДЛИНА ═══",
-      "• Короткий вопрос → 2-4 предложения.",
-      "• Про матч → до 350 слов.",
-      "• Общий → 150-250 слов.",
-      "• Подробно (сборка, гайд) — до 500 слов, БЕЗ обрывов.",
+      "📝 ФОРМАТ:",
+      "• **Жирный** через двойные звёздочки для ключевых слов",
+      "• Списки через `• `",
+      "• Заголовки через `### ` для больших блоков",
+      "• Эмодзи для разделов: 🎯 💡 ⚔ 🛡 📊 💀 🏆 🔥",
+      "• Пустая строка между блоками",
       "",
-      "═══ СТИЛЬ ═══",
-      "• Керри, мид, сап, фармить, ганкать, руинить.",
-      "• 'Твой KDA', 'Ты играл на Spectre', НЕ 'Я Спектра'."
+      "📏 ДЛИНА:",
+      "• Короткий вопрос → 2-4 предложения",
+      "• Вопрос про матч → до 300 слов, с конкретными цифрами",
+      "• Общий вопрос → 150-250 слов",
+      "• 'Подробно'/'гайд'/'сборка' → до 500 слов",
+      "",
+      "Пиши как живой дотер. Дружелюбно, но по делу."
     ].join("\n");
 
     if (heroAbilitiesInfo) {
-      base += "\n\n══════ СПОСОБНОСТИ " + heroAbilitiesInfo.hero.toUpperCase() + " ══════\n" +
-        heroAbilitiesInfo.abilities +
-        "\n⚠️ Используй ТОЛЬКО эти способности.";
+      base += "\n\n=== СПОСОБНОСТИ " + heroAbilitiesInfo.hero.toUpperCase() + " ===\n" +
+        "Используй ТОЛЬКО эти способности (реальные данные):\n" +
+        heroAbilitiesInfo.abilities;
     }
 
     if (searchData && typeof WebSearch !== "undefined" && WebSearch && typeof WebSearch.formatForPrompt === "function") {
       var formatted = WebSearch.formatForPrompt(searchData);
       if (formatted) {
-        base += "\n\n══════ РЕЗУЛЬТАТЫ ПОИСКА ══════\n" + formatted + "\n⚠️ Используй ТОЛЬКО это.";
+        base += "\n\n=== РЕЗУЛЬТАТЫ ПОИСКА ===\n" +
+          "Используй ТОЛЬКО эту информацию:\n\n" + formatted;
       }
     }
 
     if (matchContext) {
-      base += "\n\n══════ ДАННЫЕ ИГРОКА ══════\n" + matchContext + "\n⚠️ Данные про ИГРОКА. Ты ассистент.";
+      base += "\n\n=== ДАННЫЕ МАТЧА ИГРОКА ===\n" +
+        "Информация ПРО ИГРОКА. Ссылайся на конкретные цифры, не говори 'я играл'.\n\n" +
+        matchContext;
     }
 
     return base;
@@ -197,7 +207,7 @@ var ExternalAI = {
     var isRoaming = p.is_roaming === true;
     var lhPerMin = (p.last_hits || 0) / Math.max(durMin, 1);
     if (isRoaming) return "Pos 4 (роум)";
-    if (lane === 1) return lhPerMin >= 4 ? "Pos 1 (керри)" : "Pos 5 (сапорт)";
+    if (lane === 1) return lhPerMin >= 4 ? "Pos 1 (керри)" : "Pos 5 (саппорт)";
     if (lane === 2) return "Pos 2 (мид)";
     if (lane === 3) return lhPerMin >= 3 ? "Pos 3 (оффлейн)" : "Pos 4 (роум)";
     if (lane === 4) return "Pos 4 (роум)";
@@ -206,7 +216,7 @@ var ExternalAI = {
     if (gpm >= 480 && lhPerMin >= 4) return "Pos 2 (мид)";
     if (gpm >= 380 && lhPerMin >= 2.5) return "Pos 3 (оффлейн)";
     if (gpm >= 280) return "Pos 4 (роум)";
-    return "Pos 5 (сапорт)";
+    return "Pos 5 (саппорт)";
   },
 
   buildMatchContext: function () {
@@ -217,16 +227,21 @@ var ExternalAI = {
     var durMin = (m.duration || 0) / 60;
     var position = res.position ? ("Pos " + res.position) : this.detectPosition(p, durMin);
     var modeName = this.MODE_NAMES[m.game_mode] || ("Режим #" + m.game_mode);
-    var ctx = [];
-    ctx.push("🎮 ГЕРОЙ: " + heroName.toUpperCase());
-    ctx.push("РЕЖИМ: " + modeName);
-    if (position) ctx.push("ПОЗИЦИЯ: " + position);
-    ctx.push("РЕЗУЛЬТАТ: " + (res.won ? "ПОБЕДА 🏆" : "ПОРАЖЕНИЕ 💀"));
-    ctx.push("МАТЧ #" + (m.match_id || "?") + ", " + durMin.toFixed(0) + " мин");
-    ctx.push("KDA: " + p.kills + "/" + p.deaths + "/" + p.assists);
-    ctx.push("GPM: " + Math.round(p.gold_per_min || 0) + " | XPM: " + Math.round(p.xp_per_min || 0));
-    ctx.push("Ластхиты: " + (p.last_hits || 0) + " | Денаи: " + (p.denies || 0));
-    ctx.push("Урон: " + Math.round(p.hero_damage || 0) + " | Нетворс: " + Math.round(p.total_gold || 0));
+
+    var lines = [];
+    var resultStr = res.won ? "ПОБЕДА 🏆" : "ПОРАЖЕНИЕ 💀";
+    lines.push(heroName.toUpperCase() + " · " + resultStr + " · " + durMin.toFixed(0) + " мин · " + modeName);
+    if (position) lines.push("Позиция: " + position);
+    lines.push("");
+
+    var kda = p.kills + "/" + p.deaths + "/" + p.assists;
+    var kdaRatio = ((p.kills + p.assists) / Math.max(p.deaths, 1)).toFixed(2);
+    var lhPerMin = ((p.last_hits || 0) / Math.max(durMin, 1)).toFixed(1);
+    lines.push("KDA: " + kda + " (" + kdaRatio + ")");
+    lines.push("GPM: " + Math.round(p.gold_per_min || 0) + " · XPM: " + Math.round(p.xp_per_min || 0));
+    lines.push("Ластхиты: " + (p.last_hits || 0) + " (" + lhPerMin + "/мин) · Денаи: " + (p.denies || 0));
+    lines.push("Урон по героям: " + Math.round(p.hero_damage || 0) + " · Нетворс: " + Math.round(p.total_gold || p.net_worth || 0));
+
     if (res.heroes && m.players) {
       var isRad = p.player_slot < 128;
       var allies = [], enemies = [];
@@ -237,14 +252,15 @@ var ExternalAI = {
         for (var j = 0; j < res.heroes.length; j++) {
           if (res.heroes[j].id === mp.hero_id) { hn = res.heroes[j].name; break; }
         }
-        var item = hn + " (" + (mp.kills||0) + "/" + (mp.deaths||0) + "/" + (mp.assists||0) + ")";
-        if ((mp.player_slot < 128) === isRad) allies.push(item);
-        else enemies.push(item);
+        var short = hn + " (" + (mp.kills||0) + "/" + (mp.deaths||0) + "/" + (mp.assists||0) + ")";
+        if ((mp.player_slot < 128) === isRad) allies.push(short);
+        else enemies.push(short);
       }
-      if (allies.length) ctx.push("Союзники: " + allies.join(", "));
-      if (enemies.length) ctx.push("Враги: " + enemies.join(", "));
+      if (allies.length) lines.push("Союзники: " + allies.join(", "));
+      if (enemies.length) lines.push("Враги: " + enemies.join(", "));
     }
-    return ctx.join("\n");
+
+    return lines.join("\n");
   },
 
   fetchWithTimeout: function (url, options, timeoutMs) {
@@ -343,7 +359,7 @@ var ExternalAI = {
   },
 
   shouldUseExternal: function () { return true; },
-  init: function () { console.log("external-ai v33.0 · Cloudflare Workers AI (Llama 3.3 70B)"); }
+  init: function () { console.log("external-ai v35.1 · Llama 3.3 70B · чистый промпт"); }
 };
 
 if (typeof Store !== "undefined") {
