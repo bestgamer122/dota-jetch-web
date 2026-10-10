@@ -1,11 +1,12 @@
-/* DOTA JETCH — HERO CODEX v1.0
-   Замена ИИ-чата. Справочник героев с билдами и контрпиками из OpenDota. */
+/* DOTA JETCH — HERO CODEX v1.1
+   + Обработка ошибок с логами
+   + Fallback на случай если OpenDota не отвечает */
 
 var CODEX_STATE = {
-  view: "list",         /* "list" | "hero" */
+  view: "list",
   heroId: null,
-  filterAttr: "all",    /* all|str|agi|int|all */
-  filterRole: "all",    /* all|carry|mid|offlane|roam|support */
+  filterAttr: "all",
+  filterRole: "all",
   search: ""
 };
 
@@ -21,14 +22,29 @@ var HeroCodex = {
 
   init: async function () {
     if (this.loaded) return;
+    console.log("[Codex] Инициализация...");
     try {
       this.heroes = await getHeroes();
+      console.log("[Codex] Загружено героев: " + (this.heroes ? this.heroes.length : 0));
+    } catch (e) {
+      console.error("[Codex] Ошибка загрузки героев:", e);
+      this.heroes = [];
+    }
+    try {
       this.items = await getItemCatalog();
-    } catch (e) { console.warn("Codex init:", e); }
+    } catch (e) {
+      console.warn("[Codex] Не удалось загрузить предметы:", e);
+      this.items = {};
+    }
     try {
       this.heroStats = await apiGet("/heroStats");
-    } catch (e) { this.heroStats = null; }
+      console.log("[Codex] HeroStats загружен");
+    } catch (e) {
+      console.warn("[Codex] HeroStats недоступен:", e);
+      this.heroStats = null;
+    }
     this.loaded = true;
+    console.log("[Codex] Инициализация завершена");
   },
 
   getStat: function (heroId) {
@@ -77,7 +93,10 @@ var HeroCodex = {
       ]);
       data.matchups = r[0];
       data.items = r[1];
-    } catch (e) { console.warn("Codex hero load:", e); }
+      console.log("[Codex] Данные для героя " + heroId + " загружены");
+    } catch (e) {
+      console.warn("[Codex] Ошибка загрузки данных героя " + heroId + ":", e);
+    }
     data.loading = false;
     return data;
   },
@@ -99,16 +118,13 @@ var HeroCodex = {
     for (var i = 0; i < this.heroes.length; i++) {
       var h = this.heroes[i];
       var brain = this.getBrainHero(h.id);
-      /* Attr filter */
       if (CODEX_STATE.filterAttr !== "all") {
         if (!brain || brain.attr !== CODEX_STATE.filterAttr) continue;
       }
-      /* Role filter */
       if (CODEX_STATE.filterRole !== "all") {
         var r = this.getRole(h.name);
         if (r !== CODEX_STATE.filterRole) continue;
       }
-      /* Search */
       if (CODEX_STATE.search) {
         var q = CODEX_STATE.search.toLowerCase();
         if (h.name.toLowerCase().indexOf(q) < 0) continue;
@@ -124,6 +140,7 @@ window.HeroCodex = HeroCodex;
 /* ═══ RENDERING ═══ */
 
 function renderCodex() {
+  console.log("[Codex] renderCodex вызван");
   var frag = document.createDocumentFragment();
   var wrapper = el("div", { id: "codexWrapper" });
   frag.appendChild(wrapper);
@@ -132,18 +149,35 @@ function renderCodex() {
 }
 
 async function renderCodexAsync(wrapper) {
-  if (!wrapper) return;
+  if (!wrapper) { console.error("[Codex] wrapper не найден"); return; }
   wrapper.innerHTML = "";
   var loader = el("div", { class: "dim", style: "font-size:12px;padding:20px;text-align:center;" }, "Загрузка кодекса...");
   wrapper.appendChild(loader);
 
-  await HeroCodex.init();
+  try {
+    await HeroCodex.init();
+  } catch (e) {
+    console.error("[Codex] Ошибка инициализации:", e);
+    wrapper.innerHTML = "";
+    var errCard = UI.card("Ошибка");
+    errCard.appendChild(el("div", { style: "color:var(--red);font-size:12px;padding:10px;" }, "Не удалось загрузить кодекс: " + (e.message || e)));
+    wrapper.appendChild(errCard);
+    return;
+  }
 
   wrapper.innerHTML = "";
-  if (CODEX_STATE.view === "hero" && CODEX_STATE.heroId) {
-    wrapper.appendChild(renderCodexHeroDetail());
-  } else {
-    wrapper.appendChild(renderCodexList());
+  try {
+    if (CODEX_STATE.view === "hero" && CODEX_STATE.heroId) {
+      wrapper.appendChild(renderCodexHeroDetail());
+    } else {
+      wrapper.appendChild(renderCodexList());
+    }
+    console.log("[Codex] Рендер завершён, view=" + CODEX_STATE.view);
+  } catch (e) {
+    console.error("[Codex] Ошибка рендера:", e);
+    var errCard2 = UI.card("Ошибка рендера");
+    errCard2.appendChild(el("div", { style: "color:var(--red);font-size:12px;padding:10px;font-family:monospace;" }, (e.message || e) + "\n" + (e.stack || "")));
+    wrapper.appendChild(errCard2);
   }
 }
 
@@ -154,7 +188,6 @@ function renderCodexList() {
   head.appendChild(el("div", { class: "dim", style: "font-size:12px;margin-bottom:14px;" },
     "Справочник всех героев Dota 2. Тыкни героя — увидишь билды и контрпики с OpenDota."));
 
-  /* Фильтры */
   var filters = el("div", { style: "display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;" });
 
   var searchInp = UI.input("Поиск героя...");
@@ -167,15 +200,7 @@ function renderCodexList() {
   });
   filters.appendChild(searchInp);
 
-  /* Кнопки атрибутов */
   var attrRow = el("div", { style: "display:flex;gap:6px;flex-wrap:wrap;width:100%;" });
-  var attrs = [
-    { v: "all", label: "Все" },
-    { v: "str", label: "Сила" },
-    { v: "agi", label: "Ловкость" },
-    { v: "int", label: "Интеллект" },
-    { v: "all2", label: "Универсал" }
-  ];
   var attrDefs = [
     { v: "all", label: "Все" },
     { v: "str", label: "Сила" },
@@ -187,7 +212,7 @@ function renderCodexList() {
       var btn = el("button", { type: "button", "data-attr": d.v });
       var active = CODEX_STATE.filterAttr === d.v;
       btn.textContent = d.label;
-      btn.style.cssText = "padding:6px 12px;border-radius:8px;font-size:11px;font-weight:600;font-family:inherit;cursor:pointer;transition:all 0.15s ease;border:1px solid " + (active ? "var(--accent)" : "var(--border)") + ";background:" + (active ? "var(--accent-bg)" : "var(--bg-elev)") + ";color:" + (active ? "var(--accent-light)" : "var(--text-muted)") + ";";
+      btn.style.cssText = "padding:6px 12px;border-radius:8px;font-size:11px;font-weight:600;font-family:inherit;cursor:pointer;border:1px solid " + (active ? "var(--accent)" : "var(--border)") + ";background:" + (active ? "var(--accent-bg)" : "var(--bg-elev)") + ";color:" + (active ? "var(--accent-light)" : "var(--text-muted)") + ";";
       btn.addEventListener("click", function () {
         CODEX_STATE.filterAttr = d.v;
         refreshCodexList();
@@ -197,7 +222,6 @@ function renderCodexList() {
   }
   filters.appendChild(attrRow);
 
-  /* Кнопки ролей */
   var roleRow = el("div", { style: "display:flex;gap:6px;flex-wrap:wrap;width:100%;" });
   var roleDefs = [
     { v: "all", label: "Все роли" },
@@ -212,7 +236,7 @@ function renderCodexList() {
       var btn = el("button", { type: "button", "data-role": d.v });
       var active = CODEX_STATE.filterRole === d.v;
       btn.textContent = d.label;
-      btn.style.cssText = "padding:6px 12px;border-radius:8px;font-size:11px;font-weight:600;font-family:inherit;cursor:pointer;transition:all 0.15s ease;border:1px solid " + (active ? "var(--cyan)" : "var(--border)") + ";background:" + (active ? "var(--cyan-bg)" : "var(--bg-elev)") + ";color:" + (active ? "var(--cyan)" : "var(--text-muted)") + ";";
+      btn.style.cssText = "padding:6px 12px;border-radius:8px;font-size:11px;font-weight:600;font-family:inherit;cursor:pointer;border:1px solid " + (active ? "var(--cyan)" : "var(--border)") + ";background:" + (active ? "var(--cyan-bg)" : "var(--bg-elev)") + ";color:" + (active ? "var(--cyan)" : "var(--text-muted)") + ";";
       btn.addEventListener("click", function () {
         CODEX_STATE.filterRole = d.v;
         refreshCodexList();
@@ -225,7 +249,6 @@ function renderCodexList() {
   head.appendChild(filters);
   frag.appendChild(head);
 
-  /* Контейнер для сетки */
   var grid = el("div", { id: "codexGrid" });
   frag.appendChild(grid);
 
@@ -238,28 +261,9 @@ function refreshCodexList() {
   if (!grid) return;
   grid.innerHTML = "";
 
-  /* Перерисовка фильтров (для подсветки active) */
-  var head = grid.parentNode ? grid.parentNode.querySelector(".card") : null;
-  if (head) {
-    var attrBtns = head.querySelectorAll("[data-attr]");
-    for (var i = 0; i < attrBtns.length; i++) {
-      var b = attrBtns[i];
-      var act = b.getAttribute("data-attr") === CODEX_STATE.filterAttr;
-      b.style.borderColor = act ? "var(--accent)" : "var(--border)";
-      b.style.background = act ? "var(--accent-bg)" : "var(--bg-elev)";
-      b.style.color = act ? "var(--accent-light)" : "var(--text-muted)";
-    }
-    var roleBtns = head.querySelectorAll("[data-role]");
-    for (var j = 0; j < roleBtns.length; j++) {
-      var rb = roleBtns[j];
-      var ract = rb.getAttribute("data-role") === CODEX_STATE.filterRole;
-      rb.style.borderColor = ract ? "var(--cyan)" : "var(--border)";
-      rb.style.background = ract ? "var(--cyan-bg)" : "var(--bg-elev)";
-      rb.style.color = ract ? "var(--cyan)" : "var(--text-muted)";
-    }
-  }
-
   var list = HeroCodex.filterHeroes();
+  console.log("[Codex] После фильтров: " + list.length + " героев");
+
   if (!list.length) {
     grid.appendChild(el("div", { class: "card", style: "text-align:center;padding:30px;" },
       el("div", { class: "dim", style: "font-size:12px;" }, "Ничего не найдено")));
@@ -271,9 +275,7 @@ function refreshCodexList() {
   for (var k = 0; k < list.length; k++) {
     (function (hero) {
       var tile = el("button", { type: "button" });
-      tile.style.cssText = "display:flex;flex-direction:column;align-items:center;gap:6px;padding:8px;background:var(--bg-elev);border:1px solid var(--border);border-radius:10px;cursor:pointer;transition:all 0.15s ease;font-family:inherit;color:var(--text);";
-      tile.addEventListener("mouseenter", function () { tile.style.borderColor = "var(--accent)"; tile.style.transform = "translateY(-2px)"; });
-      tile.addEventListener("mouseleave", function () { tile.style.borderColor = "var(--border)"; tile.style.transform = "translateY(0)"; });
+      tile.style.cssText = "display:flex;flex-direction:column;align-items:center;gap:6px;padding:8px;background:var(--bg-elev);border:1px solid var(--border);border-radius:10px;cursor:pointer;font-family:inherit;color:var(--text);";
       tile.appendChild(heroImgEl(hero, 64));
       tile.appendChild(el("div", { style: "font-size:11px;font-weight:600;text-align:center;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%;" }, hero.name));
       tile.addEventListener("click", function () {
@@ -300,7 +302,6 @@ function renderCodexHeroDetail() {
   var stat = HeroCodex.getStat(hero.id);
   var wr = HeroCodex.computeWinrate(stat);
 
-  /* Кнопка назад */
   var backBtn = UI.btn("← Все герои", { variant: "ghost" });
   backBtn.style.marginBottom = "14px";
   backBtn.addEventListener("click", function () {
@@ -310,7 +311,6 @@ function renderCodexHeroDetail() {
   });
   frag.appendChild(backBtn);
 
-  /* Header */
   var head = UI.card("");
   head.style.cssText = "background:linear-gradient(135deg,rgba(139,92,246,0.35),var(--bg-card));border-color:var(--accent);";
   var hRow = el("div", { style: "display:flex;align-items:center;gap:20px;flex-wrap:wrap;" });
@@ -335,12 +335,10 @@ function renderCodexHeroDetail() {
   head.appendChild(hRow);
   frag.appendChild(head);
 
-  /* Placeholder для данных с OpenDota */
   var dataCard = el("div", { id: "codexHeroData" });
   dataCard.appendChild(el("div", { class: "dim", style: "font-size:12px;padding:20px;text-align:center;" }, "Загрузка данных с OpenDota..."));
   frag.appendChild(dataCard);
 
-  /* Контрпики из локальной базы */
   if (typeof BrainCounters !== "undefined") {
     var cInfo = BrainCounters.getCountersFor(hero.name);
     if (cInfo) {
@@ -368,7 +366,6 @@ function renderCodexHeroDetail() {
     }
   }
 
-  /* Async загрузка OpenDota */
   setTimeout(function () { loadHeroDetailData(hero); }, 0);
 
   return frag;
@@ -381,7 +378,6 @@ async function loadHeroDetailData(hero) {
   if (!container.parentNode) return;
   container.innerHTML = "";
 
-  /* Билды */
   if (data.items) {
     var buildCard = UI.card("Билды (OpenDota)");
     var phases = [
@@ -423,9 +419,7 @@ async function loadHeroDetailData(hero) {
     }
   }
 
-  /* Матчапы */
   if (data.matchups && data.matchups.length) {
-    /* Найдём хорошие/плохие матчапы (минимум 100 игр) */
     var valid = [];
     for (var m = 0; m < data.matchups.length; m++) {
       var mm = data.matchups[m];
@@ -440,8 +434,8 @@ async function loadHeroDetailData(hero) {
     }
     valid.sort(function (a, b) { return b.wr - a.wr; });
 
-    var good = valid.slice(0, 6); /* Лучшие матчапы */
-    var bad = valid.slice(-6).reverse(); /* Худшие матчапы */
+    var good = valid.slice(0, 6);
+    var bad = valid.slice(-6).reverse();
 
     if (good.length) {
       var gc = UI.card("✅ Лучше всего против");
@@ -489,4 +483,4 @@ async function loadHeroDetailData(hero) {
   }
 }
 
-console.log("hero-codex v1.0 ready");
+console.log("hero-codex v1.1 ready");
