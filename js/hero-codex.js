@@ -1,4 +1,7 @@
-/* DOTA JETCH — HERO CODEX v1.1 */
+/* DOTA JETCH — HERO CODEX v1.2
+   + Билды по стадиям с именами предметов
+   + Контрпики с текстовым пояснением */
+
 var CODEX_STATE = { view: "list", heroId: null, filterAttr: "all", filterRole: "all", search: "" };
 var ATTR_RU = { str: "Сила", agi: "Ловкость", int: "Интеллект", all: "Универсал" };
 var ROLE_RU = { carry: "Керри", mid: "Мид", offlane: "Оффлейн", roam: "Роум", support: "Саппорт", flex: "Универсал" };
@@ -68,6 +71,21 @@ var HeroCodex = {
     return it ? it.name : null;
   },
 
+  /* Собираем билд фазы: возвращает список предметов с именами */
+  getPhaseItems: function (phaseData, exclude, limit) {
+    if (!phaseData) return [];
+    var arr = [];
+    for (var id in phaseData) {
+      if (!phaseData.hasOwnProperty(id)) continue;
+      if (exclude && exclude[id]) continue;
+      var name = this.getItemName(id);
+      if (!name) continue;
+      arr.push({ id: parseInt(id, 10), name: name, count: phaseData[id] });
+    }
+    arr.sort(function (a, b) { return b.count - a.count; });
+    return arr.slice(0, limit || 6);
+  },
+
   filterHeroes: function () {
     var out = [];
     for (var i = 0; i < this.heroes.length; i++) {
@@ -84,7 +102,6 @@ var HeroCodex = {
 window.HeroCodex = HeroCodex;
 
 function renderCodex() {
-  console.log("[Codex] render");
   var frag = document.createDocumentFragment();
   var wrapper = el("div", { id: "codexWrapper" });
   frag.appendChild(wrapper);
@@ -187,7 +204,6 @@ function refreshCodexList() {
   }
 
   var list = HeroCodex.filterHeroes();
-  console.log("[Codex] filtered:", list.length);
   if (!list.length) {
     grid.appendChild(el("div", { class: "card", style: "text-align:center;padding:30px;" }, el("div", { class: "dim", style: "font-size:12px;" }, "Ничего не найдено")));
     return;
@@ -245,27 +261,6 @@ function renderCodexHeroDetail() {
   dataCard.appendChild(el("div", { class: "dim", style: "font-size:12px;padding:20px;text-align:center;" }, "Загрузка данных с OpenDota..."));
   frag.appendChild(dataCard);
 
-  if (typeof BrainCounters !== "undefined") {
-    var cInfo = BrainCounters.getCountersFor(hero.name);
-    if (cInfo) {
-      var cc = UI.card("Контрпики");
-      if (cInfo.counters && cInfo.counters.length) {
-        cc.appendChild(el("div", { style: "font-size:13px;font-weight:600;margin-bottom:8px;color:var(--red);" }, "🛡 Кто контрит " + hero.name));
-        var cl = el("div", { style: "display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;" });
-        for (var ci = 0; ci < cInfo.counters.length; ci++) cl.appendChild(UI.badge(cInfo.counters[ci], "var(--red)", "var(--red-bg)"));
-        cc.appendChild(cl);
-      }
-      if (cInfo.goodAgainst && cInfo.goodAgainst.length) {
-        cc.appendChild(el("div", { style: "font-size:13px;font-weight:600;margin-bottom:8px;color:var(--green);" }, "✅ Против кого хорош"));
-        var gl = el("div", { style: "display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;" });
-        for (var gi = 0; gi < cInfo.goodAgainst.length; gi++) gl.appendChild(UI.badge(cInfo.goodAgainst[gi], "var(--green)", "var(--green-bg)"));
-        cc.appendChild(gl);
-      }
-      if (cInfo.tips) cc.appendChild(el("div", { class: "dim", style: "font-size:12px;line-height:1.6;margin-top:8px;" }, "💡 " + cInfo.tips));
-      frag.appendChild(cc);
-    }
-  }
-
   setTimeout(function () { loadHeroDetailData(hero); }, 0);
   return frag;
 }
@@ -277,87 +272,142 @@ async function loadHeroDetailData(hero) {
   if (!container.parentNode) return;
   container.innerHTML = "";
 
+  /* ═══ БИЛДЫ ═══ */
   if (data.items) {
-    var buildCard = UI.card("Билды (OpenDota)");
+    var buildCard = UI.card("🛒 Билд по стадиям игры");
+    buildCard.appendChild(el("div", { class: "dim", style: "font-size:11px;margin-bottom:6px;line-height:1.5;" },
+      "Что обычно собирают на каждой стадии. Предметы идут от самого популярного к менее."));
+
     var phases = [
-      { key: "start_game_items", label: "🛒 Старт", color: "var(--cyan)" },
-      { key: "early_game_items", label: "⚔ Ранняя игра", color: "var(--green)" },
-      { key: "mid_game_items", label: "🛡 Мид", color: "var(--accent-light)" },
-      { key: "late_game_items", label: "🏆 Лейт", color: "var(--gold)" }
+      { key: "start_game_items", label: "🏁 Старт (0 мин)",     desc: "Что берут на выкуп на линию", color: "var(--cyan)",           limit: 7 },
+      { key: "early_game_items", label: "⚔️ Ранняя игра (0-15)", desc: "Первые покупки на линии",     color: "var(--green)",          limit: 7 },
+      { key: "mid_game_items",   label: "🛡️ Мид (15-35 мин)",   desc: "Ключевые предметы для драки", color: "var(--accent-light)",   limit: 7 },
+      { key: "late_game_items",  label: "🏆 Лейт (35+ мин)",    desc: "Финальный слот инвентаря",    color: "var(--gold)",           limit: 7 }
     ];
-    var anyItems = false;
+
+    var anyPhase = false;
     for (var p = 0; p < phases.length; p++) {
       var ph = phases[p];
       var pData = data.items[ph.key];
       if (!pData) continue;
-      var arr = [];
-      for (var id in pData) if (pData.hasOwnProperty(id)) arr.push({ id: id, count: pData[id] });
-      arr.sort(function (a, b) { return b.count - a.count; });
-      arr = arr.slice(0, 6);
+      var arr = HeroCodex.getPhaseItems(pData, null, ph.limit);
       if (!arr.length) continue;
-      anyItems = true;
-      buildCard.appendChild(el("div", { style: "font-size:13px;font-weight:600;margin-top:" + (p > 0 ? "12px" : "0") + ";margin-bottom:8px;color:" + ph.color + ";" }, ph.label));
-      var grid = el("div", { style: "display:grid;grid-template-columns:repeat(auto-fill,minmax(52px,1fr));gap:6px;max-width:420px;" });
+      anyPhase = true;
+
+      buildCard.appendChild(el("div", {
+        style: "font-size:14px;font-weight:700;color:" + ph.color + ";margin-top:" + (p > 0 ? "18px" : "10px") + ";margin-bottom:3px;"
+      }, ph.label));
+      buildCard.appendChild(el("div", {
+        class: "dim",
+        style: "font-size:10.5px;margin-bottom:10px;"
+      }, ph.desc));
+
+      var row = el("div", { style: "display:flex;flex-wrap:wrap;gap:10px;" });
       for (var i = 0; i < arr.length; i++) {
-        var itemName = HeroCodex.getItemName(arr[i].id) || ("Item " + arr[i].id);
-        var itemSlug = HeroCodex.items[arr[i].id] ? HeroCodex.items[arr[i].id].slug : null;
-        var itemWrap = el("div", { style: "position:relative;" });
-        itemWrap.appendChild(itemImgEl({ id: parseInt(arr[i].id, 10), name: itemName, slug: itemSlug }));
-        itemWrap.title = itemName + " — " + arr[i].count + " раз";
-        grid.appendChild(itemWrap);
+        var it = arr[i];
+        var slug = HeroCodex.items[it.id] ? HeroCodex.items[it.id].slug : null;
+
+        var wrap = el("div", { style: "display:flex;flex-direction:column;align-items:center;gap:5px;width:74px;" });
+        var imgBox = el("div", { style: "width:52px;height:52px;" });
+        imgBox.appendChild(itemImgEl({ id: it.id, name: it.name, slug: slug }));
+        wrap.appendChild(imgBox);
+        wrap.appendChild(el("div", {
+          style: "font-size:9.5px;color:var(--text-muted);text-align:center;line-height:1.15;font-weight:600;max-width:74px;word-break:break-word;"
+        }, it.name));
+        wrap.title = it.name;
+        row.appendChild(wrap);
       }
-      buildCard.appendChild(grid);
+      buildCard.appendChild(row);
     }
-    if (anyItems) container.appendChild(buildCard);
+
+    if (anyPhase) container.appendChild(buildCard);
     else {
-      var eb = UI.card("Билды (OpenDota)");
+      var eb = UI.card("Билды");
       eb.appendChild(el("div", { class: "dim", style: "font-size:12px;" }, "OpenDota не отдала данные по билдам для этого героя."));
       container.appendChild(eb);
     }
   }
 
+  /* ═══ МАТЧАПЫ / КОНТРПИКИ ═══ */
   if (data.matchups && data.matchups.length) {
     var valid = [];
     for (var m = 0; m < data.matchups.length; m++) {
       var mm = data.matchups[m];
-      if (mm.games_played >= 100) valid.push({ hero_id: mm.hero_id, games: mm.games_played, wins: mm.wins, wr: mm.wins / mm.games_played * 100 });
+      if (mm.games_played >= 100) {
+        valid.push({
+          hero_id: mm.hero_id,
+          games: mm.games_played,
+          wins: mm.wins,
+          wr: (mm.wins / mm.games_played) * 100
+        });
+      }
     }
     valid.sort(function (a, b) { return b.wr - a.wr; });
-    var good = valid.slice(0, 6);
-    var bad = valid.slice(-6).reverse();
 
+    /* Хорошие матчапы (winrate > 55%) — герой выигрывает против них */
+    var good = [];
+    for (var gi = 0; gi < valid.length && good.length < 8; gi++) {
+      if (valid[gi].wr >= 55) good.push(valid[gi]);
+    }
+    if (!good.length) good = valid.slice(0, 4);
+
+    /* Плохие матчапы (winrate < 45%) — эти герои контрят */
+    var bad = [];
+    for (var bi = valid.length - 1; bi >= 0 && bad.length < 8; bi--) {
+      if (valid[bi].wr <= 45) bad.push(valid[bi]);
+    }
+    if (!bad.length) bad = valid.slice(-4).reverse();
+
+    /* 🟢 Хорошо играть против */
     if (good.length) {
-      var gc = UI.card("✅ Лучше всего против");
+      var gc = UI.card("✅ " + hero.name + " хорошо играет против");
+      gc.appendChild(el("div", { class: "dim", style: "font-size:11px;margin-bottom:10px;line-height:1.5;" },
+        "Этих героев " + hero.name + " обычно обыгрывает. Если враг их пикнет — тебе проще."));
       var gList = el("div", { style: "display:flex;flex-direction:column;gap:6px;" });
-      for (var gi = 0; gi < good.length; gi++) {
-        var gh = HeroCodex.getHeroById(good[gi].hero_id);
+      for (var gI = 0; gI < good.length; gI++) {
+        var gh = HeroCodex.getHeroById(good[gI].hero_id);
         if (!gh) continue;
-        var gRow = el("div", { style: "display:flex;align-items:center;gap:10px;padding:6px;background:var(--bg-elev);border:1px solid var(--border);border-radius:8px;cursor:pointer;" });
-        gRow.appendChild(heroImgEl(gh, 36));
-        gRow.appendChild(el("div", { style: "flex:1;font-size:13px;font-weight:600;" }, gh.name));
-        gRow.appendChild(el("div", { style: "font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:var(--green);" }, good[gi].wr.toFixed(1) + "%"));
-        gRow.addEventListener("click", function () { CODEX_STATE.heroId = gh.id; switchPage("codex"); });
-        gList.appendChild(gRow);
+        gList.appendChild(buildMatchupRow(gh, good[gI], "good"));
       }
       gc.appendChild(gList);
       container.appendChild(gc);
     }
 
+    /* 🔴 Тебя контрят */
     if (bad.length) {
-      var bc = UI.card("🔴 Хуже всего против");
+      var bc = UI.card("🔴 " + hero.name + " плохо играет против");
+      bc.appendChild(el("div", { class: "dim", style: "font-size:11px;margin-bottom:10px;line-height:1.5;" },
+        "Эти герои контрят " + hero.name + ". Если враг их пикнет — будь осторожен."));
       var bList = el("div", { style: "display:flex;flex-direction:column;gap:6px;" });
-      for (var bi = 0; bi < bad.length; bi++) {
-        var bh = HeroCodex.getHeroById(bad[bi].hero_id);
+      for (var bI = 0; bI < bad.length; bI++) {
+        var bh = HeroCodex.getHeroById(bad[bI].hero_id);
         if (!bh) continue;
-        var bRow = el("div", { style: "display:flex;align-items:center;gap:10px;padding:6px;background:var(--bg-elev);border:1px solid var(--border);border-radius:8px;cursor:pointer;" });
-        bRow.appendChild(heroImgEl(bh, 36));
-        bRow.appendChild(el("div", { style: "flex:1;font-size:13px;font-weight:600;" }, bh.name));
-        bRow.appendChild(el("div", { style: "font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:var(--red);" }, bad[bi].wr.toFixed(1) + "%"));
-        bRow.addEventListener("click", function () { CODEX_STATE.heroId = bh.id; switchPage("codex"); });
-        bList.appendChild(bRow);
+        bList.appendChild(buildMatchupRow(bh, bad[bI], "bad"));
       }
       bc.appendChild(bList);
       container.appendChild(bc);
+    }
+  }
+
+  /* ═══ ЛОКАЛЬНЫЕ КОНТРПИКИ (мозг) ═══ */
+  if (typeof BrainCounters !== "undefined") {
+    var cInfo = BrainCounters.getCountersFor(hero.name);
+    if (cInfo) {
+      var cc = UI.card("🎯 Знания Dota Jetch");
+      if (cInfo.counters && cInfo.counters.length) {
+        cc.appendChild(el("div", { style: "font-size:12px;font-weight:700;margin-bottom:8px;color:var(--red);" }, "🛡 Осторожно играть против:"));
+        var cl = el("div", { style: "display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;" });
+        for (var ci = 0; ci < cInfo.counters.length; ci++) cl.appendChild(UI.badge(cInfo.counters[ci], "var(--red)", "var(--red-bg)"));
+        cc.appendChild(cl);
+      }
+      if (cInfo.goodAgainst && cInfo.goodAgainst.length) {
+        cc.appendChild(el("div", { style: "font-size:12px;font-weight:700;margin-bottom:8px;color:var(--green);" }, "✅ Хорошо играть против:"));
+        var gl = el("div", { style: "display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;" });
+        for (var gIi = 0; gIi < cInfo.goodAgainst.length; gIi++) gl.appendChild(UI.badge(cInfo.goodAgainst[gIi], "var(--green)", "var(--green-bg)"));
+        cc.appendChild(gl);
+      }
+      if (cInfo.tips) cc.appendChild(el("div", { class: "dim", style: "font-size:12px;line-height:1.6;padding-top:6px;border-top:1px solid var(--border);" }, "💡 " + cInfo.tips));
+      container.appendChild(cc);
     }
   }
 
@@ -368,4 +418,46 @@ async function loadHeroDetailData(hero) {
   }
 }
 
-console.log("hero-codex v1.1 ready");
+/* Строка матчапа с текстовым пояснением */
+function buildMatchupRow(enemyHero, data, kind) {
+  var wr = data.wr;
+  var isGood = kind === "good";
+  var color = isGood ? "var(--green)" : "var(--red)";
+
+  /* Текстовое пояснение */
+  var explanation;
+  if (isGood) {
+    if (wr >= 60) explanation = "легко обыгрываешь";
+    else if (wr >= 55) explanation = "имеешь преимущество";
+    else explanation = "немного лучше";
+  } else {
+    if (wr <= 40) explanation = "сильно контрит";
+    else if (wr <= 43) explanation = "контрит тебя";
+    else explanation = "немного хуже";
+  }
+
+  var row = el("div", { style: "display:flex;align-items:center;gap:12px;padding:8px 10px;background:var(--bg-elev);border:1px solid var(--border);border-radius:10px;cursor:pointer;transition:border-color 0.15s;" });
+  row.addEventListener("mouseenter", function () { row.style.borderColor = color; });
+  row.addEventListener("mouseleave", function () { row.style.borderColor = "var(--border)"; });
+
+  row.appendChild(heroImgEl(enemyHero, 40));
+
+  var info = el("div", { style: "flex:1;min-width:0;" });
+  info.appendChild(el("div", { style: "font-size:13px;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" }, enemyHero.name));
+  info.appendChild(el("div", { style: "font-size:11px;font-weight:600;color:" + color + ";margin-top:2px;" }, explanation));
+  row.appendChild(info);
+
+  var statBox = el("div", { style: "text-align:right;flex-shrink:0;" });
+  statBox.appendChild(el("div", { style: "font-size:15px;font-weight:800;color:" + color + ";font-family:'JetBrains Mono',monospace;" }, wr.toFixed(0) + "%"));
+  statBox.appendChild(el("div", { class: "dim", style: "font-size:9.5px;margin-top:1px;" }, (data.games / 1000).toFixed(1) + "k игр"));
+  row.appendChild(statBox);
+
+  row.addEventListener("click", function () {
+    CODEX_STATE.heroId = enemyHero.id;
+    switchPage("codex");
+  });
+
+  return row;
+}
+
+console.log("hero-codex v1.2 ready");
