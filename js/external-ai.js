@@ -1,12 +1,18 @@
-/* DOTA JETCH — EXTERNAL AI v27.1 (GigaChat настроен)
-   URL воркера: https://gigachatwork.yiiwarsssss.workers.dev/
-   + Авто-поиск, этапы, способности, чёрный список */
+/* DOTA JETCH — EXTERNAL AI v30.0 (OpenRouter)
+   + DeepSeek V3 (primary) → Llama 3.3 70B (fallback)
+   + Авто-поиск, этапы, способности, чёрный список
+   + Работает напрямую из браузера, без прокси */
 
 /* ═══════════════════════════════════════════════════════════
    НАСТРОЙКА
    ═══════════════════════════════════════════════════════════ */
-var AI_ENGINE = "gigachat";
-var WORKER_URL = "https://gigachatwork.yiiwarsssss.workers.dev/?url=";
+var OPENROUTER_KEY = "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";
+var OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
+var OPENROUTER_MODELS = [
+  "deepseek/deepseek-chat-v3.1:free",
+  "meta-llama/llama-3.3-70b-instruct:free",
+  "qwen/qwen-2.5-72b-instruct:free"
+];
 /* ═══════════════════════════════════════════════════════════ */
 
 var ExternalAI = {
@@ -14,21 +20,6 @@ var ExternalAI = {
   busy: false,
   lastError: null,
   TIMEOUT_MS: 60000,
-
-  /* GIGACHAT */
-  gigaAuthKey: "MDFhMTI1ZjQtNjU5OS03ZDA3LWE1Y2QtYzAxYjAzNzNiMTllOmRkY2VkNDA5LWJkOTItNDY2YS1hMTY4LWEyZGFhZWJkNmE5Mw==",
-  gigaOAuthUrl: "https://ngw.devices.sberbank.ru:9443/api/v2/oauth",
-  gigaScope: "GIGACHAT_API_PERS",
-  gigaBaseUrl: "https://api.giga.chat/v1",
-  gigaModel: "GigaChat-3-Ultra",
-  gigaAccessToken: null,
-  gigaTokenExpiresAt: 0,
-
-  /* MISTRAL (запасной) */
-  mistralKey: "mstrl_fmvy3EYwtaIGtaLRiqrwMK2RRFOZtVcb_1McbHV",
-  mistralUrl: "https://api.mistral.ai/v1/chat/completions",
-  mistralModels: ["mistral-small-latest", "open-mistral-nemo"],
-
   rateLimitedUntil: 0,
 
   MODE_NAMES: {
@@ -267,121 +258,7 @@ var ExternalAI = {
 
   sleep: function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); },
 
-  _uuid4: function () {
-    try {
-      if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
-    } catch (e) {}
-    return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function (c) {
-      var r = Math.random() * 16 | 0;
-      var v = c === "x" ? r : (r & 0x3 | 0x8);
-      return v.toString(16);
-    });
-  },
-
-  _gigaProxy: function (targetUrl) {
-    return WORKER_URL + encodeURIComponent(targetUrl);
-  },
-
-  getAccessToken: async function () {
-    var now = Date.now();
-    if (this.gigaAccessToken && now < this.gigaTokenExpiresAt - 120000) {
-      return this.gigaAccessToken;
-    }
-
-    var body = "scope=" + encodeURIComponent(this.gigaScope);
-    var headers = {
-      "Content-Type": "application/x-www-form-urlencoded",
-      "Accept": "application/json",
-      "RqUID": this._uuid4(),
-      "Authorization": "Basic " + this.gigaAuthKey
-    };
-
-    console.log("[GigaChat] OAuth через воркер...");
-    var res = await this.fetchWithTimeout(this._gigaProxy(this.gigaOAuthUrl), {
-      method: "POST",
-      headers: headers,
-      body: body
-    }, 20000);
-
-    if (!res.ok) {
-      var errText = await res.text();
-      throw new Error("OAuth HTTP " + res.status + ": " + errText.slice(0, 200));
-    }
-
-    var json = await res.json();
-    if (!json.access_token) throw new Error("OAuth: нет access_token");
-
-    this.gigaAccessToken = json.access_token;
-    this.gigaTokenExpiresAt = (json.expires_at ? json.expires_at * 1000 : now + 25 * 60 * 1000);
-    console.log("[GigaChat] ✓ Токен получен");
-    return this.gigaAccessToken;
-  },
-
-  gigaChat: async function (userQuery, matchContext, heroAbilitiesInfo, searchData) {
-    var token = await this.getAccessToken();
-    var body = {
-      model: this.gigaModel,
-      messages: [
-        { role: "system", content: this.systemPrompt(matchContext, heroAbilitiesInfo, searchData) },
-        { role: "user", content: userQuery }
-      ],
-      temperature: 0.3,
-      max_tokens: 2500
-    };
-    var headers = {
-      "Content-Type": "application/json",
-      "Accept": "application/json",
-      "Authorization": "Bearer " + token
-    };
-    var res = await this.fetchWithTimeout(
-      this._gigaProxy(this.gigaBaseUrl + "/chat/completions"),
-      { method: "POST", headers: headers, body: JSON.stringify(body) },
-      this.TIMEOUT_MS
-    );
-    if (res.status === 401) {
-      this.gigaAccessToken = null;
-      this.gigaTokenExpiresAt = 0;
-      throw new Error("GigaChat 401 — нужен новый токен");
-    }
-    if (res.status === 429) throw new Error("GigaChat 429 — rate limit");
-    if (!res.ok) {
-      var errBody = await res.text();
-      throw new Error("GigaChat HTTP " + res.status + ": " + errBody.slice(0, 200));
-    }
-    var text = await res.text();
-    var json = JSON.parse(text);
-    if (json.choices && json.choices[0] && json.choices[0].message && json.choices[0].message.content) {
-      return this.applySlang(json.choices[0].message.content);
-    }
-    throw new Error("Пустой ответ GigaChat");
-  },
-
-  askGigaChat: async function (userQuery, matchContext, heroAbilitiesInfo, searchData) {
-    var now = Date.now();
-    if (now < this.rateLimitedUntil) {
-      var waitMs = this.rateLimitedUntil - now;
-      if (waitMs > 20000) throw new Error("GigaChat cooldown");
-      await this.sleep(Math.min(waitMs, 20000));
-    }
-    for (var attempt = 0; attempt < 2; attempt++) {
-      try {
-        console.log("GigaChat [" + this.gigaModel + "]" + (searchData ? " +search" : "") + " attempt=" + (attempt + 1));
-        var text = await this.gigaChat(userQuery, matchContext, heroAbilitiesInfo, searchData);
-        this.rateLimitedUntil = 0;
-        return text;
-      } catch (err) {
-        if (err.message && err.message.indexOf("401") >= 0 && attempt === 0) {
-          this.gigaAccessToken = null;
-          this.gigaTokenExpiresAt = 0;
-          continue;
-        }
-        if (attempt === 1) throw err;
-      }
-    }
-    throw new Error("GigaChat недоступен");
-  },
-
-  mistral: async function (model, userQuery, matchContext, heroAbilitiesInfo, searchData) {
+  openrouter: async function (model, userQuery, matchContext, heroAbilitiesInfo, searchData) {
     var body = {
       model: model,
       messages: [
@@ -393,36 +270,55 @@ var ExternalAI = {
     };
     var headers = {
       "Content-Type": "application/json",
-      "Authorization": "Bearer " + this.mistralKey,
-      "Accept": "application/json"
+      "Authorization": "Bearer " + OPENROUTER_KEY,
+      "Accept": "application/json",
+      "HTTP-Referer": (typeof window !== "undefined" ? window.location.origin : "https://bestgamer122.github.io"),
+      "X-Title": "DOTA JETCH"
     };
-    var res = await this.fetchWithTimeout(this.mistralUrl, {
+    var res = await this.fetchWithTimeout(OPENROUTER_URL, {
       method: "POST",
       headers: headers,
       body: JSON.stringify(body)
     }, this.TIMEOUT_MS);
-    if (res.status === 429) throw { code: 429 };
-    if (res.status === 401) throw new Error("Mistral 401");
-    if (!res.ok) throw new Error("Mistral HTTP " + res.status);
+
+    if (res.status === 429) throw { code: 429, message: "Rate limit" };
+    if (res.status === 401) throw new Error("OpenRouter 401 — неверный ключ");
+    if (res.status === 402) throw new Error("OpenRouter 402 — закончились бесплатные запросы на сегодня");
+    if (!res.ok) {
+      var errBody = await res.text();
+      throw new Error("OpenRouter HTTP " + res.status + ": " + errBody.slice(0, 150));
+    }
     var text = await res.text();
     var json = JSON.parse(text);
-    if (json.choices && json.choices[0] && json.choices[0].message) {
+    if (json.error) throw new Error("OpenRouter: " + (json.error.message || "неизвестная ошибка"));
+    if (json.choices && json.choices[0] && json.choices[0].message && json.choices[0].message.content) {
       return this.applySlang(json.choices[0].message.content);
     }
-    throw new Error("Пустой ответ Mistral");
+    throw new Error("Пустой ответ OpenRouter");
   },
 
-  askMistral: async function (userQuery, matchContext, heroAbilitiesInfo, searchData) {
-    for (var i = 0; i < this.mistralModels.length; i++) {
+  askOpenRouter: async function (userQuery, matchContext, heroAbilitiesInfo, searchData) {
+    var now = Date.now();
+    if (now < this.rateLimitedUntil) {
+      var waitMs = this.rateLimitedUntil - now;
+      if (waitMs > 20000) throw new Error("Подожди " + Math.ceil(waitMs/1000) + " сек.");
+      await this.sleep(Math.min(waitMs, 20000));
+    }
+    for (var i = 0; i < OPENROUTER_MODELS.length; i++) {
+      var model = OPENROUTER_MODELS[i];
       try {
-        console.log("Mistral [" + this.mistralModels[i] + "]" + (searchData ? " +search" : ""));
-        return await this.mistral(this.mistralModels[i], userQuery, matchContext, heroAbilitiesInfo, searchData);
+        console.log("OpenRouter [" + model + "]" + (searchData ? " +search" : ""));
+        return await this.openrouter(model, userQuery, matchContext, heroAbilitiesInfo, searchData);
       } catch (err) {
-        if (err.code === 429) continue;
+        if (err.code === 429) {
+          console.warn("429 на " + model + ", пробую следующую");
+          continue;
+        }
         throw err;
       }
     }
-    throw new Error("Mistral исчерпан");
+    this.rateLimitedUntil = Date.now() + 30000;
+    throw new Error("Все модели OpenRouter перегружены. Подожди 30 сек.");
   },
 
   isWeakAnswer: function (text) {
@@ -437,13 +333,6 @@ var ExternalAI = {
     if (t.indexOf("извини") >= 0 && words < 25) return true;
     if (words < 15) return true;
     return false;
-  },
-
-  _askEngine: function (q, matchContext, heroAbilities, searchData) {
-    if (AI_ENGINE === "mistral") {
-      return this.askMistral(q, matchContext, heroAbilities, searchData);
-    }
-    return this.askGigaChat(q, matchContext, heroAbilities, searchData);
   },
 
   ask: async function (query, matchContext, onStage) {
@@ -462,7 +351,7 @@ var ExternalAI = {
 
     try {
       if (onStage) onStage("first");
-      var text1 = await this._askEngine(query, matchContext, heroAbilities, null);
+      var text1 = await this.askOpenRouter(query, matchContext, heroAbilities, null);
 
       var canSearch = (typeof WebSearch !== "undefined") && WebSearch && (typeof WebSearch.search === "function");
       if (this.isWeakAnswer(text1) && canSearch) {
@@ -474,7 +363,7 @@ var ExternalAI = {
         if (searchData && searchData.results && searchData.results.length) {
           if (onStage) onStage("second");
           try {
-            var text2 = await this._askEngine(query, matchContext, heroAbilities, searchData);
+            var text2 = await this.askOpenRouter(query, matchContext, heroAbilities, searchData);
             if (text2 && text2.length > text1.length) return text2;
           } catch (e2) { console.warn("Второй запрос упал:", e2.message); }
         }
@@ -482,7 +371,7 @@ var ExternalAI = {
 
       return text1;
     } catch (err) {
-      console.warn("AI упал:", err.message);
+      console.warn("OpenRouter упал:", err.message);
       throw new Error(err.message || "Сервис перегружен. Попробуй через минуту.");
     } finally {
       this.busy = false;
@@ -490,7 +379,7 @@ var ExternalAI = {
   },
 
   shouldUseExternal: function () { return true; },
-  init: function () { console.log("external-ai v27.1 · engine=" + AI_ENGINE + " · worker=" + WORKER_URL.split("?")[0]); }
+  init: function () { console.log("external-ai v30.0 · OpenRouter (DeepSeek V3 → Llama 3.3 70B)"); }
 };
 
 if (typeof Store !== "undefined") {
