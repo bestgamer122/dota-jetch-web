@@ -1,7 +1,6 @@
-/* DOTA JETCH — EXTERNAL AI v35.1 (Llama 3.3 70B, чистый промпт)
-   + Фикс: Джагер вместо Жугер
-   + Никакого словаря сленга — Llama знает сама
-   + Контекст матча компактный
+/* DOTA JETCH — EXTERNAL AI v36.0
+   + УМНАЯ проверка: контекст матча только для вопросов ПРО МАТЧ
+   + Список стоп-слов и простых вопросов — без контекста
    + Llama 3.3 70B внутри Cloudflare Worker */
 
 /* ═══════════════════════════════════════════════════════════
@@ -44,7 +43,7 @@ var ExternalAI = {
     "Lina": "Dragon Slave (драгон слейв), Light Strike Array (столб), Fiery Soul (фиери соул), Laguna Blade (лагуна).",
     "Riki": "Smoke Screen (смокскрин), Blink Strike (блинк страйк), Tricks of the Trade (трикс), Cloak and Dagger (невидимость).",
     "Sniper": "Shrapnel (шрапнель), Headshot (хедшот), Take Aim (тейк эйм), Assassinate (ассасинейт).",
-    "Drow Ranger": "Frost Arrows (фрост арроуз), Gust (густ), Multishot (мультишот), Marksmanship (маркманшип)."
+    "Drow Ranger": "Frost Arrows (фрост арроузы), Gust (густ), Multishot (мультишот), Marksmanship (маркманшип)."
   },
 
   blacklist: [
@@ -68,8 +67,6 @@ var ExternalAI = {
     return null;
   },
 
-  /* Алиасы для определения героя по запросу (для инъекции способностей).
-     Это НЕ словарь сленга для LLM — это просто поиск героя в запросе. */
   findHeroAbilities: function (query) {
     var q = String(query || "").toLowerCase();
     var aliases = {
@@ -105,7 +102,59 @@ var ExternalAI = {
     return null;
   },
 
-  /* Только грамматические фиксы русского — БЕЗ словаря сленга */
+  /* ═══ УМНАЯ ПРОВЕРКА: относится ли вопрос к матчу ═══
+     Если НЕТ — контекст матча не подкладывается.
+     Если ДА — подкладывается. */
+  isMatchQuestion: function (query) {
+    var q = String(query || "").toLowerCase().trim();
+    if (!q) return false;
+
+    /* Явные фразы — НЕ про матч (короткие приветствия, identity) */
+    var noMatchPhrases = [
+      "ты кто", "кто ты", "а ты кто", "что ты", "кто вы", "ты чё", "ты че",
+      "как тебя зовут", "как звать", "представься", "твое имя", "твоё имя",
+      "что ты умеешь", "что умеешь", "твои возможности", "чем можешь помочь",
+      "привет", "здравствуй", "хай", "здоров", "здарова", "дарова", "ку",
+      "пока", "бай", "спс", "спасибо", "благодарю",
+      "как дела", "как ты", "что делаешь", "как жизнь",
+      "стоп", "хватит", "остановись", "замолчи",
+      "help", "помощь", "команды", "что делать"
+    ];
+    for (var i = 0; i < noMatchPhrases.length; i++) {
+      if (q === noMatchPhrases[i] || q.indexOf(noMatchPhrases[i]) === 0) return false;
+    }
+
+    /* Очень короткие вопросы (1-2 слова) — скорее всего не про матч */
+    var words = q.split(/\s+/).filter(function (w) { return w.length > 0; });
+    if (words.length <= 2 && q.length < 20) {
+      /* Исключение: если есть явные матч-слова */
+      var hasMatchWord = /матч|проигр|побед|луз|кда|kda|гпм|gpm|фарм|руинер|смерт|билд|керри|сап|мид/i.test(q);
+      if (!hasMatchWord) return false;
+    }
+
+    /* Явные матч-слова → ДА, это про матч */
+    var matchWords = [
+      "матч", "проигр", "побед", "выигр", "луз", "затащ",
+      "кда", "kda", "гпм", "gpm", "хпм", "xpm",
+      "ластхит", "денай", "нетфорс", "нетворс",
+      "руинер", "заруинил", "виноват", "слабый игрок",
+      "смерт", "умира", "фарм", "харасил", "ганкал",
+      "этот матч", "этой игре", "в этой игре", "моя игра",
+      "мой герой", "моя позиция",
+      "собрать", "собрал", "билд", "предметы в",
+      "почему я", "как я", "что я",
+      "разбери", "разбор", "анализ",
+      "моя игра", "мои ошибки"
+    ];
+    for (var j = 0; j < matchWords.length; j++) {
+      if (q.indexOf(matchWords[j]) >= 0) return true;
+    }
+
+    /* По умолчанию — НЕ про матч (лучше без контекста, чем с ним) */
+    return false;
+  },
+
+  /* Только грамматические фиксы русского */
   speechFixes: [
     [/\bденан(?:ы|ов|а|у|ом|е)?\b/gi, "денаи"],
     [/\bластхитс\b/gi, "ластхиты"],
@@ -143,6 +192,10 @@ var ExternalAI = {
       "",
       "🇷🇺 ЯЗЫК:",
       "Отвечай ТОЛЬКО на русском. Английские слова — только там где они реально нужны (KDA, GPM).",
+      "",
+      "🎭 ЕСЛИ СПРАШИВАЮТ КТО ТЫ:",
+      "Отвечай честно: ты ИИ-ассистент DotaJetch, помогаешь с Dota 2. НЕ выдумывай биографию, НЕ говори что ты игрок или герой.",
+      "НЕ приплетай контекст матча если про него НЕ спрашивают.",
       "",
       "🚫 НИКАКИХ ВСТУПЛЕНИЙ:",
       "Не пиши 'Отличный вопрос!', 'Конечно!', 'Хорошо!', 'Давай разберёмся'. Начинай сразу с ответа.",
@@ -188,7 +241,8 @@ var ExternalAI = {
 
     if (matchContext) {
       base += "\n\n=== ДАННЫЕ МАТЧА ИГРОКА ===\n" +
-        "Информация ПРО ИГРОКА. Ссылайся на конкретные цифры, не говори 'я играл'.\n\n" +
+        "Информация ПРО ИГРОКА. Ссылайся на конкретные цифры, не говори 'я играл'.\n" +
+        "⚠️ Используй эти данные ТОЛЬКО если вопрос про матч. Если вопрос про другое — игнорируй этот блок.\n\n" +
         matchContext;
     }
 
@@ -326,12 +380,17 @@ var ExternalAI = {
 
     var heroAbilities = this.findHeroAbilities(query);
 
+    /* ═══ ГЛАВНЫЙ ФИКС ═══
+       Если вопрос НЕ про матч — не подкладываем контекст */
+    var useMatchContext = this.isMatchQuestion(query);
+    var ctxForPrompt = useMatchContext ? matchContext : null;
+
     this.busy = true;
     this.lastError = null;
 
     try {
       if (onStage) onStage("first");
-      var text1 = await this.cloudflareAI(query, matchContext, heroAbilities, null);
+      var text1 = await this.cloudflareAI(query, ctxForPrompt, heroAbilities, null);
 
       var canSearch = (typeof WebSearch !== "undefined") && WebSearch && (typeof WebSearch.search === "function");
       if (this.isWeakAnswer(text1) && canSearch) {
@@ -343,7 +402,7 @@ var ExternalAI = {
         if (searchData && searchData.results && searchData.results.length) {
           if (onStage) onStage("second");
           try {
-            var text2 = await this.cloudflareAI(query, matchContext, heroAbilities, searchData);
+            var text2 = await this.cloudflareAI(query, ctxForPrompt, heroAbilities, searchData);
             if (text2 && text2.length > text1.length) return text2;
           } catch (e2) { console.warn("Второй запрос упал:", e2.message); }
         }
@@ -359,7 +418,7 @@ var ExternalAI = {
   },
 
   shouldUseExternal: function () { return true; },
-  init: function () { console.log("external-ai v35.1 · Llama 3.3 70B · чистый промпт"); }
+  init: function () { console.log("external-ai v36.0 · контекст только для матч-вопросов"); }
 };
 
 if (typeof Store !== "undefined") {
