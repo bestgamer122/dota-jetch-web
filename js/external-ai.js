@@ -1,6 +1,7 @@
-/* DOTA JETCH — EXTERNAL AI v37.2
-   + Фикс дословных переводов предметов
-   + Минимальный промпт + мощный контекст */
+/* DOTA JETCH — EXTERNAL AI v39.0
+   + Убран heroAbilities (Llama знает сама)
+   + Алиасы сокращены до 15 частых
+   + Промпт-правило + автозамены */
 
 var WORKER_URL = "https://gigachatwork.yiiwarsssss.workers.dev/";
 var WORKER_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
@@ -13,40 +14,39 @@ var POS_BENCHMARKS = {
   5: { name: "саппорт (Pos 5)", gpm: 320, xpm: 420, lh10: 12, kda: 2.5, heroDmgMin: 400, deathsMax: 9 }
 };
 
+/* Только частые короткие алиасы — для определения, О КОМ спрашивает юзер.
+   Нужно чтобы не подкладывать контекст другого героя. */
+var HERO_ALIASES = {
+  "Anti-Mage": ["ам", "антимаг"],
+  "Invoker": ["инвокер", "вокер"],
+  "Juggernaut": ["джагер", "джага"],
+  "Morphling": ["морф"],
+  "Nyx Assassin": ["никс", "нюкс"],
+  "Phantom Assassin": ["па", "фантомка"],
+  "Phantom Lancer": ["пл"],
+  "Pudge": ["пудж"],
+  "Queen of Pain": ["квопа"],
+  "Shadow Fiend": ["сф"],
+  "Slark": ["сларк"],
+  "Spectre": ["спектра"],
+  "Storm Spirit": ["шторм"],
+  "Tinker": ["тинкер"],
+  "Wraith King": ["вк", "врайт кинг"]
+};
+
 var ExternalAI = {
   enabled: true,
   busy: false,
   lastError: null,
   TIMEOUT_MS: 60000,
   rateLimitedUntil: 0,
+  HERO_ALIASES: HERO_ALIASES,
 
   MODE_NAMES: {
     1: "All Pick", 2: "Captains Mode", 3: "Random Draft", 4: "Single Draft",
     5: "All Random", 11: "Mid Only", 12: "Least Played", 13: "Limited Heroes",
     16: "Captains Draft", 18: "Ability Draft", 20: "All Random Death Match",
     21: "1v1 Mid", 22: "Ranked All Pick", 23: "Turbo", 24: "Mutation"
-  },
-
-  heroAbilities: {
-    "Nyx Assassin": "Impale, Mana Burn, Spiked Carapace, Vendetta.",
-    "Pudge": "Meat Hook, Rot, Flesh Heap, Dismember.",
-    "Invoker": "Quas/Wex/Exort + Sunstrike, Chaos Meteor, EMP, Tornado, Deafening Blast, Cold Snap, Ghost Walk, Ice Wall, Forge Spirit, Alacrity.",
-    "Juggernaut": "Blade Fury, Healing Ward, Blade Dance, Omnislash.",
-    "Phantom Assassin": "Stifling Dagger, Phantom Strike, Blur, Coup de Grace.",
-    "Spectre": "Spectral Dagger, Desolate, Dispersion, Haunt.",
-    "Slark": "Dark Pact, Pounce, Essence Shift, Shadow Dance.",
-    "Shadow Fiend": "Shadowraze, Necromastery, Presence of the Dark Lord, Requiem.",
-    "Storm Spirit": "Static Remnant, Electric Vortex, Overload, Ball Lightning.",
-    "Tinker": "Laser, Heat-Seeking Missile, March of the Machines, Rearm.",
-    "Anti-Mage": "Mana Break, Blink, Counterspell, Mana Void.",
-    "Zeus": "Arc Lightning, Lightning Bolt, Heavenly Jump, Thundergod's Wrath.",
-    "Crystal Maiden": "Crystal Nova, Frostbite, Arcane Aura, Freezing Field.",
-    "Lion": "Earth Spike, Hex, Mana Drain, Finger of Death.",
-    "Axe": "Berserker's Call, Counter Helix, Battle Hunger, Culling Blade.",
-    "Lina": "Dragon Slave, Light Strike Array, Fiery Soul, Laguna Blade.",
-    "Riki": "Smoke Screen, Blink Strike, Tricks of the Trade, Cloak and Dagger.",
-    "Sniper": "Shrapnel, Headshot, Take Aim, Assassinate.",
-    "Drow Ranger": "Frost Arrows, Gust, Multishot, Marksmanship."
   },
 
   blacklist: [
@@ -66,39 +66,25 @@ var ExternalAI = {
     return null;
   },
 
-  findHeroAbilities: function (query) {
+  _hasWord: function (text, word) {
+    if (!word) return false;
+    var escaped = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    var rx = new RegExp("(^|[^а-яёa-z0-9])" + escaped + "([^а-яёa-z0-9]|$)", "i");
+    return rx.test(text);
+  },
+
+  detectHeroesInQuery: function (query) {
     var q = String(query || "").toLowerCase();
-    var aliases = {
-      "Nyx Assassin": ["никс", "nyx", "нюкса", "нюкс", "никса"],
-      "Pudge": ["пудж", "мясник"],
-      "Invoker": ["инвокер", "вокер"],
-      "Juggernaut": ["джагер", "джага", "жугер", "джагернаут", "jugg"],
-      "Phantom Assassin": ["па", "фантомка", "мортра"],
-      "Spectre": ["спектра"],
-      "Slark": ["сларк", "рыба"],
-      "Shadow Fiend": ["сф"],
-      "Storm Spirit": ["шторм"],
-      "Tinker": ["тинкер"],
-      "Anti-Mage": ["ам", "антимаг"],
-      "Zeus": ["зевс"],
-      "Crystal Maiden": ["цм", "кристалка"],
-      "Lion": ["лайон"],
-      "Axe": ["акс"],
-      "Lina": ["лина"],
-      "Riki": ["рики"],
-      "Sniper": ["снайпер"],
-      "Drow Ranger": ["дров", "дровка"]
-    };
-    for (var hero in this.heroAbilities) {
-      if (!this.heroAbilities.hasOwnProperty(hero)) continue;
-      if (q.indexOf(hero.toLowerCase()) >= 0) return { hero: hero, abilities: this.heroAbilities[hero] };
-      if (aliases[hero]) {
-        for (var i = 0; i < aliases[hero].length; i++) {
-          if (q.indexOf(aliases[hero][i]) >= 0) return { hero: hero, abilities: this.heroAbilities[hero] };
-        }
+    var found = [];
+    for (var hero in HERO_ALIASES) {
+      if (!HERO_ALIASES.hasOwnProperty(hero)) continue;
+      if (this._hasWord(q, hero.toLowerCase())) { found.push(hero); continue; }
+      var al = HERO_ALIASES[hero];
+      for (var i = 0; i < al.length; i++) {
+        if (this._hasWord(q, al[i])) { found.push(hero); break; }
       }
     }
-    return null;
+    return found;
   },
 
   isMatchQuestion: function (query) {
@@ -144,14 +130,11 @@ var ExternalAI = {
     return false;
   },
 
-  /* ═══ ФИКСЫ ═══
-     Автозамены дословных переводов, которые Llama иногда выдает. */
   speechFixes: [
     [/\bденан(?:ы|ов|а|у|ом|е)?\b/gi, "денаи"],
     [/\bластхитс\b/gi, "ластхиты"],
     [/\bкрипс\b/gi, "крипы"],
     [/\bвардс\b/gi, "варды"],
-    /* Предметы — дословные переводы */
     [/Ботинки скорости|ботинки скорости/gi, "Треды"],
     [/Ботинки путешественника|ботинки путешественника/gi, "БоТ"],
     [/Кольцо Базилиуса|кольцо Базилиуса/gi, "Базиль"],
@@ -161,7 +144,7 @@ var ExternalAI = {
     [/Клинок молнии|клинок молнии/gi, "Маелстром"],
     [/Посох силы|посох силы/gi, "Форс"],
     [/Жезл Eul'?а|жезл Eul'?а|жезл Эула/gi, "Еул"],
-    [/Скипетр Агани|скипетр Агани|Скипетр Агани/gi, "Аганим"],
+    [/Скипетр Агани|скипетр Агани/gi, "Аганим"],
     [/Клинок битвы|клинок битвы/gi, "БФ"],
     [/Клинок ярости битвы|клинок ярости битвы/gi, "БФ"],
     [/Клинок бабочки|клинок бабочки/gi, "Бабочка"],
@@ -202,19 +185,22 @@ var ExternalAI = {
     return out;
   },
 
-  systemPrompt: function (matchContext, heroAbilitiesInfo, searchData) {
+  systemPrompt: function (matchContext, searchData) {
     var base = [
       "Ты — DotaJetch, тренер по Dota 2 и ИИ-ассистент проекта DOTA JETCH. Отвечай на русском.",
       "",
-      "ВАЖНО: НЕ ПЕРЕВОДИ английские названия предметов дословно.",
-      "Пиши как принято в ру-доте: БКБ, Радик, Манта, Дезоль, Дифуза, Хекс, Еул, Гост, Линка, Тараска, Аганим, Шард, Треды, Фейзы, Арканы, Атос, Сосуд, Блудорн.",
+      "ПРО ПРЕДМЕТЫ И СПОСОБНОСТИ:",
+      "Ты знаешь всех героев, все предметы и все способности Dota 2.",
+      "НЕ ПЕРЕВОДИ английские названия дословно — используй принятый сленг: БКБ, МКБ, БФ, Радик, Манта, Дезоль, Дифуза, Хекс, Еул, Гост, Линка, Тараска, Аганим, Шард, Треды, Фейзы, Арканы, Атос, Сосуд, Блудорн, Бабочка.",
       "Если не уверен в сленге — пиши английское название как есть (Blade Mail, Force Staff).",
-      "НЕ пиши 'Ботинки скорости' — это Треды. НЕ пиши 'Меч Maelstrom' — это Маелстром. НЕ пиши 'Кольцо Базилиуса' — это Базиль."
+      "НЕ пиши 'Клинок бабочки' (это Бабочка), НЕ пиши 'Ботинки скорости' (это Треды).",
+      "",
+      "ЕСЛИ ЕСТЬ КОНТЕКСТ МАТЧА ниже:",
+      "• На вопрос «что стоило собрать» смотри на ИНВЕНТАРЬ в контексте и говори что ЗАМЕНИТЬ.",
+      "• Ссылайся на конкретные цифры из контекста.",
+      "• Не давай общих советов — только конкретика."
     ].join("\n");
 
-    if (heroAbilitiesInfo) {
-      base += "\n\nСпособности " + heroAbilitiesInfo.hero + " (реальные, не выдумывай других):\n" + heroAbilitiesInfo.abilities;
-    }
     if (searchData && typeof WebSearch !== "undefined" && WebSearch && typeof WebSearch.formatForPrompt === "function") {
       var formatted = WebSearch.formatForPrompt(searchData);
       if (formatted) base += "\n\nРезультаты поиска:\n" + formatted;
@@ -226,6 +212,13 @@ var ExternalAI = {
   getContextSource: function () {
     if (typeof window !== "undefined" && window.chatMatchContext && window.chatMatchContext.match) return window.chatMatchContext;
     if (typeof lastAnalysis !== "undefined" && lastAnalysis && lastAnalysis.match) return lastAnalysis;
+    return null;
+  },
+
+  getMatchHero: function () {
+    var res = this.getContextSource();
+    if (!res) return null;
+    if (res.hero && res.hero.name) return res.hero.name;
     return null;
   },
 
@@ -311,17 +304,6 @@ var ExternalAI = {
 
     lines.push("");
 
-    if (res.performance && res.performance.grade) {
-      lines.push("=== ОЦЕНКА ===");
-      lines.push("Балл: " + res.performance.grade + " (" + res.performance.score + "/100)");
-      if (res.performance.reasons && res.performance.reasons.length) {
-        for (var r = 0; r < res.performance.reasons.length; r++) {
-          lines.push("• " + res.performance.reasons[r]);
-        }
-      }
-      lines.push("");
-    }
-
     if (res.items) {
       var invItems = [];
       for (var ii = 0; ii < 6; ii++) {
@@ -331,10 +313,21 @@ var ExternalAI = {
         }
       }
       if (invItems.length) {
-        lines.push("=== ИНВЕНТАРЬ ===");
+        lines.push("=== ИНВЕНТАРЬ НА КОНЕЦ ===");
         lines.push(invItems.join(", "));
         lines.push("");
       }
+    }
+
+    if (res.performance && res.performance.grade) {
+      lines.push("=== ОЦЕНКА ===");
+      lines.push("Балл: " + res.performance.grade + " (" + res.performance.score + "/100)");
+      if (res.performance.reasons && res.performance.reasons.length) {
+        for (var r = 0; r < res.performance.reasons.length; r++) {
+          lines.push("• " + res.performance.reasons[r]);
+        }
+      }
+      lines.push("");
     }
 
     if (res.heroes && m.players) {
@@ -376,11 +369,11 @@ var ExternalAI = {
 
   sleep: function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); },
 
-  cloudflareAI: async function (userQuery, matchContext, heroAbilitiesInfo, searchData) {
+  cloudflareAI: async function (userQuery, matchContext, searchData) {
     var body = {
       model: WORKER_MODEL,
       messages: [
-        { role: "system", content: this.systemPrompt(matchContext, heroAbilitiesInfo, searchData) },
+        { role: "system", content: this.systemPrompt(matchContext, searchData) },
         { role: "user", content: userQuery }
       ]
     };
@@ -428,8 +421,19 @@ var ExternalAI = {
       return "🚫 Не помогаю с читами, хаками и скриптами для Dota 2. За такое банят аккаунт.\n\nСпроси что-нибудь по игре.";
     }
 
-    var heroAbilities = this.findHeroAbilities(query);
-    var useMatchContext = this.isMatchQuestion(query);
+    var heroesInQuery = this.detectHeroesInQuery(query);
+    var matchHero = this.getMatchHero();
+    var heroMismatch = false;
+
+    if (matchHero && heroesInQuery.length > 0) {
+      var isSameHero = false;
+      for (var i = 0; i < heroesInQuery.length; i++) {
+        if (heroesInQuery[i].toLowerCase() === matchHero.toLowerCase()) { isSameHero = true; break; }
+      }
+      if (!isSameHero) heroMismatch = true;
+    }
+
+    var useMatchContext = this.isMatchQuestion(query) && !heroMismatch;
     var ctxForPrompt = useMatchContext ? matchContext : null;
 
     this.busy = true;
@@ -437,7 +441,7 @@ var ExternalAI = {
 
     try {
       if (onStage) onStage("first");
-      var text1 = await this.cloudflareAI(query, ctxForPrompt, heroAbilities, null);
+      var text1 = await this.cloudflareAI(query, ctxForPrompt, null);
 
       var canSearch = (typeof WebSearch !== "undefined") && WebSearch && (typeof WebSearch.search === "function");
       if (this.isWeakAnswer(text1) && canSearch) {
@@ -449,7 +453,7 @@ var ExternalAI = {
         if (searchData && searchData.results && searchData.results.length) {
           if (onStage) onStage("second");
           try {
-            var text2 = await this.cloudflareAI(query, ctxForPrompt, heroAbilities, searchData);
+            var text2 = await this.cloudflareAI(query, ctxForPrompt, searchData);
             if (text2 && text2.length > text1.length) return text2;
           } catch (e2) { console.warn("Второй запрос упал:", e2.message); }
         }
@@ -465,7 +469,7 @@ var ExternalAI = {
   },
 
   shouldUseExternal: function () { return true; },
-  init: function () { console.log("external-ai v37.2 · фикс дословных переводов"); }
+  init: function () { console.log("external-ai v39.0 · без heroAbilities, промпт + автозамены"); }
 };
 
 if (typeof Store !== "undefined") {
