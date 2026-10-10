@@ -1,27 +1,29 @@
-/* DOTA JETCH — EXTERNAL AI v26.0 (GigaChat)
-   Замена Mistral → GigaChat (Sber).
-   + OAuth авторизация (токен 30 мин, авто-обновление)
-   + OpenAI-совместимый endpoint
-   + Авто-поиск в интернете при слабом ответе
-   + Этапы генерации, реальные способности, чёрный список */
+/* DOTA JETCH — EXTERNAL AI v26.1 (GigaChat + CORS proxy)
+   Фикс ERR_CERT_AUTHORITY_INVALID и CORS через corsproxy.io
+   + Авто-поиск, этапы, способности, чёрный список */
 
 var ExternalAI = {
   enabled: true,
   busy: false,
   lastError: null,
-  TIMEOUT_MS: 45000,
+  TIMEOUT_MS: 60000,
 
-  /* ═══ GIGACHAT НАСТРОЙКИ ═══ */
+  /* ═══ GIGACHAT ═══ */
   gigaAuthKey: "MDFhMTI1ZjQtNjU5OS03ZDA3LWE1Y2QtYzAxYjAzNzNiMTllOmRkY2VkNDA5LWJkOTItNDY2YS1hMTY4LWEyZGFhZWJkNmE5Mw==",
   gigaOAuthUrl: "https://ngw.devices.sberbank.ru:9443/api/v2/oauth",
   gigaScope: "GIGACHAT_API_PERS",
   gigaBaseUrl: "https://api.giga.chat/v1",
   gigaModel: "GigaChat-3-Ultra",
 
-  /* Токен доступа кэшируется */
+  /* CORS-прокси. Если один упадёт — пробуем следующий */
+  proxies: [
+    "https://corsproxy.io/?url=",
+    "https://api.allorigins.win/raw?url=",
+    "https://api.codetabs.com/v1/proxy?quest="
+  ],
+
   gigaAccessToken: null,
   gigaTokenExpiresAt: 0,
-
   rateLimitedUntil: 0,
 
   MODE_NAMES: {
@@ -261,7 +263,6 @@ var ExternalAI = {
 
   sleep: function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); },
 
-  /* ═══ ГЕНЕРАЦИЯ UUID v4 ДЛЯ RqUID ═══ */
   _uuid4: function () {
     try {
       if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
@@ -273,15 +274,22 @@ var ExternalAI = {
     });
   },
 
-  /* ═══ ПОЛУЧЕНИЕ ТОКЕНА ДОСТУПА (OAuth) ═══ */
+  /* Проксируем URL через CORS-прокси */
+  _proxyUrl: function (targetUrl, proxyIdx) {
+    var proxy = this.proxies[proxyIdx];
+    if (proxy.indexOf("?url=") >= 0 || proxy.indexOf("?quest=") >= 0) {
+      return proxy + encodeURIComponent(targetUrl);
+    }
+    return proxy + targetUrl;
+  },
+
+  /* ═══ ПОЛУЧЕНИЕ ТОКЕНА ═══ */
   getAccessToken: async function () {
     var now = Date.now();
-    /* Если токен ещё жив (с запасом 2 мин) — возвращаем */
     if (this.gigaAccessToken && now < this.gigaTokenExpiresAt - 120000) {
       return this.gigaAccessToken;
     }
 
-    console.log("[GigaChat] Получаю новый access token...");
     var body = "scope=" + encodeURIComponent(this.gigaScope);
     var headers = {
       "Content-Type": "application/x-www-form-urlencoded",
@@ -290,27 +298,41 @@ var ExternalAI = {
       "Authorization": "Basic " + this.gigaAuthKey
     };
 
-    var res = await this.fetchWithTimeout(this.gigaOAuthUrl, {
-      method: "POST",
-      headers: headers,
-      body: body
-    }, 15000);
+    var lastError = null;
+    /* Пробуем каждый прокси по очереди */
+    for (var p = 0; p < this.proxies.length; p++) {
+      var proxiedUrl = this._proxyUrl(this.gigaOAuthUrl, p);
+      console.log("[GigaChat] OAuth через прокси " + (p + 1) + "/" + this.proxies.length + "...");
+      try {
+        var res = await this.fetchWithTimeout(proxiedUrl, {
+          method: "POST",
+          headers: headers,
+          body: body
+        }, 20000);
 
-    if (!res.ok) {
-      var errText = await res.text();
-      throw { code: res.status, message: "OAuth HTTP " + res.status + ": " + errText.slice(0, 200) };
+        if (!res.ok) {
+          var errText = await res.text();
+          lastError = "OAuth HTTP " + res.status + ": " + errText.slice(0, 150);
+          console.warn("[GigaChat] Прокси " + (p + 1) + " вернул " + res.status);
+          continue;
+        }
+
+        var json = await res.json();
+        if (!json.access_token) {
+          lastError = "OAuth: нет access_token";
+          continue;
+        }
+
+        this.gigaAccessToken = json.access_token;
+        this.gigaTokenExpiresAt = (json.expires_at ? json.expires_at * 1000 : now + 25 * 60 * 1000);
+        console.log("[GigaChat] ✓ Токен получен через прокси " + (p + 1));
+        return this.gigaAccessToken;
+      } catch (e) {
+        lastError = e.message || String(e);
+        console.warn("[GigaChat] Прокси " + (p + 1) + " упал: " + lastError);
+      }
     }
-
-    var json = await res.json();
-    if (!json.access_token) {
-      throw { code: -1, message: "OAuth: нет access_token в ответе" };
-    }
-
-    this.gigaAccessToken = json.access_token;
-    /* expires_at приходит в секундах (unix time), переводим в мс */
-    this.gigaTokenExpiresAt = (json.expires_at ? json.expires_at * 1000 : now + 25 * 60 * 1000);
-    console.log("[GigaChat] Токен получен, истекает в " + new Date(this.gigaTokenExpiresAt).toLocaleTimeString());
-    return this.gigaAccessToken;
+    throw { code: -1, message: "Все CORS-прокси недоступны. Последняя ошибка: " + lastError };
   },
 
   /* ═══ ЗАПРОС К GIGACHAT ═══ */
@@ -334,34 +356,43 @@ var ExternalAI = {
       "Authorization": "Bearer " + token
     };
 
-    var url = self.gigaBaseUrl + "/chat/completions";
+    var targetUrl = self.gigaBaseUrl + "/chat/completions";
+    var lastError = null;
 
-    var res = await self.fetchWithTimeout(url, {
-      method: "POST",
-      headers: headers,
-      body: JSON.stringify(body)
-    }, self.TIMEOUT_MS);
+    for (var p = 0; p < self.proxies.length; p++) {
+      var proxiedUrl = self._proxyUrl(targetUrl, p);
+      try {
+        var res = await self.fetchWithTimeout(proxiedUrl, {
+          method: "POST",
+          headers: headers,
+          body: JSON.stringify(body)
+        }, self.TIMEOUT_MS);
 
-    /* Если токен просрочился — сбрасываем и пробуем ещё раз */
-    if (res.status === 401) {
-      self.gigaAccessToken = null;
-      self.gigaTokenExpiresAt = 0;
-      throw { code: 401, message: "Токен просрочен, нужен новый" };
+        if (res.status === 401) {
+          self.gigaAccessToken = null;
+          self.gigaTokenExpiresAt = 0;
+          throw { code: 401, message: "Токен просрочен" };
+        }
+        if (res.status === 429) throw { code: 429, message: "Rate limit" };
+        if (!res.ok) {
+          var errBody = await res.text();
+          lastError = "HTTP " + res.status + ": " + errBody.slice(0, 150);
+          continue;
+        }
+
+        var text = await res.text();
+        var json = JSON.parse(text);
+        if (json.choices && json.choices[0] && json.choices[0].message && json.choices[0].message.content) {
+          return self.applySlang(json.choices[0].message.content);
+        }
+        lastError = "Пустой ответ";
+      } catch (e) {
+        if (e.code === 401 || e.code === 429) throw e;
+        lastError = e.message || String(e);
+        console.warn("[GigaChat] Запрос через прокси " + (p + 1) + " упал: " + lastError);
+      }
     }
-    if (res.status === 429) throw { code: 429, message: "Rate limit" };
-    if (!res.ok) {
-      var errBody = await res.text();
-      throw { code: res.status, message: "HTTP " + res.status + ": " + errBody.slice(0, 200) };
-    }
-
-    var text = await res.text();
-    var json = JSON.parse(text);
-
-    /* Формат ответа OpenAI-совместимый */
-    if (json.choices && json.choices[0] && json.choices[0].message && json.choices[0].message.content) {
-      return self.applySlang(json.choices[0].message.content);
-    }
-    throw { code: -1, message: "Пустой ответ GigaChat" };
+    throw { code: -1, message: "Все прокси упали: " + lastError };
   },
 
   askGigaChat: async function (userQuery, matchContext, heroAbilitiesInfo, searchData) {
@@ -373,7 +404,6 @@ var ExternalAI = {
       await self.sleep(Math.min(waitMs, 20000));
     }
 
-    /* Пытаемся 2 раза: 1-й раз обычный, 2-й — если токен просрочился */
     for (var attempt = 0; attempt < 2; attempt++) {
       try {
         console.log("GigaChat [" + self.gigaModel + "]" + (searchData ? " +search" : "") + " attempt=" + (attempt + 1));
@@ -382,7 +412,7 @@ var ExternalAI = {
         return text;
       } catch (err) {
         if (err.code === 401 && attempt === 0) {
-          console.warn("GigaChat 401 — обновляю токен и повторяю");
+          console.warn("GigaChat 401 — обновляю токен");
           self.gigaAccessToken = null;
           self.gigaTokenExpiresAt = 0;
           continue;
@@ -455,10 +485,7 @@ var ExternalAI = {
   },
 
   shouldUseExternal: function () { return true; },
-  init: function () { console.log("external-ai v26.0 · GigaChat-3-Ultra (OAuth + авто-поиск)"); }
+  init: function () { console.log("external-ai v26.1 · GigaChat-3-Ultra + CORS-прокси"); }
 };
 
-if (typeof Store !== "undefined") {
-  setTimeout(function () { ExternalAI.init(); }, 100);
-}
-
+if (typeof Store !== "undefined
