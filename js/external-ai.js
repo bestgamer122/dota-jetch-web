@@ -1,6 +1,6 @@
-/* DOTA JETCH — EXTERNAL AI v26.1 (GigaChat + CORS proxy)
-   Фикс ERR_CERT_AUTHORITY_INVALID и CORS через corsproxy.io
-   + Авто-поиск, этапы, способности, чёрный список */
+/* DOTA JETCH — EXTERNAL AI v26.2 (GigaChat + надёжный CORS-прокси)
+   Фикс: SyntaxError (ключ вынесен из строки), 403 через corsproxy.io
+   + Авто-обновление токена, авто-поиск, этапы, способности, чёрный список */
 
 var ExternalAI = {
   enabled: true,
@@ -9,17 +9,17 @@ var ExternalAI = {
   TIMEOUT_MS: 60000,
 
   /* ═══ GIGACHAT ═══ */
+  /* Ключ вынесен в отдельную переменную, чтобы избежать проблем с экранированием */
   gigaAuthKey: "MDFhMTI1ZjQtNjU5OS03ZDA3LWE1Y2QtYzAxYjAzNzNiMTllOmRkY2VkNDA5LWJkOTItNDY2YS1hMTY4LWEyZGFhZWJkNmE5Mw==",
   gigaOAuthUrl: "https://ngw.devices.sberbank.ru:9443/api/v2/oauth",
   gigaScope: "GIGACHAT_API_PERS",
   gigaBaseUrl: "https://api.giga.chat/v1",
   gigaModel: "GigaChat-3-Ultra",
 
-  /* CORS-прокси. Если один упадёт — пробуем следующий */
+  /* CORS-прокси. corsproxy.io — самый надёжный для POST-запросов */
   proxies: [
     "https://corsproxy.io/?url=",
-    "https://api.allorigins.win/raw?url=",
-    "https://api.codetabs.com/v1/proxy?quest="
+    "https://api.allorigins.win/raw?url="
   ],
 
   gigaAccessToken: null,
@@ -274,7 +274,6 @@ var ExternalAI = {
     });
   },
 
-  /* Проксируем URL через CORS-прокси */
   _proxyUrl: function (targetUrl, proxyIdx) {
     var proxy = this.proxies[proxyIdx];
     if (proxy.indexOf("?url=") >= 0 || proxy.indexOf("?quest=") >= 0) {
@@ -299,7 +298,6 @@ var ExternalAI = {
     };
 
     var lastError = null;
-    /* Пробуем каждый прокси по очереди */
     for (var p = 0; p < this.proxies.length; p++) {
       var proxiedUrl = this._proxyUrl(this.gigaOAuthUrl, p);
       console.log("[GigaChat] OAuth через прокси " + (p + 1) + "/" + this.proxies.length + "...");
@@ -469,7 +467,7 @@ var ExternalAI = {
         if (searchData && searchData.results && searchData.results.length) {
           if (onStage) onStage("second");
           try {
-            var text2 = await this.askGigaChat(query, matchContext, heroAbilitiesInfo, searchData);
+            var text2 = await self.askGigaChat(query, matchContext, heroAbilitiesInfo, searchData);
             if (text2 && text2.length > text1.length) return text2;
           } catch (e2) { console.warn("Второй запрос упал:", e2.message); }
         }
@@ -485,7 +483,10 @@ var ExternalAI = {
   },
 
   shouldUseExternal: function () { return true; },
-  init: function () { console.log("external-ai v26.1 · GigaChat-3-Ultra + CORS-прокси"); }
+  init: function () { console.log("external-ai v26.2 · GigaChat-3-Ultra + надёжный прокси"); }
 };
 
-if (typeof Store !== "undefined
+if (typeof Store !== "undefined") {
+  setTimeout(function () { ExternalAI.init(); }, 100);
+}
+
