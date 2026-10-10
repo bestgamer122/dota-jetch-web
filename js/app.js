@@ -1,4 +1,4 @@
-/* DOTA JETCH — APP v11.0 (замена ИИ-чата на Кодекс героев) */
+/* DOTA JETCH — APP v11.0 (кодекс вместо ИИ-чата) */
 
 var APP_VERSION = "11.0";
 
@@ -60,7 +60,7 @@ function safeRender(name) {
     console.error("Render error:", name, e);
     var frag = document.createDocumentFragment();
     var card = UI.card("Ошибка: " + (PAGES[name] ? PAGES[name].title : name));
-    card.appendChild(el("div", { style: "color:var(--red);font-size:12px;padding:10px;font-family:monospace;" }, e.message || String(e)));
+    card.appendChild(el("div", { style: "color:var(--red);font-size:12px;padding:10px;font-family:monospace;white-space:pre-wrap;" }, (e.message || String(e)) + "\n" + (e.stack || "")));
     frag.appendChild(card);
     return frag;
   }
@@ -69,9 +69,7 @@ function safeRender(name) {
 function switchPage(name) {
   if (!PAGES[name]) name = "dashboard";
   currentPage = name;
-  qsa(".nav-btn").forEach(function (b) {
-    b.classList.toggle("active", b.getAttribute("data-page") === name);
-  });
+  qsa(".nav-btn").forEach(function (b) { b.classList.toggle("active", b.getAttribute("data-page") === name); });
   var t = qs("#pageTitle");
   if (t) t.textContent = PAGES[name].title;
   var c = qs("#pageContent");
@@ -82,7 +80,6 @@ function switchPage(name) {
   var s = qs(".page-scroll");
   if (s) s.scrollTop = 0;
   location.hash = name;
-
   if (name === "charts" && typeof Daily !== "undefined") { try { Daily.bump("chart"); } catch (e) {} }
   if (name === "about") {
     try { Store.set("visitedabout", true); if (typeof Achievements !== "undefined") Achievements.check(); } catch (e) {}
@@ -167,7 +164,6 @@ function renderLeaderboardPage() {
   var placeholder = el("div", { id: "leaderboardPlaceholder" });
   placeholder.appendChild(el("div", { class: "dim", style: "font-size:12px;padding:8px 0;" }, "Загрузка..."));
   frag.appendChild(placeholder);
-
   setTimeout(function () {
     if (typeof window.renderLeaderboard !== "function") {
       placeholder.innerHTML = "";
@@ -177,13 +173,8 @@ function renderLeaderboardPage() {
     try {
       var result = window.renderLeaderboard();
       if (result && typeof result.then === "function") {
-        result.then(function (card) {
-          placeholder.innerHTML = "";
-          if (card) placeholder.appendChild(card);
-        }).catch(function (e) {
-          placeholder.innerHTML = "";
-          placeholder.appendChild(el("div", { style: "color:var(--red);font-size:12px;" }, "Ошибка: " + (e.message || e)));
-        });
+        result.then(function (card) { placeholder.innerHTML = ""; if (card) placeholder.appendChild(card); })
+          .catch(function (e) { placeholder.innerHTML = ""; placeholder.appendChild(el("div", { style: "color:var(--red);font-size:12px;" }, "Ошибка: " + (e.message || e))); });
       } else {
         placeholder.innerHTML = "";
         if (result) placeholder.appendChild(result);
@@ -193,7 +184,6 @@ function renderLeaderboardPage() {
       placeholder.appendChild(el("div", { style: "color:var(--red);font-size:12px;" }, "Ошибка: " + (e.message || e)));
     }
   }, 30);
-
   return frag;
 }
 
@@ -211,10 +201,8 @@ function renderDashboard() {
   ));
   if (typeof renderDailyWidget === "function") { try { frag.appendChild(renderDailyWidget()); } catch (e) {} }
   if (typeof window.renderRatingWidget === "function") {
-    try {
-      var rw = window.renderRatingWidget();
-      if (rw) frag.appendChild(rw);
-    } catch (e) { console.warn("rating widget:", e); }
+    try { var rw = window.renderRatingWidget(); if (rw) frag.appendChild(rw); }
+    catch (e) { console.warn("rating widget:", e); }
   }
   var stats = el("div", { class: "stat-grid" });
   var left = typeof analyzeQuotaRemaining === "function" ? (plus ? "∞" : String(analyzeQuotaRemaining())) : "-";
@@ -233,8 +221,7 @@ function renderDashboard() {
     row.appendChild(heroImgEl(lastAnalysis.hero, 56));
     var info = el("div", { style: "flex:1;" });
     info.appendChild(el("div", { style: "font-size:15px;font-weight:bold;" }, lastAnalysis.hero.name));
-    info.appendChild(el("div", { class: "muted", style: "font-size:11px;margin-top:4px;" },
-      lastAnalysis.player.kills + "/" + lastAnalysis.player.deaths + "/" + lastAnalysis.player.assists + " — " + (lastAnalysis.won ? "победа" : "поражение")));
+    info.appendChild(el("div", { class: "muted", style: "font-size:11px;margin-top:4px;" }, lastAnalysis.player.kills + "/" + lastAnalysis.player.deaths + "/" + lastAnalysis.player.assists + " — " + (lastAnalysis.won ? "победа" : "поражение")));
     row.appendChild(info); last.appendChild(row); frag.appendChild(last);
   }
   return frag;
@@ -498,9 +485,7 @@ function init() {
   try { if (typeof applyTheme === "function") applyTheme(loadTheme()); } catch (e) {}
   try { if (typeof applyLiteMode === "function") applyLiteMode(isLiteMode()); } catch (e) {}
   buildNav();
-  document.addEventListener("click", function () {
-    if (typeof closeAllDropdowns === "function") closeAllDropdowns();
-  });
+  document.addEventListener("click", function () { if (typeof closeAllDropdowns === "function") closeAllDropdowns(); });
   bindProfileModal();
   try { Store.set("sessions", (Store.get("sessions", 0) || 0) + 1); } catch (e) {}
   var h = (location.hash || "#dashboard").slice(1);

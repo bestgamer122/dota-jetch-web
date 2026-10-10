@@ -1,5 +1,4 @@
-/* DOTA JETCH — ANALYZE v3.7
-   Кнопка "Обсудить с ИИ" заменена на "Открыть в кодексе". */
+/* DOTA JETCH — ANALYZE v3.7 (кнопка "Открыть в кодексе") */
 
 var MODE_NAMES = {
   1: "All Pick", 2: "Captains Mode", 3: "Random Draft", 4: "Single Draft",
