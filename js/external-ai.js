@@ -1,6 +1,6 @@
-/* DOTA JETCH — EXTERNAL AI v31.0 (OpenRouter через Cloudflare Worker)
+/* DOTA JETCH — EXTERNAL AI v32.0 (OpenRouter прямые запросы)
    + DeepSeek V3 → Llama 3.3 70B → Qwen 2.5 72B (фолбэки)
-   + CORS-прокси через собственный Worker
+   + Прямые запросы в обход Cloudflare-прокси
    + Авто-поиск, этапы, способности, чёрный список */
 
 /* ═══════════════════════════════════════════════════════════
@@ -13,9 +13,6 @@ var OPENROUTER_MODELS = [
   "meta-llama/llama-3.3-70b-instruct:free",
   "qwen/qwen-2.5-72b-instruct:free"
 ];
-
-/* Твой Cloudflare Worker (прокси для обхода CORS) */
-var PROXY_URL = "https://gigachatwork.yiiwarsssss.workers.dev/?url=";
 /* ═══════════════════════════════════════════════════════════ */
 
 var ExternalAI = {
@@ -261,10 +258,6 @@ var ExternalAI = {
 
   sleep: function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); },
 
-  _proxied: function (url) {
-    return PROXY_URL + encodeURIComponent(url);
-  },
-
   openrouter: async function (model, userQuery, matchContext, heroAbilitiesInfo, searchData) {
     var body = {
       model: model,
@@ -277,9 +270,11 @@ var ExternalAI = {
     };
     var headers = {
       "Content-Type": "application/json",
-      "Authorization": "Bearer " + OPENROUTER_KEY
+      "Authorization": "Bearer " + OPENROUTER_KEY,
+      "HTTP-Referer": window.location.origin,
+      "X-Title": "DOTA JETCH"
     };
-    var res = await this.fetchWithTimeout(this._proxied(OPENROUTER_URL), {
+    var res = await this.fetchWithTimeout(OPENROUTER_URL, {
       method: "POST",
       headers: headers,
       body: JSON.stringify(body)
@@ -287,7 +282,11 @@ var ExternalAI = {
 
     if (res.status === 429) throw { code: 429, message: "Rate limit" };
     if (res.status === 401) throw new Error("OpenRouter 401 — неверный ключ");
-    if (res.status === 402) throw new Error("OpenRouter 402 — закончились бесплатные запросы");
+    if (res.status === 402) throw new Error("OpenRouter 402 — закончились бесплатные запросы на сегодня");
+    if (res.status === 403) {
+      var errText403 = await res.text();
+      throw new Error("OpenRouter 403: " + errText403.slice(0, 150) + "\n\nВозможно, Cloudflare блокирует запрос. Попробуй позже или используй другой прокси.");
+    }
     if (!res.ok) {
       var errBody = await res.text();
       throw new Error("OpenRouter HTTP " + res.status + ": " + errBody.slice(0, 150));
@@ -308,14 +307,12 @@ var ExternalAI = {
       if (waitMs > 20000) throw new Error("Подожди " + Math.ceil(waitMs / 1000) + " сек.");
       await this.sleep(Math.min(waitMs, 20000));
     }
-    var lastErr = null;
     for (var i = 0; i < OPENROUTER_MODELS.length; i++) {
       var model = OPENROUTER_MODELS[i];
       try {
         console.log("OpenRouter [" + model + "]" + (searchData ? " +search" : ""));
         return await this.openrouter(model, userQuery, matchContext, heroAbilitiesInfo, searchData);
       } catch (err) {
-        lastErr = err;
         if (err.code === 429) {
           console.warn("429 на " + model + ", пробую следующую");
           continue;
@@ -385,7 +382,7 @@ var ExternalAI = {
   },
 
   shouldUseExternal: function () { return true; },
-  init: function () { console.log("external-ai v31.0 · OpenRouter через прокси: " + PROXY_URL.split("?")[0]); }
+  init: function () { console.log("external-ai v32.0 · OpenRouter прямые запросы"); }
 };
 
 if (typeof Store !== "undefined") {
