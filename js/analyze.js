@@ -1,6 +1,5 @@
-/* DOTA JETCH — ANALYZE v3.6
-   + Кнопка "Обсудить с ИИ" показывается только для JETCH+
-   + Использует checkLicense() (работает с forever-лицензией) */
+/* DOTA JETCH — ANALYZE v3.7
+   Кнопка "Обсудить с ИИ" заменена на "Открыть в кодексе". */
 
 var MODE_NAMES = {
   1: "All Pick", 2: "Captains Mode", 3: "Random Draft", 4: "Single Draft",
@@ -151,35 +150,22 @@ function getItemRecs(p, hero, match, allHeroes) {
   return out.slice(0, 6);
 }
 
-function buildChatButton(res) {
+function buildCodexButton(res) {
   if (!res || !res.match || !res.hero) return null;
-
-  /* Для FREE — показать кнопку активации JETCH+ */
-  if (!_isPlusA()) {
-    var lockedCard = el("div", { class: "card" });
-    lockedCard.style.cssText = "background:linear-gradient(135deg,rgba(251,191,36,0.10),var(--bg-card));border-color:var(--gold);text-align:center;";
-    lockedCard.appendChild(el("div", { style: "font-size:32px;margin-bottom:8px;" }, "🔒"));
-    lockedCard.appendChild(el("div", { style: "font-size:15px;font-weight:700;color:var(--gold);margin-bottom:6px;" }, "Обсудить с ИИ — JETCH+"));
-    lockedCard.appendChild(el("div", { class: "dim", style: "font-size:12px;line-height:1.5;margin-bottom:16px;max-width:340px;margin-left:auto;margin-right:auto;" },
-      "ИИ-чат с разбором матча доступен только с подпиской JETCH+."));
-    var actBtn = UI.btn("Активировать JETCH+");
-    actBtn.style.cssText = "width:100%;padding:14px;font-size:14px;font-weight:800;";
-    actBtn.addEventListener("click", function () { switchPage("settings"); });
-    lockedCard.appendChild(actBtn);
-    return lockedCard;
-  }
-
   var card = el("div", { class: "card" });
   card.style.cssText = "background:linear-gradient(135deg,rgba(139,92,246,0.15),var(--bg-card));border-color:var(--accent);text-align:center;";
-  card.appendChild(el("div", { style: "font-size:32px;margin-bottom:8px;" }, "💬"));
-  card.appendChild(el("div", { style: "font-size:15px;font-weight:700;color:var(--text);margin-bottom:6px;" }, "Обсудить с ИИ"));
+  card.appendChild(el("div", { style: "font-size:32px;margin-bottom:8px;" }, "📖"));
+  card.appendChild(el("div", { style: "font-size:15px;font-weight:700;color:var(--text);margin-bottom:6px;" }, "Открыть в кодексе"));
   card.appendChild(el("div", { class: "dim", style: "font-size:12px;line-height:1.5;margin-bottom:16px;max-width:340px;margin-left:auto;margin-right:auto;" },
-    "Спроси почему проиграл, кто руинер, что надо было собрать — ИИ ответит с учётом ЭТОГО матча."));
-  var btn = UI.btn("Открыть чат с ИИ");
+    "Посмотри билды, контрпики и матчапы для " + res.hero.name + " с OpenDota."));
+  var btn = UI.btn("Открыть " + res.hero.name);
   btn.style.cssText = "width:100%;padding:14px;font-size:14px;font-weight:800;";
   btn.addEventListener("click", function () {
-    Store.set("chatselectedmatch", { matchId: res.match.match_id, heroName: res.hero.name });
-    switchPage("chat");
+    if (typeof CODEX_STATE !== "undefined") {
+      CODEX_STATE.view = "hero";
+      CODEX_STATE.heroId = res.hero.id;
+    }
+    switchPage("codex");
   });
   card.appendChild(btn);
   return card;
@@ -194,8 +180,8 @@ function renderAnalyze() {
     frag.appendChild(resetBtn);
     var report = el("div", { id: "analyzeReport" });
     report.appendChild(buildReport(lastAnalysis));
-    var chatBtn = buildChatButton(lastAnalysis);
-    if (chatBtn) report.appendChild(chatBtn);
+    var codexBtn = buildCodexButton(lastAnalysis);
+    if (codexBtn) report.appendChild(codexBtn);
     frag.appendChild(report);
     return frag;
   }
@@ -257,8 +243,8 @@ async function onAnalyzeClick() {
     if (!plus) analyzeQuotaInc();
     report.innerHTML = "";
     report.appendChild(buildReport(res));
-    var chatBtn = buildChatButton(res);
-    if (chatBtn) report.appendChild(chatBtn);
+    var codexBtn = buildCodexButton(res);
+    if (codexBtn) report.appendChild(codexBtn);
     lastAnalysis = res;
     if (typeof History !== "undefined") History.add(res);
     if (typeof Achievements !== "undefined") Achievements.onAnalyze(res);
@@ -394,5 +380,4 @@ function buildMetrics(r) {
   return card;
 }
 
-console.log("analyze v3.6 ready (chat button only for JETCH+)");
-
+console.log("analyze v3.7 ready (codex button)");

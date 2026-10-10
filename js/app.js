@@ -1,11 +1,11 @@
-/* DOTA JETCH — APP v10.7 */
+/* DOTA JETCH — APP v11.0 (замена ИИ-чата на Кодекс героев) */
 
-var APP_VERSION = "10.7";
+var APP_VERSION = "11.0";
 
 var PAGES = {
   dashboard:    { title: "Главная",         render: renderDashboard },
   analyze:      { title: "Анализ матча",    render: renderAnalyze },
-  chat:         { title: "ИИ-ассистент",    render: renderChat },
+  codex:        { title: "Кодекс героев",   render: renderCodex },
   history:      { title: "История",         render: renderHistory },
   charts:       { title: "Прогресс",        render: renderChartsPage },
   diary:        { title: "Дневник",         render: renderDiary },
@@ -19,7 +19,7 @@ var PAGES = {
 var NAV = [
   { page: "dashboard",    label: "Главная",       icon: "M3 11l9-8 9 8v9a2 2 0 0 1-2 2h-4v-7h-6v7H5a2 2 0 0 1-2-2z" },
   { page: "analyze",      label: "Анализ матча",  icon: "M5 3l14 9-14 9z" },
-  { page: "chat",         label: "ИИ-ассистент",  icon: "M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" },
+  { page: "codex",        label: "Кодекс героев", icon: "M4 19.5A2.5 2.5 0 0 1 6.5 17H20M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" },
   { page: "history",      label: "История",       icon: "M3 6h18M3 12h18M3 18h18" },
   { page: "charts",       label: "Прогресс",      icon: "M3 3v18h18M7 14l3-3 4 4 5-6" },
   { page: "diary",        label: "Дневник",       icon: "M4 4h12l4 4v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z" },
@@ -205,8 +205,8 @@ function renderDashboard() {
     buildGreeting(),
     [
       UI.btn("Анализ матча", { onclick: function () { switchPage("analyze"); } }),
-      UI.btn("Мини-игры", { onclick: function () { switchPage("games"); }, variant: "ghost" }),
-      UI.btn("Лидерборд", { onclick: function () { switchPage("leaderboard"); }, variant: "ghost" })
+      UI.btn("Кодекс героев", { onclick: function () { switchPage("codex"); }, variant: "ghost" }),
+      UI.btn("Мини-игры", { onclick: function () { switchPage("games"); }, variant: "ghost" })
     ]
   ));
   if (typeof renderDailyWidget === "function") { try { frag.appendChild(renderDailyWidget()); } catch (e) {} }
@@ -255,7 +255,7 @@ function renderAbout() {
   var feat = UI.card("Возможности");
   var list = [
     "Анализ матчей с оценкой S/A/B/C/D",
-    "ИИ-ассистент (JETCH+)",
+    "Кодекс героев с билдами и контрпиками",
     "История и графики",
     "Дневник",
     "Мини-игры: Взлом замка, Атака автоматонов, Викторина",
