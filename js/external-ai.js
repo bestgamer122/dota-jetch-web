@@ -1,22 +1,16 @@
-/* DOTA JETCH — EXTERNAL AI v37.0
-   + МИНИМАЛЬНЫЙ промпт — только "ты тренер и ассистент"
-   + МОЩНЫЙ контекст матча — вся инфа для качественного разбора
-   + Llama 3.3 70B внутри Cloudflare Worker */
+/* DOTA JETCH — EXTERNAL AI v37.1
+   Минимальный промпт + мощный контекст.
+   Llama 3.3 70B внутри Cloudflare Worker. */
 
-/* ═══════════════════════════════════════════════════════════
-   НАСТРОЙКА
-   ═══════════════════════════════════════════════════════════ */
 var WORKER_URL = "https://gigachatwork.yiiwarsssss.workers.dev/";
 var WORKER_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
-/* ═══════════════════════════════════════════════════════════ */
 
-/* Бенчмарки по позициям — используются в контексте, чтобы ИИ видел нормы */
 var POS_BENCHMARKS = {
-  1: { name: "керри (Pos 1)",      gpm: 600, xpm: 700, lh10: 70,  kda: 3.5, heroDmgMin: 700, deathsMax: 5 },
-  2: { name: "мид (Pos 2)",        gpm: 580, xpm: 720, lh10: 60,  kda: 4.0, heroDmgMin: 850, deathsMax: 5 },
-  3: { name: "оффлейн (Pos 3)",    gpm: 480, xpm: 560, lh10: 45,  kda: 3.0, heroDmgMin: 750, deathsMax: 7 },
-  4: { name: "роум (Pos 4)",       gpm: 380, xpm: 480, lh10: 20,  kda: 2.8, heroDmgMin: 550, deathsMax: 8 },
-  5: { name: "саппорт (Pos 5)",    gpm: 320, xpm: 420, lh10: 12,  kda: 2.5, heroDmgMin: 400, deathsMax: 9 }
+  1: { name: "керри (Pos 1)",   gpm: 600, xpm: 700, lh10: 70, kda: 3.5, heroDmgMin: 700, deathsMax: 5 },
+  2: { name: "мид (Pos 2)",     gpm: 580, xpm: 720, lh10: 60, kda: 4.0, heroDmgMin: 850, deathsMax: 5 },
+  3: { name: "оффлейн (Pos 3)", gpm: 480, xpm: 560, lh10: 45, kda: 3.0, heroDmgMin: 750, deathsMax: 7 },
+  4: { name: "роум (Pos 4)",    gpm: 380, xpm: 480, lh10: 20, kda: 2.8, heroDmgMin: 550, deathsMax: 8 },
+  5: { name: "саппорт (Pos 5)", gpm: 320, xpm: 420, lh10: 12, kda: 2.5, heroDmgMin: 400, deathsMax: 9 }
 };
 
 var ExternalAI = {
@@ -33,41 +27,35 @@ var ExternalAI = {
     21: "1v1 Mid", 22: "Ranked All Pick", 23: "Turbo", 24: "Mutation"
   },
 
-  /* Способности — только для тех, кого чаще всего путают. На самом деле Llama знает всех героев,
-     но это защита от выдумок на случай если ИИ попробует "ударить по голове". */
   heroAbilities: {
-    "Nyx Assassin": "Impale (штыри, стан), Mana Burn (сжигает ману), Spiked Carapace (отражает урон и станит), Vendetta (невидимость + бонус урона).",
-    "Pudge": "Meat Hook (хук), Rot (гниль AoE), Flesh Heap (стаки + магрезист), Dismember (расчленение).",
+    "Nyx Assassin": "Impale, Mana Burn, Spiked Carapace, Vendetta.",
+    "Pudge": "Meat Hook, Rot, Flesh Heap, Dismember.",
     "Invoker": "Quas/Wex/Exort + Sunstrike, Chaos Meteor, EMP, Tornado, Deafening Blast, Cold Snap, Ghost Walk, Ice Wall, Forge Spirit, Alacrity.",
-    "Juggernaut": "Blade Fury (вертушка), Healing Ward, Blade Dance (криты), Omnislash (неуязвимая ульта).",
-    "Phantom Assassin": "Stifling Dagger (даггер), Phantom Strike (прыжок), Blur (уворот), Coup de Grace (криты).",
-    "Spectre": "Spectral Dagger (даггер), Desolate (десолейт), Dispersion (дисперсия), Haunt (хаунт + Reality).",
-    "Slark": "Dark Pact (пакт), Pounce (прыжок), Essence Shift (эссенс шифт), Shadow Dance (шадоу дэнс).",
-    "Shadow Fiend": "Shadowraze (рейзы), Necromastery (некромастери), Presence of the Dark Lord (аура), Requiem (реквием).",
-    "Storm Spirit": "Static Remnant (ремант), Electric Vortex (вихрь), Overload (оверлоад), Ball Lightning (болт).",
-    "Tinker": "Laser (лазер), Heat-Seeking Missile (ракеты), March of the Machines (марш), Rearm (ресет кулдаунов).",
-    "Anti-Mage": "Mana Break (сжигает ману), Blink (блинк), Counterspell (отражает таргет-спеллы), Mana Void (мана войд).",
-    "Zeus": "Arc Lightning (цепная молния), Lightning Bolt (болт), Heavenly Jump (прыжок), Thundergod's Wrath (глобальная ульта).",
-    "Crystal Maiden": "Crystal Nova (нова), Frostbite (фриз), Arcane Aura (аура маны), Freezing Field (ульта).",
-    "Lion": "Earth Spike (спайк), Hex (хекс), Mana Drain (дрейн), Finger of Death (палец).",
-    "Axe": "Berserker's Call (колл), Counter Helix (вертолёт), Battle Hunger (голод), Culling Blade (казнь).",
-    "Lina": "Dragon Slave (драгон слейв), Light Strike Array (столб), Fiery Soul (фиери соул), Laguna Blade (лагуна).",
-    "Riki": "Smoke Screen (смокскрин), Blink Strike (блинк страйк), Tricks of the Trade (трикс), Cloak and Dagger (невидимость).",
-    "Sniper": "Shrapnel (шрапнель), Headshot (хедшот), Take Aim (тейк эйм), Assassinate (ассасинейт).",
-    "Drow Ranger": "Frost Arrows (фрост арроузы), Gust (густ), Multishot (мультишот), Marksmanship (маркманшип)."
+    "Juggernaut": "Blade Fury, Healing Ward, Blade Dance, Omnislash.",
+    "Phantom Assassin": "Stifling Dagger, Phantom Strike, Blur, Coup de Grace.",
+    "Spectre": "Spectral Dagger, Desolate, Dispersion, Haunt.",
+    "Slark": "Dark Pact, Pounce, Essence Shift, Shadow Dance.",
+    "Shadow Fiend": "Shadowraze, Necromastery, Presence of the Dark Lord, Requiem.",
+    "Storm Spirit": "Static Remnant, Electric Vortex, Overload, Ball Lightning.",
+    "Tinker": "Laser, Heat-Seeking Missile, March of the Machines, Rearm.",
+    "Anti-Mage": "Mana Break, Blink, Counterspell, Mana Void.",
+    "Zeus": "Arc Lightning, Lightning Bolt, Heavenly Jump, Thundergod's Wrath.",
+    "Crystal Maiden": "Crystal Nova, Frostbite, Arcane Aura, Freezing Field.",
+    "Lion": "Earth Spike, Hex, Mana Drain, Finger of Death.",
+    "Axe": "Berserker's Call, Counter Helix, Battle Hunger, Culling Blade.",
+    "Lina": "Dragon Slave, Light Strike Array, Fiery Soul, Laguna Blade.",
+    "Riki": "Smoke Screen, Blink Strike, Tricks of the Trade, Cloak and Dagger.",
+    "Sniper": "Shrapnel, Headshot, Take Aim, Assassinate.",
+    "Drow Ranger": "Frost Arrows, Gust, Multishot, Marksmanship."
   },
 
   blacklist: [
-    "чит", "читы", "читак", "читер",
-    "абрелл", "abrella", "breach",
+    "чит", "читы", "читак", "читер", "абрелл", "abrella", "breach",
     "hake", "хак", "хакер", "hack", "cheat",
     "script", "скрипт для дота", "autohotkey", "ahk", "macro", "макрос",
-    "чит-мод", "читмод", "чит-меню",
-    "aimbot", "аимбот", "wallhack", "волхак",
-    "map hack", "maphack", "мапхак",
-    "инжект", "injector",
-    "античит обход", "обход античита",
-    "бот для доты", "автоматизация дота"
+    "чит-мод", "читмод", "чит-меню", "aimbot", "аимбот", "wallhack", "волхак",
+    "map hack", "maphack", "мапхак", "инжект", "injector",
+    "античит обход", "обход античита", "бот для доты", "автоматизация дота"
   ],
 
   isBlacklisted: function (query) {
@@ -117,7 +105,7 @@ var ExternalAI = {
     var q = String(query || "").toLowerCase().trim();
     if (!q) return false;
 
-    var noMatchPhrases = [
+    var noMatch = [
       "ты кто", "кто ты", "а ты кто", "что ты", "кто вы", "ты чё", "ты че",
       "как тебя зовут", "как звать", "представься", "твое имя", "твоё имя",
       "что ты умеешь", "что умеешь", "твои возможности", "чем можешь помочь",
@@ -127,8 +115,8 @@ var ExternalAI = {
       "стоп", "хватит", "остановись", "замолчи",
       "help", "помощь", "команды", "что делать"
     ];
-    for (var i = 0; i < noMatchPhrases.length; i++) {
-      if (q === noMatchPhrases[i] || q.indexOf(noMatchPhrases[i]) === 0) return false;
+    for (var i = 0; i < noMatch.length; i++) {
+      if (q === noMatch[i] || q.indexOf(noMatch[i]) === 0) return false;
     }
 
     var words = q.split(/\s+/).filter(function (w) { return w.length > 0; });
@@ -153,7 +141,6 @@ var ExternalAI = {
     for (var j = 0; j < matchWords.length; j++) {
       if (q.indexOf(matchWords[j]) >= 0) return true;
     }
-
     return false;
   },
 
@@ -180,27 +167,16 @@ var ExternalAI = {
     return out;
   },
 
-  /* ═══════════════════════════════════════════════════════════
-     МИНИМАЛЬНЫЙ ПРОМПТ — только роль
-     ═══════════════════════════════════════════════════════════ */
   systemPrompt: function (matchContext, heroAbilitiesInfo, searchData) {
     var base = "Ты — DotaJetch, тренер по Dota 2 и ИИ-ассистент проекта DOTA JETCH. Отвечай на русском.";
-
     if (heroAbilitiesInfo) {
-      base += "\n\nСпособности " + heroAbilitiesInfo.hero + " (реальные данные, не выдумывай других):\n" + heroAbilitiesInfo.abilities;
+      base += "\n\nСпособности " + heroAbilitiesInfo.hero + " (реальные, не выдумывай других):\n" + heroAbilitiesInfo.abilities;
     }
-
     if (searchData && typeof WebSearch !== "undefined" && WebSearch && typeof WebSearch.formatForPrompt === "function") {
       var formatted = WebSearch.formatForPrompt(searchData);
-      if (formatted) {
-        base += "\n\nРезультаты поиска в интернете (используй эту информацию):\n" + formatted;
-      }
+      if (formatted) base += "\n\nРезультаты поиска:\n" + formatted;
     }
-
-    if (matchContext) {
-      base += "\n\n" + matchContext;
-    }
-
+    if (matchContext) base += "\n\n" + matchContext;
     return base;
   },
 
@@ -228,24 +204,14 @@ var ExternalAI = {
     return 5;
   },
 
-  /* ═══════════════════════════════════════════════════════════
-     МОЩНЫЙ КОНТЕКСТ МАТЧА
-     Даём ИИ всё, что нужно для качественного разбора:
-     - общая инфа о матче
-     - все метрики игрока + сравнение с нормой для позиции
-     - оценка производительности
-     - союзники с KDA и ролями
-     - враги с KDA и ключевыми героями
-     - визуальные маркеры 🔴/🟡/🟢 где игрок просел/в норме/молодец
-     ═══════════════════════════════════════════════════════════ */
   buildMatchContext: function () {
     var res = this.getContextSource();
     if (!res || !res.player || !res.match) return null;
 
-    var p = res.player, m = res.match;
+    var p = res.player;
+    var m = res.match;
     var heroName = res.hero ? res.hero.name : "?";
-    var durMin = (m.duration || 0) / Math.max(m.duration || 1, 1) * 60; /* уже в минутах */
-    durMin = (m.duration || 0) / 60;
+    var durMin = (m.duration || 0) / 60;
     if (durMin < 1) durMin = 1;
 
     var posNum = res.position || this.detectPosition(p, durMin);
@@ -254,14 +220,12 @@ var ExternalAI = {
 
     var lines = [];
 
-    /* ═══ ЗАГОЛОВОК ═══ */
     lines.push("=== МАТЧ ===");
     lines.push("Игрок: " + heroName + " · " + pos.name + " · " + (res.won ? "ПОБЕДА 🏆" : "ПОРАЖЕНИЕ 💀"));
     lines.push("Режим: " + modeName + " · Длительность: " + durMin.toFixed(0) + " мин");
     lines.push("");
 
-    /* ═══ МЕТРИКИ ИГРОКА + СРАВНЕНИЕ С НОРМОЙ ═══ */
-    lines.push("=== СТАТИСТИКА ИГРОКА ===");
+    lines.push("=== СТАТИСТИКА ===");
 
     var kda = p.kills + "/" + p.deaths + "/" + p.assists;
     var kdaRatio = (p.kills + p.assists) / Math.max(p.deaths, 1);
@@ -280,7 +244,7 @@ var ExternalAI = {
     var lhPerMin = lh / Math.max(durMin, 1);
     var lh10 = Math.round(lhPerMin * 10);
     var lhMark = lh10 >= pos.lh10 ? "🟢" : (lh10 >= pos.lh10 * 0.7 ? "🟡" : "🔴");
-    lines.push("Ластхиты: " + lh + " (" + lhPerMin.toFixed(1) + "/мин, ~" + lh10 + " за 10 мин) · норма " + pos.lh10 + " " + lhMark);
+    lines.push("Ластхиты: " + lh + " (~" + lh10 + " за 10 мин) · норма " + pos.lh10 + " " + lhMark);
 
     lines.push("Денаи: " + (p.denies || 0));
 
@@ -295,17 +259,18 @@ var ExternalAI = {
 
     var td = Math.round(p.tower_damage || 0);
     if (td > 0) lines.push("Урон по строениям: " + td);
+
     var heal = Math.round(p.hero_healing || 0);
     if (heal > 0) lines.push("Хил: " + heal);
+
     var nw = Math.round(p.total_gold || p.net_worth || 0);
     if (nw > 0) lines.push("Нетворс: " + nw);
 
     lines.push("");
 
-    /* ═══ ОЦЕНКА (из analyze.js) ═══ */
     if (res.performance && res.performance.grade) {
-      lines.push("=== ОЦЕНКА ПРОИЗВОДИТЕЛЬНОСТИ ===");
-      lines.push("Оценка: " + res.performance.grade + " (" + res.performance.score + "/100)");
+      lines.push("=== ОЦЕНКА ===");
+      lines.push("Балл: " + res.performance.grade + " (" + res.performance.score + "/100)");
       if (res.performance.reasons && res.performance.reasons.length) {
         for (var r = 0; r < res.performance.reasons.length; r++) {
           lines.push("• " + res.performance.reasons[r]);
@@ -314,7 +279,6 @@ var ExternalAI = {
       lines.push("");
     }
 
-    /* ═══ ФИНАЛЬНЫЙ ИНВЕНТАРЬ ═══ */
     if (res.items) {
       var invItems = [];
       for (var ii = 0; ii < 6; ii++) {
@@ -324,13 +288,12 @@ var ExternalAI = {
         }
       }
       if (invItems.length) {
-        lines.push("=== ИНВЕНТАРЬ НА КОНЕЦ ===");
+        lines.push("=== ИНВЕНТАРЬ ===");
         lines.push(invItems.join(", "));
         lines.push("");
       }
     }
 
-    /* ═══ КОМАНДЫ ═══ */
     if (res.heroes && m.players) {
       var isRad = p.player_slot < 128;
       var allies = [], enemies = [];
@@ -342,9 +305,8 @@ var ExternalAI = {
           if (res.heroes[j].id === mp.hero_id) { hn = res.heroes[j].name; break; }
         }
         var k = mp.kills || 0, d = mp.deaths || 0, a = mp.assists || 0;
-        var kd = k + "/" + d + "/" + a;
         var g = Math.round(mp.gold_per_min || 0);
-        var entry = hn + " (" + kd + ", GPM " + g + ")";
+        var entry = hn + " (" + k + "/" + d + "/" + a + ", GPM " + g + ")";
         if ((mp.player_slot < 128) === isRad) allies.push(entry);
         else enemies.push(entry);
       }
@@ -356,7 +318,6 @@ var ExternalAI = {
       if (enemies.length) {
         lines.push("=== ВРАГИ ===");
         for (var en = 0; en < enemies.length; en++) lines.push("• " + enemies[en]);
-        lines.push("");
       }
     }
 
@@ -386,7 +347,7 @@ var ExternalAI = {
       body: JSON.stringify(body)
     }, this.TIMEOUT_MS);
 
-    if (res.status === 429) throw { code: 429, message: "Дневной лимит нейросетей исчерпан. Сброс в 03:00 МСК." };
+    if (res.status === 429) throw { code: 429, message: "Дневной лимит исчерпан. Сброс в 03:00 МСК." };
     if (!res.ok) {
       var errBody = await res.text();
       throw new Error("Cloudflare AI HTTP " + res.status + ": " + errBody.slice(0, 200));
@@ -438,7 +399,7 @@ var ExternalAI = {
       var canSearch = (typeof WebSearch !== "undefined") && WebSearch && (typeof WebSearch.search === "function");
       if (this.isWeakAnswer(text1) && canSearch) {
         if (onStage) onStage("search");
-        console.log("[AutoSearch] Слабый ответ, ищу в интернете...");
+        console.log("[AutoSearch] Слабый ответ, ищу...");
         var searchData = null;
         try { searchData = await WebSearch.search(query); } catch (e) { console.warn("Search failed:", e.message); }
 
@@ -461,7 +422,10 @@ var ExternalAI = {
   },
 
   shouldUseExternal: function () { return true; },
-  init: function () { console.log("external-ai v37.0 · минимальный промпт + мощный контекст"); }
+  init: function () { console.log("external-ai v37.1 · минимальный промпт + мощный контекст"); }
 };
 
-if
+if (typeof Store !== "undefined") {
+  setTimeout(function () { ExternalAI.init(); }, 100);
+}
+
