@@ -1,18 +1,13 @@
-/* DOTA JETCH — EXTERNAL AI v32.0 (OpenRouter прямые запросы)
-   + DeepSeek V3 → Llama 3.3 70B → Qwen 2.5 72B (фолбэки)
-   + Прямые запросы в обход Cloudflare-прокси
+/* DOTA JETCH — EXTERNAL AI v33.0 (Cloudflare Workers AI)
+   + Llama 3.3 70B внутри Cloudflare Worker
+   + Без CORS, без прокси, без карт
    + Авто-поиск, этапы, способности, чёрный список */
 
 /* ═══════════════════════════════════════════════════════════
    НАСТРОЙКА
    ═══════════════════════════════════════════════════════════ */
-var OPENROUTER_KEY = "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";
-var OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
-var OPENROUTER_MODELS = [
-  "deepseek/deepseek-chat-v3.1:free",
-  "meta-llama/llama-3.3-70b-instruct:free",
-  "qwen/qwen-2.5-72b-instruct:free"
-];
+var WORKER_URL = "https://gigachatwork.yiiwarsssss.workers.dev/";
+var WORKER_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
 /* ═══════════════════════════════════════════════════════════ */
 
 var ExternalAI = {
@@ -144,6 +139,9 @@ var ExternalAI = {
       "",
       "🚫 ЧИТЫ: НЕ помогай с читами, хаками, скриптами.",
       "",
+      "═══ ЯЗЫК ═══",
+      "• Отвечай ТОЛЬКО на русском. Никаких английских ответов.",
+      "",
       "═══ СЛЕНГ И НАЗВАНИЯ ═══",
       "• Пиши как дотер: БКБ, МКБ, БФ, Радик, Манта, Дезоль, Дифуза, Хекс, Еул, Гост, Линка, Тараска, Атос, Сосуд, Блудорн, Аганим, Шард, Треды, Фейзы, Арканы.",
       "• Если НЕ уверен в сленге — пиши английское название как есть (Blade Mail, Force Staff), БЕЗ перевода в скобках.",
@@ -258,70 +256,32 @@ var ExternalAI = {
 
   sleep: function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); },
 
-  openrouter: async function (model, userQuery, matchContext, heroAbilitiesInfo, searchData) {
+  cloudflareAI: async function (userQuery, matchContext, heroAbilitiesInfo, searchData) {
     var body = {
-      model: model,
+      model: WORKER_MODEL,
       messages: [
         { role: "system", content: this.systemPrompt(matchContext, heroAbilitiesInfo, searchData) },
         { role: "user", content: userQuery }
-      ],
-      temperature: 0.3,
-      max_tokens: 2500
+      ]
     };
-    var headers = {
-      "Content-Type": "application/json",
-      "Authorization": "Bearer " + OPENROUTER_KEY,
-      "HTTP-Referer": window.location.origin,
-      "X-Title": "DOTA JETCH"
-    };
-    var res = await this.fetchWithTimeout(OPENROUTER_URL, {
+    var res = await this.fetchWithTimeout(WORKER_URL, {
       method: "POST",
-      headers: headers,
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body)
     }, this.TIMEOUT_MS);
 
-    if (res.status === 429) throw { code: 429, message: "Rate limit" };
-    if (res.status === 401) throw new Error("OpenRouter 401 — неверный ключ");
-    if (res.status === 402) throw new Error("OpenRouter 402 — закончились бесплатные запросы на сегодня");
-    if (res.status === 403) {
-      var errText403 = await res.text();
-      throw new Error("OpenRouter 403: " + errText403.slice(0, 150) + "\n\nВозможно, Cloudflare блокирует запрос. Попробуй позже или используй другой прокси.");
-    }
+    if (res.status === 429) throw { code: 429, message: "Дневной лимит нейронов исчерпан. Сброс в 03:00 МСК." };
     if (!res.ok) {
       var errBody = await res.text();
-      throw new Error("OpenRouter HTTP " + res.status + ": " + errBody.slice(0, 150));
+      throw new Error("Cloudflare AI HTTP " + res.status + ": " + errBody.slice(0, 200));
     }
     var text = await res.text();
     var json = JSON.parse(text);
-    if (json.error) throw new Error("OpenRouter: " + (json.error.message || "неизвестная ошибка"));
+    if (json.error) throw new Error("Cloudflare AI: " + json.error);
     if (json.choices && json.choices[0] && json.choices[0].message && json.choices[0].message.content) {
       return this.applySlang(json.choices[0].message.content);
     }
-    throw new Error("Пустой ответ OpenRouter");
-  },
-
-  askOpenRouter: async function (userQuery, matchContext, heroAbilitiesInfo, searchData) {
-    var now = Date.now();
-    if (now < this.rateLimitedUntil) {
-      var waitMs = this.rateLimitedUntil - now;
-      if (waitMs > 20000) throw new Error("Подожди " + Math.ceil(waitMs / 1000) + " сек.");
-      await this.sleep(Math.min(waitMs, 20000));
-    }
-    for (var i = 0; i < OPENROUTER_MODELS.length; i++) {
-      var model = OPENROUTER_MODELS[i];
-      try {
-        console.log("OpenRouter [" + model + "]" + (searchData ? " +search" : ""));
-        return await this.openrouter(model, userQuery, matchContext, heroAbilitiesInfo, searchData);
-      } catch (err) {
-        if (err.code === 429) {
-          console.warn("429 на " + model + ", пробую следующую");
-          continue;
-        }
-        throw err;
-      }
-    }
-    this.rateLimitedUntil = Date.now() + 30000;
-    throw new Error("Все модели OpenRouter перегружены. Подожди 30 сек.");
+    throw new Error("Пустой ответ Cloudflare AI");
   },
 
   isWeakAnswer: function (text) {
@@ -331,9 +291,10 @@ var ExternalAI = {
     if (t.indexOf("не знаю") >= 0) return true;
     if (t.indexOf("не уверен") >= 0) return true;
     if (t.indexOf("не могу точно") >= 0) return true;
+    if (t.indexOf("i don't know") >= 0) return true;
+    if (t.indexOf("i'm not sure") >= 0) return true;
     if (t.indexOf("попробуй переформулировать") >= 0) return true;
     if (t.indexOf("уточни") >= 0 && words < 30) return true;
-    if (t.indexOf("извини") >= 0 && words < 25) return true;
     if (words < 15) return true;
     return false;
   },
@@ -354,7 +315,7 @@ var ExternalAI = {
 
     try {
       if (onStage) onStage("first");
-      var text1 = await this.askOpenRouter(query, matchContext, heroAbilities, null);
+      var text1 = await this.cloudflareAI(query, matchContext, heroAbilities, null);
 
       var canSearch = (typeof WebSearch !== "undefined") && WebSearch && (typeof WebSearch.search === "function");
       if (this.isWeakAnswer(text1) && canSearch) {
@@ -366,7 +327,7 @@ var ExternalAI = {
         if (searchData && searchData.results && searchData.results.length) {
           if (onStage) onStage("second");
           try {
-            var text2 = await this.askOpenRouter(query, matchContext, heroAbilities, searchData);
+            var text2 = await this.cloudflareAI(query, matchContext, heroAbilities, searchData);
             if (text2 && text2.length > text1.length) return text2;
           } catch (e2) { console.warn("Второй запрос упал:", e2.message); }
         }
@@ -374,7 +335,7 @@ var ExternalAI = {
 
       return text1;
     } catch (err) {
-      console.warn("OpenRouter упал:", err.message);
+      console.warn("Cloudflare AI упал:", err.message);
       throw new Error(err.message || "Сервис перегружен. Попробуй через минуту.");
     } finally {
       this.busy = false;
@@ -382,7 +343,7 @@ var ExternalAI = {
   },
 
   shouldUseExternal: function () { return true; },
-  init: function () { console.log("external-ai v32.0 · OpenRouter прямые запросы"); }
+  init: function () { console.log("external-ai v33.0 · Cloudflare Workers AI (Llama 3.3 70B)"); }
 };
 
 if (typeof Store !== "undefined") {
