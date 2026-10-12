@@ -1,14 +1,29 @@
-/* DOTA JETCH — ADMIN PANEL v1.0 */
+/* DOTA JETCH — ADMIN PANEL v1.2 (hardcoded owner) */
+
+/* ─── ХАРДКОД: эти ники всегда админы ─── */
+var ADMIN_NICKNAMES = ["owner", "bestgamer122"];
 
 var AdminPanel = {
   isAdmin: false,
   cache: { users: null, config: null, logs: null, activeTab: "dashboard" },
 
+  /* Проверяем: либо ник в списке, либо UID в Firebase/admins */
   checkAdmin: async function () {
     try {
+      /* 1. Сначала — хардкод по нику */
+      var nick = "";
+      try {
+        if (window.Store) nick = String(Store.get("nickname", "") || "").toLowerCase();
+      } catch (e) {}
+      if (nick && ADMIN_NICKNAMES.indexOf(nick) >= 0) {
+        this.isAdmin = true;
+        return true;
+      }
+
+      /* 2. Потом — через Firebase (на случай доп. админов) */
       var auth = window.__fbAuth;
       var dbHelpers = window.__fbDB;
-      if (!auth || !auth.currentUser || !dbHelpers) return false;
+      if (!auth || !auth.currentUser || !dbHelpers) { this.isAdmin = false; return false; }
       var snap = await dbHelpers.get(dbHelpers.ref(dbHelpers.db, "admins/" + auth.currentUser.uid));
       this.isAdmin = snap.exists() && snap.val() === true;
       return this.isAdmin;
@@ -116,6 +131,46 @@ var AdminPanel = {
     } catch (e) { return {}; }
   },
 
+  resolveInput: async function (input) {
+    var s = String(input || "").trim();
+    if (!s) return null;
+    if (s.length >= 25 && /^[A-Za-z0-9]+$/.test(s)) {
+      return { uid: s, nickname: null, source: "uid" };
+    }
+    var lower = s.toLowerCase();
+    try {
+      var db = window.__fbDB;
+      var snap = await db.get(db.ref(db.db, "nicknames/" + lower));
+      if (snap.exists()) return { uid: snap.val(), nickname: s, source: "nickname" };
+    } catch (e) {}
+    return null;
+  },
+
+  getNicknamesForUids: async function (uids) {
+    var out = {};
+    if (!uids || !uids.length) return out;
+    try {
+      var db = window.__fbDB;
+      var snap = await db.get(db.ref(db.db, "publicProfiles"));
+      var profiles = snap.val() || {};
+      var missing = [];
+      for (var i = 0; i < uids.length; i++) {
+        var u = uids[i];
+        if (profiles[u] && profiles[u].nickname) out[u] = profiles[u].nickname;
+        else missing.push(u);
+      }
+      if (missing.length) {
+        var snap2 = await db.get(db.ref(db.db, "users"));
+        var users = snap2.val() || {};
+        for (var j = 0; j < missing.length; j++) {
+          var m = missing[j];
+          if (users[m] && users[m].nickname) out[m] = users[m].nickname;
+        }
+      }
+    } catch (e) {}
+    return out;
+  },
+
   addAdmin: async function (uid) {
     try {
       var db = window.__fbDB;
@@ -132,6 +187,11 @@ var AdminPanel = {
       await this.log("remove_admin", "Удалён админ: " + uid);
       return true;
     } catch (e) { return false; }
+  },
+
+  isAdminUid: async function (uid) {
+    var admins = await this.loadAdmins();
+    return admins[uid] === true;
   }
 };
 window.AdminPanel = AdminPanel;
@@ -393,6 +453,27 @@ function openUserDetailModal(user) {
     }));
   }
 
+  (async function () {
+    try {
+      var isAdm = await AdminPanel.isAdminUid(user.uid);
+      if (isAdm) {
+        box.appendChild(makeActionBtn("🛡 Снять с админов", "var(--orange)", async function () {
+          if (!confirm("Снять админ-права с " + user.nickname + "?")) return;
+          await AdminPanel.removeAdmin(user.uid);
+          await AdminPanel.log("remove_admin", user.nickname);
+          ov.remove(); renderAdminTab("users");
+        }));
+      } else {
+        box.appendChild(makeActionBtn("🛡 Сделать админом", "var(--gold)", async function () {
+          if (!confirm("Дать админ-права " + user.nickname + "?")) return;
+          await AdminPanel.addAdmin(user.uid);
+          await AdminPanel.log("add_admin", user.nickname);
+          ov.remove(); renderAdminTab("users");
+        }));
+      }
+    } catch (e) {}
+  })();
+
   box.appendChild(makeActionBtn("🔄 Сбросить статистику", "var(--orange)", async function () {
     if (!confirm("Сбросить статистику для " + user.nickname + "?")) return;
     await AdminPanel.updateUser(user.uid, { analyzedcount: 0, achievementsunlocked: [], diarynotes: [] });
@@ -557,20 +638,46 @@ async function renderAdminLogs() {
 
 async function renderAdminAdmins() {
   var card = UI.card("🛡 Администраторы");
-  card.appendChild(el("div", { class: "dim", style: "font-size:11.5px;margin-bottom:14px;line-height:1.5;" }, "Список UID с доступом в админку."));
+  card.appendChild(el("div", { class: "dim", style: "font-size:11.5px;margin-bottom:14px;line-height:1.5;" }, "Добавляй по нику (например, owner) или по UID."));
+
+  /* Хардкодные админы — всегда показываем первыми */
+  var hardcoded = ADMIN_NICKNAMES.slice();
+  if (hardcoded.length) {
+    card.appendChild(el("div", { style: "font-size:12px;font-weight:700;color:var(--gold);margin-bottom:8px;" }, "⭐ Постоянные (хардкод):"));
+    for (var h = 0; h < hardcoded.length; h++) {
+      var hRow = el("div", { style: "display:flex;align-items:center;gap:12px;padding:10px 12px;background:var(--bg-elev);border:1px solid var(--gold);border-radius:10px;margin-bottom:6px;" });
+      hRow.appendChild(el("div", { style: "font-size:20px;color:var(--gold);flex-shrink:0;" }, "⭐"));
+      var hInfo = el("div", { style: "flex:1;min-width:0;" });
+      hInfo.appendChild(el("div", { style: "font-size:14px;font-weight:800;color:var(--text);" }, hardcoded[h]));
+      hInfo.appendChild(el("div", { class: "dim", style: "font-size:10px;margin-top:3px;" }, "Нельзя убрать"));
+      hRow.appendChild(hInfo);
+      card.appendChild(hRow);
+    }
+    card.appendChild(el("div", { style: "margin-top:14px;margin-bottom:6px;font-size:12px;font-weight:700;color:var(--accent-light);" }, "🛡 Дополнительные:"));
+  }
+
   var admins = await AdminPanel.loadAdmins();
-  var uids = Object.keys(admins);
+  var uids = Object.keys(admins).filter(function (k) { return admins[k] === true; });
+  var nickMap = {};
+  try { nickMap = await AdminPanel.getNicknamesForUids(uids); } catch (e) {}
+
   if (!uids.length) {
     card.appendChild(el("div", { class: "dim", style: "font-size:12px;padding:12px;text-align:center;" }, "Список пуст."));
   } else {
     for (var i = 0; i < uids.length; i++) {
       (function (uid) {
-        var row = el("div", { style: "display:flex;align-items:center;gap:10px;padding:10px;background:var(--bg-elev);border:1px solid var(--gold);border-radius:10px;margin-bottom:6px;" });
-        row.appendChild(el("div", { style: "font-size:18px;color:var(--gold);" }, "⭐"));
-        row.appendChild(el("div", { style: "flex:1;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text);word-break:break-all;" }, uid));
-        var rmBtn = el("button", { type: "button", style: "padding:5px 10px;border-radius:6px;font-size:11px;font-weight:700;font-family:inherit;cursor:pointer;border:1px solid var(--red);background:transparent;color:var(--red);" }, "Убрать");
+        var nick = nickMap[uid] || "(без ника)";
+        var row = el("div", { style: "display:flex;align-items:center;gap:12px;padding:12px;background:var(--bg-elev);border:1px solid var(--border);border-radius:10px;margin-bottom:8px;" });
+        row.appendChild(el("div", { style: "font-size:20px;color:var(--accent-light);flex-shrink:0;" }, "🛡"));
+        var info = el("div", { style: "flex:1;min-width:0;" });
+        info.appendChild(el("div", { style: "font-size:14px;font-weight:800;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" }, nick));
+        info.appendChild(el("div", { class: "dim", style: "font-family:'JetBrains Mono',monospace;font-size:10px;margin-top:3px;word-break:break-all;" }, uid));
+        row.appendChild(info);
+        var rmBtn = el("button", { type: "button", style: "padding:7px 13px;border-radius:8px;font-size:11px;font-weight:700;font-family:inherit;cursor:pointer;border:1px solid var(--red);background:transparent;color:var(--red);flex-shrink:0;" }, "Убрать");
+        rmBtn.addEventListener("mouseenter", function () { rmBtn.style.background = "var(--red)"; rmBtn.style.color = "#0b0c10"; });
+        rmBtn.addEventListener("mouseleave", function () { rmBtn.style.background = "transparent"; rmBtn.style.color = "var(--red)"; });
         rmBtn.addEventListener("click", async function () {
-          if (!confirm("Убрать доступ?")) return;
+          if (!confirm("Убрать админ-права у " + nick + "?")) return;
           await AdminPanel.removeAdmin(uid);
           renderAdminTab("admins");
         });
@@ -579,22 +686,68 @@ async function renderAdminAdmins() {
       })(uids[i]);
     }
   }
-  card.appendChild(el("div", { style: "font-size:13px;font-weight:700;margin-top:20px;margin-bottom:10px;color:var(--accent-light);" }, "Добавить админа"));
-  var addInp = UI.input("UID пользователя");
+
+  card.appendChild(el("div", { style: "font-size:13px;font-weight:700;margin-top:22px;margin-bottom:10px;color:var(--accent-light);" }, "➕ Добавить админа"));
+  card.appendChild(el("div", { class: "dim", style: "font-size:11px;margin-bottom:10px;line-height:1.5;" }, "Введи ник (чувствителен к регистру) или UID."));
+
+  var addInp = UI.input("Например: player123");
   addInp.style.marginBottom = "8px";
   card.appendChild(addInp);
-  var addBtn = UI.btn("Добавить", { variant: "ghost" });
+
+  var msgEl = el("div", { style: "font-size:11.5px;min-height:18px;margin-bottom:10px;line-height:1.4;" });
+  card.appendChild(msgEl);
+
+  var addBtn = UI.btn("Добавить админа");
   addBtn.style.width = "100%";
   addBtn.addEventListener("click", async function () {
     var v = addInp.value.trim();
-    if (!v) { alert("Введи UID"); return; }
-    if (!confirm("Дать админ-права для " + v + "?")) return;
-    await AdminPanel.addAdmin(v);
-    addInp.value = "";
-    renderAdminTab("admins");
+    msgEl.textContent = "";
+    if (!v) {
+      msgEl.textContent = "✕ Введи ник или UID";
+      msgEl.style.color = "var(--red)";
+      return;
+    }
+    addBtn.disabled = true;
+    addBtn.textContent = "Ищу...";
+    var res = await AdminPanel.resolveInput(v);
+    if (!res) {
+      msgEl.textContent = "✕ Пользователь «" + v + "» не найден.";
+      msgEl.style.color = "var(--red)";
+      addBtn.disabled = false;
+      addBtn.textContent = "Добавить админа";
+      return;
+    }
+    var exists = await AdminPanel.isAdminUid(res.uid);
+    if (exists) {
+      msgEl.textContent = "ℹ️ " + (res.nickname || res.uid) + " уже админ.";
+      msgEl.style.color = "var(--yellow)";
+      addBtn.disabled = false;
+      addBtn.textContent = "Добавить админа";
+      return;
+    }
+    var label = res.nickname ? (res.nickname + " (" + res.uid.slice(0, 8) + "...)") : res.uid;
+    if (!confirm("Выдать админ-права: " + label + "?")) {
+      addBtn.disabled = false;
+      addBtn.textContent = "Добавить админа";
+      return;
+    }
+    msgEl.textContent = "Выдаю права...";
+    msgEl.style.color = "var(--text-muted)";
+    var ok = await AdminPanel.addAdmin(res.uid);
+    if (ok) {
+      addInp.value = "";
+      renderAdminTab("admins");
+    } else {
+      msgEl.textContent = "✕ Ошибка записи. Проверь правила Firebase.";
+      msgEl.style.color = "var(--red)";
+      addBtn.disabled = false;
+      addBtn.textContent = "Добавить админа";
+    }
   });
   card.appendChild(addBtn);
+
   return card;
 }
 
-console.log("admin-panel v1.0 ready");
+console.log("admin-panel v1.2 ready (hardcoded owner)");
+
