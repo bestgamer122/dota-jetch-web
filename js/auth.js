@@ -1,4 +1,4 @@
-/* DOTA JETCH — FIREBASE AUTH v12.1 */
+/* DOTA JETCH — FIREBASE AUTH v12.2 (live sync for admin changes) */
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.8.0/firebase-app.js";
 import {
@@ -26,6 +26,7 @@ setPersistence(auth, browserLocalPersistence).catch(e => console.warn("persisten
 
 let currentUser = null;
 let autoSaveInterval = null;
+let userDataUnsubscribe = null; // отписка от onValue
 
 const STORE_PREFIX = "dota.";
 const NICK_REGEX = /^[A-Za-z0-9_]{3,20}$/;
@@ -62,6 +63,45 @@ function wipeLocalUserData() {
     }
     console.log("🧹 Очищено " + removed + " ключей");
   } catch (e) {}
+}
+
+/* ─── ЖИВАЯ СИНХРОНИЗАЦИЯ ─── */
+function subscribeToUserData(uid) {
+  if (userDataUnsubscribe) { try { userDataUnsubscribe(); } catch (e) {} userDataUnsubscribe = null; }
+  try {
+    const userRef = ref(db, "users/" + uid);
+    userDataUnsubscribe = onValue(userRef, function (snap) {
+      const data = snap.val();
+      if (!data || typeof data !== "object") return;
+
+      let changed = false;
+      for (const key in data) {
+        if (!Object.prototype.hasOwnProperty.call(data, key)) continue;
+        const realKey = decodeKey(key);
+        const val = data[key];
+        if (val === null || val === undefined) continue;
+        let strVal;
+        try { strVal = JSON.stringify(val); } catch (e) { continue; }
+        const existing = sessionStorage.getItem(STORE_PREFIX + realKey);
+        if (existing !== strVal) {
+          try { sessionStorage.setItem(STORE_PREFIX + realKey, strVal); changed = true; } catch (e) {}
+        }
+      }
+
+      if (changed) {
+        console.log("🔄 Данные профиля обновлены администратором, перезагружаю...");
+        // Небольшая задержка, чтобы UI успел обновиться
+        setTimeout(function () { location.reload(); }, 300);
+      }
+    });
+  } catch (e) { console.warn("subscribeToUserData:", e); }
+}
+
+function unsubscribeFromUserData() {
+  if (userDataUnsubscribe) {
+    try { userDataUnsubscribe(); } catch (e) {}
+    userDataUnsubscribe = null;
+  }
 }
 
 async function syncPublicProfile() {
@@ -611,6 +651,7 @@ onAuthStateChanged(auth, async function (user) {
     currentUser = user;
     if (!user.emailVerified) {
       stopAutoSave();
+      unsubscribeFromUserData();
       showVerificationScreen(user.email);
       return;
     }
@@ -638,6 +679,10 @@ onAuthStateChanged(auth, async function (user) {
     hideAuthScreen();
     setupStoreSync(user.uid);
     startAutoSave(user.uid);
+
+    /* ─── ВОТ ОНО: подписка на живые изменения ─── */
+    subscribeToUserData(user.uid);
+
     window.refreshUserUI();
     syncPublicProfile();
     saveUserData(user.uid);
@@ -648,6 +693,7 @@ onAuthStateChanged(auth, async function (user) {
   } else {
     currentUser = null;
     stopAutoSave();
+    unsubscribeFromUserData();
     wipeLocalUserData();
     sessionStorage.removeItem("dotaJetchLoadedUid_session");
     showAuthScreen();
