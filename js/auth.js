@@ -1,4 +1,4 @@
-/* DOTA JETCH — FIREBASE AUTH v12.4 (fix: watch specific keys only, ignore own writes) */
+/* DOTA JETCH — FIREBASE AUTH v12.5 (fix: baseline snapshot, no reload loop) */
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.8.0/firebase-app.js";
 import {
@@ -27,14 +27,16 @@ setPersistence(auth, browserLocalPersistence).catch(e => console.warn("persisten
 let currentUser = null;
 let autoSaveInterval = null;
 let userDataUnsubscribe = null;
-let lastOwnWriteAt = 0;   // время последней своей записи — чтобы игнорить эхо
+let lastOwnWriteAt = 0;
+let reloadCount = 0;
 
 const STORE_PREFIX = "dota.";
 const NICK_REGEX = /^[A-Za-z0-9_]{3,20}$/;
 const NICK_COOLDOWN_MS = 30 * 24 * 60 * 60 * 1000;
-const OWN_WRITE_GRACE_MS = 3000;  // 3 секунды игнора после своей записи
+const OWN_WRITE_GRACE_MS = 3000;
+const RELOAD_COOLDOWN_MS = 10000;
+const MAX_RELOADS_PER_SESSION = 3;
 
-/* ─── Какие поля хотим отслеживать (админские изменения) ─── */
 const WATCH_KEYS = [
   "nickname",
   "license.active",
@@ -76,17 +78,35 @@ function wipeLocalUserData() {
   } catch (e) {}
 }
 
-/* ─── Хэш только отслеживаемых полей ─── */
+/* ─── Baseline snapshot для отслеживания изменений ─── */
+function getBaselineKey(uid) { return STORE_PREFIX + "__baseline_" + uid; }
+
+function saveBaseline(uid, data) {
+  try {
+    var snap = extractWatchedKeys(data);
+    sessionStorage.setItem(getBaselineKey(uid), JSON.stringify(snap));
+  } catch (e) {}
+}
+
+function loadBaseline(uid) {
+  try {
+    var raw = sessionStorage.getItem(getBaselineKey(uid));
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch (e) { return null; }
+}
+
+function clearBaseline(uid) {
+  try { sessionStorage.removeItem(getBaselineKey(uid)); } catch (e) {}
+}
+
 function extractWatchedKeys(data) {
   var out = {};
   for (var i = 0; i < WATCH_KEYS.length; i++) {
     var k = WATCH_KEYS[i];
     var enc = encodeKey(k);
     var v = (data && data[enc] !== undefined) ? data[enc] : null;
-    if (k === "license.active" && data && data["license__DOT__active"] !== undefined) v = data["license__DOT__active"];
-    if (k === "license.forever" && data && data["license__DOT__forever"] !== undefined) v = data["license__DOT__forever"];
-    if (k === "license.expires" && data && data["license__DOT__expires"] !== undefined) v = data["license__DOT__expires"];
-    out[k] = v === undefined ? null : v;
+    out[k] = (v === undefined) ? null : v;
   }
   return out;
 }
@@ -101,14 +121,14 @@ function watchedEqual(a, b) {
   return true;
 }
 
-/* ─── Живая синхронизация (только отслеживаемые поля) ─── */
+/* ─── Живая синхронизация ─── */
 function subscribeToUserData(uid) {
   if (userDataUnsubscribe) {
     try { userDataUnsubscribe(); } catch (e) {}
     userDataUnsubscribe = null;
   }
 
-  var lastWatched = null;
+  var baseline = loadBaseline(uid);
   var isFirstCallback = true;
 
   try {
@@ -116,7 +136,7 @@ function subscribeToUserData(uid) {
     userDataUnsubscribe = onValue(userRef, function (snap) {
       const data = snap.val() || {};
 
-      /* Всегда обновляем sessionStorage чтобы данные были свежими */
+      /* Обновляем sessionStorage */
       for (const key in data) {
         if (!Object.prototype.hasOwnProperty.call(data, key)) continue;
         const val = data[key];
@@ -126,47 +146,56 @@ function subscribeToUserData(uid) {
 
       var currentWatched = extractWatchedKeys(data);
 
-      /* Первый вызов — просто запоминаем начальное состояние */
+      /* Первый вызов — фиксируем состояние как baseline */
       if (isFirstCallback) {
         isFirstCallback = false;
-        lastWatched = currentWatched;
-        console.log("✅ Live-sync подключён (следим за ником, лицензией, блокировкой)");
+        saveBaseline(uid, data);
+        baseline = currentWatched;
+        console.log("✅ Live-sync подключён (baseline зафиксирован)");
         return;
       }
 
-      /* Не изменилось ничего важного */
-      if (watchedEqual(lastWatched, currentWatched)) {
-        lastWatched = currentWatched;
+      /* Если нет baseline — фиксируем и выходим */
+      if (!baseline) {
+        saveBaseline(uid, data);
+        baseline = currentWatched;
         return;
       }
 
-      /* Игнорим если мы сами только что писали (эхо собственной записи) */
+      /* Ничего важного не изменилось */
+      if (watchedEqual(baseline, currentWatched)) return;
+
+      /* Игнор эха своих записей */
       if (Date.now() - lastOwnWriteAt < OWN_WRITE_GRACE_MS) {
-        lastWatched = currentWatched;
-        console.log("⏭ Изменение проигнорировано (наша собственная запись)");
+        baseline = currentWatched;
+        saveBaseline(uid, data);
+        console.log("⏭ Изменение проигнорировано (своя запись)");
         return;
       }
 
-      /* Что-то реально изменилось */
-      var oldNick = lastWatched ? lastWatched["nickname"] : null;
-      var newNick = currentWatched["nickname"];
-      var oldActive = lastWatched ? lastWatched["license.active"] : null;
-      var newActive = currentWatched["license.active"];
-      var oldForever = lastWatched ? lastWatched["license.forever"] : null;
-      var newForever = currentWatched["license.forever"];
-      var oldBlocked = lastWatched ? lastWatched["blocked"] : null;
-      var newBlocked = currentWatched["blocked"];
+      /* Ограничение на количество перезагрузок */
+      if (reloadCount >= MAX_RELOADS_PER_SESSION) {
+        console.warn("⚠️ Достигнут лимит перезагрузок (" + MAX_RELOADS_PER_SESSION + "), live-sync отключён.");
+        return;
+      }
+      reloadCount++;
 
+      /* Что изменилось */
       var msgParts = [];
-      if (oldNick !== newNick) msgParts.push("ник: " + (newNick || "—"));
-      if (oldActive !== newActive || oldForever !== newForever) {
-        if (newForever) msgParts.push("JETCH+ бессрочный");
-        else if (newActive) msgParts.push("JETCH+ выдан");
+      if (baseline["nickname"] !== currentWatched["nickname"]) msgParts.push("ник: " + (currentWatched["nickname"] || "—"));
+      if (baseline["license.active"] !== currentWatched["license.active"] ||
+          baseline["license.forever"] !== currentWatched["license.forever"]) {
+        if (currentWatched["license.forever"]) msgParts.push("JETCH+ бессрочный");
+        else if (currentWatched["license.active"]) msgParts.push("JETCH+ выдан");
         else msgParts.push("JETCH+ снят");
       }
-      if (oldBlocked !== newBlocked) msgParts.push(newBlocked ? "заблокирован" : "разблокирован");
+      if (baseline["blocked"] !== currentWatched["blocked"]) {
+        msgParts.push(currentWatched["blocked"] ? "заблокирован" : "разблокирован");
+      }
 
-      lastWatched = currentWatched;
+      /* Обновляем baseline, чтобы не было повтора */
+      baseline = currentWatched;
+      saveBaseline(uid, data);
 
       console.log("🔄 Админ изменил профиль: " + msgParts.join(", ") + " → перезагрузка");
       setTimeout(function () { location.reload(); }, 400);
@@ -625,7 +654,7 @@ async function saveUserData(uid) {
     const data = collectLocalData();
     const keys = Object.keys(data);
     if (keys.length === 0) return;
-    lastOwnWriteAt = Date.now();   // помечаем что это наша запись
+    lastOwnWriteAt = Date.now();
     await update(ref(db, "users/" + uid), data);
   } catch (e) { console.warn("saveUserData:", e); }
 }
@@ -752,6 +781,11 @@ onAuthStateChanged(auth, async function (user) {
       wipeLocalUserData();
       sessionStorage.setItem(loadedFlag, user.uid);
       await loadUserData(user.uid);
+      /* Сохраняем baseline до перезагрузки */
+      try {
+        const snap = await get(ref(db, "users/" + user.uid));
+        saveBaseline(user.uid, snap.val() || {});
+      } catch (e) {}
       location.reload();
       return;
     }
@@ -759,21 +793,13 @@ onAuthStateChanged(auth, async function (user) {
     hideAuthScreen();
     setupStoreSync(user.uid);
 
-    /* Подписка — ДО любых записей, чтобы onValue сразу знал начальное состояние */
+    /* Baseline уже сохранён — просто подписываемся */
     subscribeToUserData(user.uid);
 
-    /* Записи делаем ПОСЛЕ подписки, через задержку, чтобы не триггерить эхо */
     setTimeout(function () {
       startAutoSave(user.uid);
       window.refreshUserUI();
       syncPublicProfile();
-      /* Первая запись — не сразу, чтобы onValue успел зафиксировать начальное состояние */
-      setTimeout(function () {
-        if (currentUser) {
-          lastOwnWriteAt = Date.now();
-          saveUserData(user.uid);
-        }
-      }, 3000);
     }, 500);
 
     if (typeof window.checkMaintenance === "function") {
