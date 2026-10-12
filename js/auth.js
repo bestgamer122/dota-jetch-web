@@ -1,4 +1,4 @@
-/* DOTA JETCH — FIREBASE AUTH v11.4 */
+/* DOTA JETCH — FIREBASE AUTH v12.0 */
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.8.0/firebase-app.js";
 import {
@@ -6,13 +6,16 @@ import {
   signInWithEmailAndPassword, signOut, sendEmailVerification,
   sendPasswordResetEmail, setPersistence, browserLocalPersistence
 } from "https://www.gstatic.com/firebasejs/11.8.0/firebase-auth.js";
-import { getDatabase, ref, get, update, remove } from "https://www.gstatic.com/firebasejs/11.8.0/firebase-database.js";
+import { getDatabase, ref, get, update, remove, set, onValue } from "https://www.gstatic.com/firebasejs/11.8.0/firebase-database.js";
 
 const app = initializeApp(window.FIREBASE_CONFIG);
 const auth = getAuth(app);
 const db = getDatabase(app);
 
+/* Экспорт Firebase helpers для админки */
 window.__fbAuth = auth;
+window.__fbDB = { db: db, ref: ref, get: get, update: update, remove: remove, set: set, onValue: onValue };
+
 window.__fbSignOut = async function () {
   if (currentUser) { try { await saveUserData(currentUser.uid); } catch (e) {} }
   try { await signOut(auth); } catch (e) {}
@@ -42,7 +45,6 @@ function decodeKey(k) {
                   .replace(/__LB__/g, "[").replace(/__RB__/g, "]");
 }
 
-/* ─── FIX: очистка И sessionStorage, И localStorage ─── */
 function wipeLocalUserData() {
   try {
     let removed = 0;
@@ -56,7 +58,7 @@ function wipeLocalUserData() {
       const lk = lkeys[j];
       if (lk.indexOf(STORE_PREFIX) === 0) { localStorage.removeItem(lk); removed++; }
     }
-    console.log("🧹 Очищено " + removed + " ключей (sessionStorage + localStorage)");
+    console.log("🧹 Очищено " + removed + " ключей");
   } catch (e) {}
 }
 
@@ -71,7 +73,6 @@ async function syncPublicProfile() {
   try {
     await update(ref(db, "publicProfiles/" + currentUser.uid), data);
     if (!data.avatar) { try { await remove(ref(db, "publicProfiles/" + currentUser.uid + "/avatar")); } catch (e) {} }
-    console.log("📇 publicProfiles: " + nick + " · " + mmr + " MMR");
   } catch (e) { console.warn("syncPublicProfile:", e); }
 }
 
@@ -241,7 +242,7 @@ function buildVerificationScreen(email) {
       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v16H4z"/><path d="M4 6l8 6 8-6"/></svg>' +
       '<h1>Подтвердите email</h1>' +
       '<div class="auth-sub">Мы отправили письмо на <strong>' + (email || "") + '</strong>.</div>' +
-      '<div class="auth-sub">Перейди по ссылке из письма, чтобы активировать аккаунт.</div>' +
+      '<div class="auth-sub">Перейди по ссылке из письма.</div>' +
     '</div>' +
     '<div id="authError" class="auth-error"></div>' +
     '<button id="checkVerifyBtn" class="auth-btn auth-btn-primary">Я подтвердил почту</button>' +
@@ -406,7 +407,8 @@ const SYNC_KEYS = [
   "lockpickbest","automatonbest","minigames_mmr","minigames_games",
   "minigames_calibrated","minigames_calibration_games","minigames_wins",
   "sound.volume",
-  "direjumperbest","direjumpergames"
+  "direjumperbest","direjumpergames",
+  "tracker_account_id","smurf_account_id"
 ];
 
 function collectLocalData() {
@@ -552,6 +554,17 @@ onAuthStateChanged(auth, async function (user) {
   if (user) {
     currentUser = user;
     if (!user.emailVerified) { stopAutoSave(); showVerificationScreen(user.email); return; }
+
+    try {
+      const blockSnap = await get(ref(db, "users/" + user.uid + "/blocked"));
+      if (blockSnap.exists() && blockSnap.val() === true) {
+        alert("🚫 Твой аккаунт заблокирован администратором.");
+        try { await signOut(auth); } catch (e) {}
+        showAuthScreen();
+        return;
+      }
+    } catch (e) { console.warn("block check:", e); }
+
     const loadedFlag = "dotaJetchLoadedUid_session";
     const currentInSession = sessionStorage.getItem(loadedFlag);
     if (currentInSession !== user.uid) {
@@ -567,6 +580,10 @@ onAuthStateChanged(auth, async function (user) {
     window.refreshUserUI();
     syncPublicProfile();
     saveUserData(user.uid);
+
+    if (typeof window.checkMaintenance === "function") {
+      setTimeout(function () { window.checkMaintenance(); }, 300);
+    }
   } else {
     currentUser = null;
     stopAutoSave();

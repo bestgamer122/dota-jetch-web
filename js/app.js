@@ -1,34 +1,37 @@
-/* DOTA JETCH — APP v11.0 (кодекс вместо ИИ-чата) */
+/* DOTA JETCH — APP v14.0 (админка) */
 
-var APP_VERSION = "11.0";
+var APP_VERSION = "14.0";
 
 var PAGES = {
-  dashboard:    { title: "Главная",         render: renderDashboard },
-  analyze:      { title: "Анализ матча",    render: renderAnalyze },
-  codex:        { title: "Кодекс героев",   render: renderCodex },
-  history:      { title: "История",         render: renderHistory },
-  charts:       { title: "Прогресс",        render: renderChartsPage },
-  diary:        { title: "Дневник",         render: renderDiary },
-  games:        { title: "Мини-игры",       render: renderGames },
-  leaderboard:  { title: "Лидерборд",       render: renderLeaderboardPage },
-  achievements: { title: "Достижения",      render: renderAchievements },
-  settings:     { title: "Настройки",       render: renderSettings },
-  about:        { title: "О сайте",         render: renderAbout }
+  dashboard:    { title: "Главная",           render: renderDashboard },
+  analyze:      { title: "Анализ матча",      render: renderAnalyze },
+  tracker:      { title: "Трекер игрока",     render: renderPlayerTracker },
+  history:      { title: "История",           render: renderHistory },
+  charts:       { title: "Прогресс",          render: renderChartsPage },
+  diary:        { title: "Дневник",           render: renderDiary },
+  games:        { title: "Мини-игры",         render: renderGames },
+  leaderboard:  { title: "Лидерборд",         render: renderLeaderboardPage },
+  achievements: { title: "Достижения",        render: renderAchievements },
+  admin:        { title: "Админ-панель",      render: renderAdminPanel },
+  settings:     { title: "Настройки",         render: renderSettings },
+  about:        { title: "О сайте",           render: renderAbout }
 };
 
 var NAV = [
-  { page: "dashboard",    label: "Главная",       icon: "M3 11l9-8 9 8v9a2 2 0 0 1-2 2h-4v-7h-6v7H5a2 2 0 0 1-2-2z" },
-  { page: "analyze",      label: "Анализ матча",  icon: "M5 3l14 9-14 9z" },
-  { page: "codex",        label: "Кодекс героев", icon: "M4 19.5A2.5 2.5 0 0 1 6.5 17H20M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" },
-  { page: "history",      label: "История",       icon: "M3 6h18M3 12h18M3 18h18" },
-  { page: "charts",       label: "Прогресс",      icon: "M3 3v18h18M7 14l3-3 4 4 5-6" },
-  { page: "diary",        label: "Дневник",       icon: "M4 4h12l4 4v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z" },
-  { page: "games",        label: "Мини-игры",     icon: "M3 7h18v12H3z" },
-  { page: "leaderboard",  label: "Лидерборд",     icon: "M19 5h-2V3H7v2H5c-1.1 0-2 .9-2 2v1c0 2.55 1.92 4.63 4.39 4.94.63 1.5 1.98 2.63 3.61 2.96V19H7v2h10v-2h-4v-3.1c1.63-.33 2.98-1.46 3.61-2.96C19.08 12.63 21 10.55 21 8V7c0-1.1-.9-2-2-2zM5 8V7h2v3.82C5.84 10.4 5 9.3 5 8zm14 0c0 1.3-.84 2.4-2 2.82V7h2v1z" },
-  { page: "achievements", label: "Достижения",    icon: "M12 9m-6 0a6 6 0 1 0 12 0a6 6 0 1 0 -12 0" },
-  { page: "settings",     label: "Настройки",     icon: "M12 12m-3 0a3 3 0 1 0 6 0a3 3 0 1 0 -6 0" },
-  { page: "about",        label: "О сайте",       icon: "M12 12m-10 0a10 10 0 1 0 20 0a10 10 0 1 0 -20 0" }
+  { page: "dashboard",    label: "Главная",           icon: "M3 11l9-8 9 8v9a2 2 0 0 1-2 2h-4v-7h-6v7H5a2 2 0 0 1-2-2z" },
+  { page: "analyze",      label: "Анализ матча",      icon: "M5 3l14 9-14 9z" },
+  { page: "tracker",      label: "Трекер игрока",     icon: "M3 3v18h18M7 14l3-3 4 4 5-6" },
+  { page: "history",      label: "История",           icon: "M3 6h18M3 12h18M3 18h18" },
+  { page: "charts",       label: "Прогресс",          icon: "M21 12a9 9 0 1 1-9-9M21 3v9h-9" },
+  { page: "diary",        label: "Дневник",           icon: "M4 4h12l4 4v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z" },
+  { page: "games",        label: "Мини-игры",         icon: "M3 7h18v12H3z" },
+  { page: "leaderboard",  label: "Лидерборд",         icon: "M19 5h-2V3H7v2H5c-1.1 0-2 .9-2 2v1c0 2.55 1.92 4.63 4.39 4.94.63 1.5 1.98 2.63 3.61 2.96V19H7v2h10v-2h-4v-3.1c1.63-.33 2.98-1.46 3.61-2.96C19.08 12.63 21 10.55 21 8V7c0-1.1-.9-2-2-2zM5 8V7h2v3.82C5.84 10.4 5 9.3 5 8zm14 0c0 1.3-.84 2.4-2 2.82V7h2v1z" },
+  { page: "achievements", label: "Достижения",        icon: "M12 9m-6 0a6 6 0 1 0 12 0a6 6 0 1 0 -12 0" },
+  { page: "settings",     label: "Настройки",         icon: "M12 12m-3 0a3 3 0 1 0 6 0a3 3 0 1 0 -6 0" },
+  { page: "about",        label: "О сайте",           icon: "M12 12m-10 0a10 10 0 1 0 20 0a10 10 0 1 0 -20 0" }
 ];
+
+var ADMIN_NAV_ITEM = { page: "admin", label: "Админ-панель", icon: "M12 2 L4 6v6c0 5 3.5 9.5 8 11 4.5-1.5 8-6 8-11V6l-8-4z" };
 
 var currentPage = "dashboard";
 
@@ -36,7 +39,11 @@ function buildNav() {
   var nav = qs("#sidebarNav");
   if (!nav) return;
   nav.innerHTML = "";
-  for (var i = 0; i < NAV.length; i++) {
+  var list = NAV.slice();
+  if (window.AdminPanel && window.AdminPanel.isAdmin) {
+    list.push(ADMIN_NAV_ITEM);
+  }
+  for (var i = 0; i < list.length; i++) {
     (function (item) {
       var btn = el("button", { class: "nav-btn" + (item.page === currentPage ? " active" : ""), "data-page": item.page });
       var ico = el("span", { class: "nav-ico" });
@@ -45,7 +52,7 @@ function buildNav() {
       btn.appendChild(document.createTextNode(item.label));
       btn.addEventListener("click", function () { switchPage(item.page); });
       nav.appendChild(btn);
-    })(NAV[i]);
+    })(list[i]);
   }
 }
 
@@ -68,6 +75,9 @@ function safeRender(name) {
 
 function switchPage(name) {
   if (!PAGES[name]) name = "dashboard";
+  if (name === "admin" && (!window.AdminPanel || !window.AdminPanel.isAdmin)) {
+    name = "dashboard";
+  }
   currentPage = name;
   qsa(".nav-btn").forEach(function (b) { b.classList.toggle("active", b.getAttribute("data-page") === name); });
   var t = qs("#pageTitle");
@@ -195,10 +205,32 @@ function renderDashboard() {
     buildGreeting(),
     [
       UI.btn("Анализ матча", { onclick: function () { switchPage("analyze"); } }),
-      UI.btn("Кодекс героев", { onclick: function () { switchPage("codex"); }, variant: "ghost" }),
+      UI.btn("Трекер игрока", { onclick: function () { switchPage("tracker"); }, variant: "ghost" }),
       UI.btn("Мини-игры", { onclick: function () { switchPage("games"); }, variant: "ghost" })
     ]
   ));
+
+  /* Глобальное уведомление */
+  (function () {
+    try {
+      var db = window.__fbDB;
+      if (!db) return;
+      db.get(db.ref(db.db, "config/notification")).then(function (snap) {
+        var n = snap.val();
+        if (n && n.enabled && n.text) {
+          var box = document.createElement("div");
+          box.style.cssText = "padding:12px 16px;background:var(--accent-bg);border:1px solid var(--accent);border-radius:12px;margin-bottom:16px;font-size:13px;color:var(--accent-light);line-height:1.5;";
+          box.textContent = "📢 " + n.text;
+          var wrap = document.getElementById("pageContent");
+          if (wrap && !document.getElementById("globalNotifBox")) {
+            box.id = "globalNotifBox";
+            wrap.insertBefore(box, wrap.firstChild);
+          }
+        }
+      }).catch(function () {});
+    } catch (e) {}
+  })();
+
   if (typeof renderDailyWidget === "function") { try { frag.appendChild(renderDailyWidget()); } catch (e) {} }
   if (typeof window.renderRatingWidget === "function") {
     try { var rw = window.renderRatingWidget(); if (rw) frag.appendChild(rw); }
@@ -242,7 +274,7 @@ function renderAbout() {
   var feat = UI.card("Возможности");
   var list = [
     "Анализ матчей с оценкой S/A/B/C/D",
-    "Кодекс героев с билдами и контрпиками",
+    "Трекер игрока по Steam ID",
     "История и графики",
     "Дневник",
     "Мини-игры: Взлом замка, Атака автоматонов, Викторина",
@@ -481,9 +513,14 @@ function bindProfileModal() {
   }
 }
 
-function init() {
+async function init() {
   try { if (typeof applyTheme === "function") applyTheme(loadTheme()); } catch (e) {}
   try { if (typeof applyLiteMode === "function") applyLiteMode(isLiteMode()); } catch (e) {}
+
+  if (window.AdminPanel && typeof window.AdminPanel.checkAdmin === "function") {
+    try { await window.AdminPanel.checkAdmin(); } catch (e) {}
+  }
+
   buildNav();
   document.addEventListener("click", function () { if (typeof closeAllDropdowns === "function") closeAllDropdowns(); });
   bindProfileModal();
