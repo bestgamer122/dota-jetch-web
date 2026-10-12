@@ -1,4 +1,4 @@
-/* DOTA JETCH — FIREBASE AUTH v12.5 (fix: baseline snapshot, no reload loop) */
+/* DOTA JETCH — FIREBASE AUTH v12.6 (polling instead of onValue, no loops) */
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.8.0/firebase-app.js";
 import {
@@ -26,24 +26,16 @@ setPersistence(auth, browserLocalPersistence).catch(e => console.warn("persisten
 
 let currentUser = null;
 let autoSaveInterval = null;
-let userDataUnsubscribe = null;
-let lastOwnWriteAt = 0;
-let reloadCount = 0;
+let pollInterval = null;
 
 const STORE_PREFIX = "dota.";
 const NICK_REGEX = /^[A-Za-z0-9_]{3,20}$/;
 const NICK_COOLDOWN_MS = 30 * 24 * 60 * 60 * 1000;
-const OWN_WRITE_GRACE_MS = 3000;
-const RELOAD_COOLDOWN_MS = 10000;
-const MAX_RELOADS_PER_SESSION = 3;
 
-const WATCH_KEYS = [
-  "nickname",
-  "license.active",
-  "license.forever",
-  "license.expires",
-  "blocked"
-];
+/* Интервал опроса изменений от админа */
+const POLL_INTERVAL_MS = 20000;
+const RELOAD_COOLDOWN_MS = 15000;
+let lastReloadAt = 0;
 
 const HINT_BASE = "font-size:10px;font-weight:400;color:#666;margin:-4px 0 12px 4px;line-height:1.4;text-align:left;letter-spacing:0.02em;font-family:'Inter',sans-serif;";
 const HINT_OK = HINT_BASE + "color:#22c55e;";
@@ -78,65 +70,19 @@ function wipeLocalUserData() {
   } catch (e) {}
 }
 
-/* ─── Baseline snapshot для отслеживания изменений ─── */
-function getBaselineKey(uid) { return STORE_PREFIX + "__baseline_" + uid; }
+/* ─── Простой polling: читаем раз в 20 сек и сравниваем "админские" поля ─── */
+function startPollingAdminChanges(uid) {
+  stopPollingAdminChanges();
 
-function saveBaseline(uid, data) {
-  try {
-    var snap = extractWatchedKeys(data);
-    sessionStorage.setItem(getBaselineKey(uid), JSON.stringify(snap));
-  } catch (e) {}
-}
+  var lastState = null;
 
-function loadBaseline(uid) {
-  try {
-    var raw = sessionStorage.getItem(getBaselineKey(uid));
-    if (!raw) return null;
-    return JSON.parse(raw);
-  } catch (e) { return null; }
-}
-
-function clearBaseline(uid) {
-  try { sessionStorage.removeItem(getBaselineKey(uid)); } catch (e) {}
-}
-
-function extractWatchedKeys(data) {
-  var out = {};
-  for (var i = 0; i < WATCH_KEYS.length; i++) {
-    var k = WATCH_KEYS[i];
-    var enc = encodeKey(k);
-    var v = (data && data[enc] !== undefined) ? data[enc] : null;
-    out[k] = (v === undefined) ? null : v;
-  }
-  return out;
-}
-
-function watchedEqual(a, b) {
-  for (var i = 0; i < WATCH_KEYS.length; i++) {
-    var k = WATCH_KEYS[i];
-    var va = a ? a[k] : null;
-    var vb = b ? b[k] : null;
-    if (JSON.stringify(va) !== JSON.stringify(vb)) return false;
-  }
-  return true;
-}
-
-/* ─── Живая синхронизация ─── */
-function subscribeToUserData(uid) {
-  if (userDataUnsubscribe) {
-    try { userDataUnsubscribe(); } catch (e) {}
-    userDataUnsubscribe = null;
-  }
-
-  var baseline = loadBaseline(uid);
-  var isFirstCallback = true;
-
-  try {
-    const userRef = ref(db, "users/" + uid);
-    userDataUnsubscribe = onValue(userRef, function (snap) {
+  async function check() {
+    if (!currentUser || currentUser.uid !== uid) return;
+    try {
+      const snap = await get(ref(db, "users/" + uid));
       const data = snap.val() || {};
 
-      /* Обновляем sessionStorage */
+      /* Всегда обновляем sessionStorage */
       for (const key in data) {
         if (!Object.prototype.hasOwnProperty.call(data, key)) continue;
         const val = data[key];
@@ -144,70 +90,54 @@ function subscribeToUserData(uid) {
         try { sessionStorage.setItem(STORE_PREFIX + decodeKey(key), JSON.stringify(val)); } catch (e) {}
       }
 
-      var currentWatched = extractWatchedKeys(data);
+      var state = {
+        nick: data.nickname || null,
+        licActive: data["license__DOT__active"] === true,
+        licForever: data["license__DOT__forever"] === true,
+        licExpires: data["license__DOT__expires"] || null,
+        blocked: data.blocked === true
+      };
 
-      /* Первый вызов — фиксируем состояние как baseline */
-      if (isFirstCallback) {
-        isFirstCallback = false;
-        saveBaseline(uid, data);
-        baseline = currentWatched;
-        console.log("✅ Live-sync подключён (baseline зафиксирован)");
+      if (lastState === null) {
+        lastState = state;
         return;
       }
 
-      /* Если нет baseline — фиксируем и выходим */
-      if (!baseline) {
-        saveBaseline(uid, data);
-        baseline = currentWatched;
+      var changed = false;
+      var what = [];
+
+      if (lastState.nick !== state.nick) { changed = true; what.push("ник"); }
+      if (lastState.licActive !== state.licActive) { changed = true; what.push("JETCH+ статус"); }
+      if (lastState.licForever !== state.licForever) { changed = true; what.push("JETCH+ бессрочный"); }
+      if (lastState.licExpires !== state.licExpires) { changed = true; what.push("JETCH+ срок"); }
+      if (lastState.blocked !== state.blocked) { changed = true; what.push(state.blocked ? "блокировка" : "разблокировка"); }
+
+      if (!changed) {
+        lastState = state;
         return;
       }
 
-      /* Ничего важного не изменилось */
-      if (watchedEqual(baseline, currentWatched)) return;
-
-      /* Игнор эха своих записей */
-      if (Date.now() - lastOwnWriteAt < OWN_WRITE_GRACE_MS) {
-        baseline = currentWatched;
-        saveBaseline(uid, data);
-        console.log("⏭ Изменение проигнорировано (своя запись)");
+      /* Защита от частых перезагрузок */
+      if (Date.now() - lastReloadAt < RELOAD_COOLDOWN_MS) {
+        console.log("⏸ Изменения есть (" + what.join(", ") + "), но кулдаун ещё идёт");
         return;
       }
+      lastReloadAt = Date.now();
 
-      /* Ограничение на количество перезагрузок */
-      if (reloadCount >= MAX_RELOADS_PER_SESSION) {
-        console.warn("⚠️ Достигнут лимит перезагрузок (" + MAX_RELOADS_PER_SESSION + "), live-sync отключён.");
-        return;
-      }
-      reloadCount++;
-
-      /* Что изменилось */
-      var msgParts = [];
-      if (baseline["nickname"] !== currentWatched["nickname"]) msgParts.push("ник: " + (currentWatched["nickname"] || "—"));
-      if (baseline["license.active"] !== currentWatched["license.active"] ||
-          baseline["license.forever"] !== currentWatched["license.forever"]) {
-        if (currentWatched["license.forever"]) msgParts.push("JETCH+ бессрочный");
-        else if (currentWatched["license.active"]) msgParts.push("JETCH+ выдан");
-        else msgParts.push("JETCH+ снят");
-      }
-      if (baseline["blocked"] !== currentWatched["blocked"]) {
-        msgParts.push(currentWatched["blocked"] ? "заблокирован" : "разблокирован");
-      }
-
-      /* Обновляем baseline, чтобы не было повтора */
-      baseline = currentWatched;
-      saveBaseline(uid, data);
-
-      console.log("🔄 Админ изменил профиль: " + msgParts.join(", ") + " → перезагрузка");
+      console.log("🔄 Админ изменил: " + what.join(", ") + " → перезагрузка");
       setTimeout(function () { location.reload(); }, 400);
-    });
-  } catch (e) { console.warn("subscribeToUserData:", e); }
+    } catch (e) {
+      /* Тихо игнорим сетевые ошибки */
+    }
+  }
+
+  /* Первая проверка — через 5 сек (baseline), потом каждые 20 */
+  setTimeout(check, 5000);
+  pollInterval = setInterval(check, POLL_INTERVAL_MS);
 }
 
-function unsubscribeFromUserData() {
-  if (userDataUnsubscribe) {
-    try { userDataUnsubscribe(); } catch (e) {}
-    userDataUnsubscribe = null;
-  }
+function stopPollingAdminChanges() {
+  if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
 }
 
 async function syncPublicProfile() {
@@ -278,7 +208,6 @@ window.changeNickname = async function (newNick) {
   const taken = await isNicknameTaken(newNick);
   if (taken) return { ok: false, msg: "Этот ник уже занят." };
   try {
-    lastOwnWriteAt = Date.now();
     if (oldNick) await releaseNickname(oldNick);
     await claimNickname(newNick, currentUser.uid);
     Store.set("nickname", newNick);
@@ -654,7 +583,6 @@ async function saveUserData(uid) {
     const data = collectLocalData();
     const keys = Object.keys(data);
     if (keys.length === 0) return;
-    lastOwnWriteAt = Date.now();
     await update(ref(db, "users/" + uid), data);
   } catch (e) { console.warn("saveUserData:", e); }
 }
@@ -664,7 +592,6 @@ function setupStoreSync(uid) {
     const origSet = window.Store.set.bind(window.Store);
     window.Store.set = function (key, value) {
       origSet(key, value);
-      lastOwnWriteAt = Date.now();
       if (value === null || value === undefined) {
         remove(ref(db, "users/" + uid + "/" + encodeKey(key))).catch(() => {});
         return;
@@ -760,7 +687,7 @@ onAuthStateChanged(auth, async function (user) {
     currentUser = user;
     if (!user.emailVerified) {
       stopAutoSave();
-      unsubscribeFromUserData();
+      stopPollingAdminChanges();
       showVerificationScreen(user.email);
       return;
     }
@@ -781,26 +708,17 @@ onAuthStateChanged(auth, async function (user) {
       wipeLocalUserData();
       sessionStorage.setItem(loadedFlag, user.uid);
       await loadUserData(user.uid);
-      /* Сохраняем baseline до перезагрузки */
-      try {
-        const snap = await get(ref(db, "users/" + user.uid));
-        saveBaseline(user.uid, snap.val() || {});
-      } catch (e) {}
       location.reload();
       return;
     }
 
     hideAuthScreen();
     setupStoreSync(user.uid);
+    startAutoSave(user.uid);
+    startPollingAdminChanges(user.uid);   // ← вот здесь polling вместо onValue
 
-    /* Baseline уже сохранён — просто подписываемся */
-    subscribeToUserData(user.uid);
-
-    setTimeout(function () {
-      startAutoSave(user.uid);
-      window.refreshUserUI();
-      syncPublicProfile();
-    }, 500);
+    window.refreshUserUI();
+    syncPublicProfile();
 
     if (typeof window.checkMaintenance === "function") {
       setTimeout(function () { window.checkMaintenance(); }, 300);
@@ -808,7 +726,7 @@ onAuthStateChanged(auth, async function (user) {
   } else {
     currentUser = null;
     stopAutoSave();
-    unsubscribeFromUserData();
+    stopPollingAdminChanges();
     wipeLocalUserData();
     sessionStorage.removeItem("dotaJetchLoadedUid_session");
     showAuthScreen();
