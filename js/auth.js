@@ -1,4 +1,4 @@
-/* DOTA JETCH — FIREBASE AUTH v12.3 (fix: infinite reload loop) */
+/* DOTA JETCH — FIREBASE AUTH v12.4 (fix: watch specific keys only, ignore own writes) */
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.8.0/firebase-app.js";
 import {
@@ -27,10 +27,21 @@ setPersistence(auth, browserLocalPersistence).catch(e => console.warn("persisten
 let currentUser = null;
 let autoSaveInterval = null;
 let userDataUnsubscribe = null;
+let lastOwnWriteAt = 0;   // время последней своей записи — чтобы игнорить эхо
 
 const STORE_PREFIX = "dota.";
 const NICK_REGEX = /^[A-Za-z0-9_]{3,20}$/;
 const NICK_COOLDOWN_MS = 30 * 24 * 60 * 60 * 1000;
+const OWN_WRITE_GRACE_MS = 3000;  // 3 секунды игнора после своей записи
+
+/* ─── Какие поля хотим отслеживать (админские изменения) ─── */
+const WATCH_KEYS = [
+  "nickname",
+  "license.active",
+  "license.forever",
+  "license.expires",
+  "blocked"
+];
 
 const HINT_BASE = "font-size:10px;font-weight:400;color:#666;margin:-4px 0 12px 4px;line-height:1.4;text-align:left;letter-spacing:0.02em;font-family:'Inter',sans-serif;";
 const HINT_OK = HINT_BASE + "color:#22c55e;";
@@ -54,9 +65,7 @@ function wipeLocalUserData() {
     const keys = Object.keys(sessionStorage);
     for (let i = 0; i < keys.length; i++) {
       const k = keys[i];
-      if (k.indexOf(STORE_PREFIX) === 0 && k !== "dota.__reloadHistory") {
-        sessionStorage.removeItem(k); removed++;
-      }
+      if (k.indexOf(STORE_PREFIX) === 0) { sessionStorage.removeItem(k); removed++; }
     }
     const lkeys = Object.keys(localStorage);
     for (let j = 0; j < lkeys.length; j++) {
@@ -67,38 +76,47 @@ function wipeLocalUserData() {
   } catch (e) {}
 }
 
-/* ─── Защита от зацикливания ─── */
-function canReload() {
-  try {
-    var key = "dota.__reloadHistory";
-    var hist = JSON.parse(sessionStorage.getItem(key) || "[]");
-    var now = Date.now();
-    hist = hist.filter(function (t) { return now - t < 60000; });
-    if (hist.length >= 3) {
-      console.warn("⚠️ Слишком много перезагрузок подряд, отключаю live-sync.");
-      return false;
-    }
-    hist.push(now);
-    sessionStorage.setItem(key, JSON.stringify(hist));
-    return true;
-  } catch (e) { return true; }
+/* ─── Хэш только отслеживаемых полей ─── */
+function extractWatchedKeys(data) {
+  var out = {};
+  for (var i = 0; i < WATCH_KEYS.length; i++) {
+    var k = WATCH_KEYS[i];
+    var enc = encodeKey(k);
+    var v = (data && data[enc] !== undefined) ? data[enc] : null;
+    if (k === "license.active" && data && data["license__DOT__active"] !== undefined) v = data["license__DOT__active"];
+    if (k === "license.forever" && data && data["license__DOT__forever"] !== undefined) v = data["license__DOT__forever"];
+    if (k === "license.expires" && data && data["license__DOT__expires"] !== undefined) v = data["license__DOT__expires"];
+    out[k] = v === undefined ? null : v;
+  }
+  return out;
 }
 
-/* ─── ЖИВАЯ СИНХРОНИЗАЦИЯ (исправлено) ─── */
-function subscribeToUserData(uid) {
-  if (userDataUnsubscribe) { try { userDataUnsubscribe(); } catch (e) {} userDataUnsubscribe = null; }
+function watchedEqual(a, b) {
+  for (var i = 0; i < WATCH_KEYS.length; i++) {
+    var k = WATCH_KEYS[i];
+    var va = a ? a[k] : null;
+    var vb = b ? b[k] : null;
+    if (JSON.stringify(va) !== JSON.stringify(vb)) return false;
+  }
+  return true;
+}
 
-  var isFirstCallback = true;       // игнорируем первый вызов
-  var lastSnapshot = null;
-  var lastReload = 0;
-  var RELOAD_COOLDOWN = 5000;
+/* ─── Живая синхронизация (только отслеживаемые поля) ─── */
+function subscribeToUserData(uid) {
+  if (userDataUnsubscribe) {
+    try { userDataUnsubscribe(); } catch (e) {}
+    userDataUnsubscribe = null;
+  }
+
+  var lastWatched = null;
+  var isFirstCallback = true;
 
   try {
     const userRef = ref(db, "users/" + uid);
     userDataUnsubscribe = onValue(userRef, function (snap) {
       const data = snap.val() || {};
 
-      /* Всегда обновляем sessionStorage */
+      /* Всегда обновляем sessionStorage чтобы данные были свежими */
       for (const key in data) {
         if (!Object.prototype.hasOwnProperty.call(data, key)) continue;
         const val = data[key];
@@ -106,33 +124,52 @@ function subscribeToUserData(uid) {
         try { sessionStorage.setItem(STORE_PREFIX + decodeKey(key), JSON.stringify(val)); } catch (e) {}
       }
 
-      var currentSnapshot = JSON.stringify(data);
+      var currentWatched = extractWatchedKeys(data);
 
-      /* Первый вызов — это просто начальное состояние, не изменение */
+      /* Первый вызов — просто запоминаем начальное состояние */
       if (isFirstCallback) {
         isFirstCallback = false;
-        lastSnapshot = currentSnapshot;
-        console.log("✅ Live-sync профиля подключён");
+        lastWatched = currentWatched;
+        console.log("✅ Live-sync подключён (следим за ником, лицензией, блокировкой)");
         return;
       }
 
-      /* Ничего реально не изменилось */
-      if (currentSnapshot === lastSnapshot) return;
-      lastSnapshot = currentSnapshot;
-
-      /* Кулдаун между перезагрузками */
-      var now = Date.now();
-      if (now - lastReload < RELOAD_COOLDOWN) {
-        console.log("⏸ Изменения получены, но кулдаун ещё не прошёл");
+      /* Не изменилось ничего важного */
+      if (watchedEqual(lastWatched, currentWatched)) {
+        lastWatched = currentWatched;
         return;
       }
 
-      /* Глобальная защита от цикла */
-      if (!canReload()) return;
+      /* Игнорим если мы сами только что писали (эхо собственной записи) */
+      if (Date.now() - lastOwnWriteAt < OWN_WRITE_GRACE_MS) {
+        lastWatched = currentWatched;
+        console.log("⏭ Изменение проигнорировано (наша собственная запись)");
+        return;
+      }
 
-      lastReload = now;
-      console.log("🔄 Данные профиля обновлены администратором, перезагружаю...");
-      setTimeout(function () { location.reload(); }, 500);
+      /* Что-то реально изменилось */
+      var oldNick = lastWatched ? lastWatched["nickname"] : null;
+      var newNick = currentWatched["nickname"];
+      var oldActive = lastWatched ? lastWatched["license.active"] : null;
+      var newActive = currentWatched["license.active"];
+      var oldForever = lastWatched ? lastWatched["license.forever"] : null;
+      var newForever = currentWatched["license.forever"];
+      var oldBlocked = lastWatched ? lastWatched["blocked"] : null;
+      var newBlocked = currentWatched["blocked"];
+
+      var msgParts = [];
+      if (oldNick !== newNick) msgParts.push("ник: " + (newNick || "—"));
+      if (oldActive !== newActive || oldForever !== newForever) {
+        if (newForever) msgParts.push("JETCH+ бессрочный");
+        else if (newActive) msgParts.push("JETCH+ выдан");
+        else msgParts.push("JETCH+ снят");
+      }
+      if (oldBlocked !== newBlocked) msgParts.push(newBlocked ? "заблокирован" : "разблокирован");
+
+      lastWatched = currentWatched;
+
+      console.log("🔄 Админ изменил профиль: " + msgParts.join(", ") + " → перезагрузка");
+      setTimeout(function () { location.reload(); }, 400);
     });
   } catch (e) { console.warn("subscribeToUserData:", e); }
 }
@@ -212,6 +249,7 @@ window.changeNickname = async function (newNick) {
   const taken = await isNicknameTaken(newNick);
   if (taken) return { ok: false, msg: "Этот ник уже занят." };
   try {
+    lastOwnWriteAt = Date.now();
     if (oldNick) await releaseNickname(oldNick);
     await claimNickname(newNick, currentUser.uid);
     Store.set("nickname", newNick);
@@ -587,6 +625,7 @@ async function saveUserData(uid) {
     const data = collectLocalData();
     const keys = Object.keys(data);
     if (keys.length === 0) return;
+    lastOwnWriteAt = Date.now();   // помечаем что это наша запись
     await update(ref(db, "users/" + uid), data);
   } catch (e) { console.warn("saveUserData:", e); }
 }
@@ -596,6 +635,7 @@ function setupStoreSync(uid) {
     const origSet = window.Store.set.bind(window.Store);
     window.Store.set = function (key, value) {
       origSet(key, value);
+      lastOwnWriteAt = Date.now();
       if (value === null || value === undefined) {
         remove(ref(db, "users/" + uid + "/" + encodeKey(key))).catch(() => {});
         return;
@@ -718,11 +758,23 @@ onAuthStateChanged(auth, async function (user) {
 
     hideAuthScreen();
     setupStoreSync(user.uid);
-    startAutoSave(user.uid);
+
+    /* Подписка — ДО любых записей, чтобы onValue сразу знал начальное состояние */
     subscribeToUserData(user.uid);
-    window.refreshUserUI();
-    syncPublicProfile();
-    saveUserData(user.uid);
+
+    /* Записи делаем ПОСЛЕ подписки, через задержку, чтобы не триггерить эхо */
+    setTimeout(function () {
+      startAutoSave(user.uid);
+      window.refreshUserUI();
+      syncPublicProfile();
+      /* Первая запись — не сразу, чтобы onValue успел зафиксировать начальное состояние */
+      setTimeout(function () {
+        if (currentUser) {
+          lastOwnWriteAt = Date.now();
+          saveUserData(user.uid);
+        }
+      }, 3000);
+    }, 500);
 
     if (typeof window.checkMaintenance === "function") {
       setTimeout(function () { window.checkMaintenance(); }, 300);
