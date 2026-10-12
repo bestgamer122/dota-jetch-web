@@ -1,4 +1,4 @@
-/* DOTA JETCH — FIREBASE AUTH v12.2 (live sync for admin changes) */
+/* DOTA JETCH — FIREBASE AUTH v12.3 (fix: infinite reload loop) */
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.8.0/firebase-app.js";
 import {
@@ -26,7 +26,7 @@ setPersistence(auth, browserLocalPersistence).catch(e => console.warn("persisten
 
 let currentUser = null;
 let autoSaveInterval = null;
-let userDataUnsubscribe = null; // отписка от onValue
+let userDataUnsubscribe = null;
 
 const STORE_PREFIX = "dota.";
 const NICK_REGEX = /^[A-Za-z0-9_]{3,20}$/;
@@ -54,7 +54,9 @@ function wipeLocalUserData() {
     const keys = Object.keys(sessionStorage);
     for (let i = 0; i < keys.length; i++) {
       const k = keys[i];
-      if (k.indexOf(STORE_PREFIX) === 0) { sessionStorage.removeItem(k); removed++; }
+      if (k.indexOf(STORE_PREFIX) === 0 && k !== "dota.__reloadHistory") {
+        sessionStorage.removeItem(k); removed++;
+      }
     }
     const lkeys = Object.keys(localStorage);
     for (let j = 0; j < lkeys.length; j++) {
@@ -65,34 +67,72 @@ function wipeLocalUserData() {
   } catch (e) {}
 }
 
-/* ─── ЖИВАЯ СИНХРОНИЗАЦИЯ ─── */
+/* ─── Защита от зацикливания ─── */
+function canReload() {
+  try {
+    var key = "dota.__reloadHistory";
+    var hist = JSON.parse(sessionStorage.getItem(key) || "[]");
+    var now = Date.now();
+    hist = hist.filter(function (t) { return now - t < 60000; });
+    if (hist.length >= 3) {
+      console.warn("⚠️ Слишком много перезагрузок подряд, отключаю live-sync.");
+      return false;
+    }
+    hist.push(now);
+    sessionStorage.setItem(key, JSON.stringify(hist));
+    return true;
+  } catch (e) { return true; }
+}
+
+/* ─── ЖИВАЯ СИНХРОНИЗАЦИЯ (исправлено) ─── */
 function subscribeToUserData(uid) {
   if (userDataUnsubscribe) { try { userDataUnsubscribe(); } catch (e) {} userDataUnsubscribe = null; }
+
+  var isFirstCallback = true;       // игнорируем первый вызов
+  var lastSnapshot = null;
+  var lastReload = 0;
+  var RELOAD_COOLDOWN = 5000;
+
   try {
     const userRef = ref(db, "users/" + uid);
     userDataUnsubscribe = onValue(userRef, function (snap) {
-      const data = snap.val();
-      if (!data || typeof data !== "object") return;
+      const data = snap.val() || {};
 
-      let changed = false;
+      /* Всегда обновляем sessionStorage */
       for (const key in data) {
         if (!Object.prototype.hasOwnProperty.call(data, key)) continue;
-        const realKey = decodeKey(key);
         const val = data[key];
         if (val === null || val === undefined) continue;
-        let strVal;
-        try { strVal = JSON.stringify(val); } catch (e) { continue; }
-        const existing = sessionStorage.getItem(STORE_PREFIX + realKey);
-        if (existing !== strVal) {
-          try { sessionStorage.setItem(STORE_PREFIX + realKey, strVal); changed = true; } catch (e) {}
-        }
+        try { sessionStorage.setItem(STORE_PREFIX + decodeKey(key), JSON.stringify(val)); } catch (e) {}
       }
 
-      if (changed) {
-        console.log("🔄 Данные профиля обновлены администратором, перезагружаю...");
-        // Небольшая задержка, чтобы UI успел обновиться
-        setTimeout(function () { location.reload(); }, 300);
+      var currentSnapshot = JSON.stringify(data);
+
+      /* Первый вызов — это просто начальное состояние, не изменение */
+      if (isFirstCallback) {
+        isFirstCallback = false;
+        lastSnapshot = currentSnapshot;
+        console.log("✅ Live-sync профиля подключён");
+        return;
       }
+
+      /* Ничего реально не изменилось */
+      if (currentSnapshot === lastSnapshot) return;
+      lastSnapshot = currentSnapshot;
+
+      /* Кулдаун между перезагрузками */
+      var now = Date.now();
+      if (now - lastReload < RELOAD_COOLDOWN) {
+        console.log("⏸ Изменения получены, но кулдаун ещё не прошёл");
+        return;
+      }
+
+      /* Глобальная защита от цикла */
+      if (!canReload()) return;
+
+      lastReload = now;
+      console.log("🔄 Данные профиля обновлены администратором, перезагружаю...");
+      setTimeout(function () { location.reload(); }, 500);
     });
   } catch (e) { console.warn("subscribeToUserData:", e); }
 }
@@ -679,10 +719,7 @@ onAuthStateChanged(auth, async function (user) {
     hideAuthScreen();
     setupStoreSync(user.uid);
     startAutoSave(user.uid);
-
-    /* ─── ВОТ ОНО: подписка на живые изменения ─── */
     subscribeToUserData(user.uid);
-
     window.refreshUserUI();
     syncPublicProfile();
     saveUserData(user.uid);
