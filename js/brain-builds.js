@@ -1,17 +1,67 @@
 /* DOTA JETCH — BRAIN BUILDS v1.0 */
-/*
+
 var BrainBuilds = {
   standardBuilds: {
-    carry: { name: "Керри (Pos 1)", early: ["Wraith Band","Power Treads","Magic Wand"], core: ["Battle Fury","Manta Style","Black King Bar","Butterfly","Satanic"],
-      situational: { "против магов":["Black King Bar","Mage Slayer"], "против физики":["Butterfly","Heaven's Halberd"], "против иллюзий":["Mjollnir","Battle Fury"], "против бурста":["Satanic","Eye of Skadi"], "против уклонения":["Monkey King Bar"] } },
-    mid: { name: "Мид (Pos 2)", early: ["Null Talisman","Bottle","Magic Wand"], core: ["Bottle","Power Treads","Black King Bar","Aghanim's Scepter","Shiva's Guard"],
-      situational: { "против магов":["Black King Bar","Linken's Sphere"], "против физики":["Shiva's Guard","Ghost Scepter"], "против контроля":["Linken's Sphere","Aeon Disk"], "для сноуболла":["Orchid Malevolence","Bloodthorn"], "против хила":["Spirit Vessel"] } },
-    offlane: { name: "Оффлейн (Pos 3)", early: ["Bracer","Boots of Speed","Magic Wand"], core: ["Vanguard","Blink Dagger","Black King Bar","Pipe of Insight","Crimson Guard"],
-      situational: { "против магов":["Pipe of Insight","Hood of Defiance"], "против физики":["Crimson Guard","Blade Mail"], "для инициации":["Blink Dagger","Aghanim's Scepter"], "против мобильности":["Rod of Atos","Scythe of Vyse"], "против иллюзий":["Mjollnir","Radiance"] } },
-    roam: { name: "Роум (Pos 4)", early: ["Boots of Speed","Magic Wand","Wind Lace"], core: ["Blink Dagger","Aghanim's Scepter","Black King Bar","Aether Lens","Force Staff"],
-      situational: { "для спасения":["Glimmer Cape","Force Staff"], "для контроля":["Scythe of Vyse","Rod of Atos"], "против магов":["Black King Bar","Aeon Disk"], "против невидимок":["Dust of Appearance","Sentinel Ward"], "для вижена":["Observer Ward","Sentinel Ward"] } },
-    support: { name: "Саппорт (Pos 5)", early: ["Boots of Speed","Magic Wand","Wind Lace"], core: ["Glimmer Cape","Force Staff","Aghanim's Scepter","Guardian Greaves","Aether Lens"],
-      situational: { "для спасения":["Glimmer Cape","Force Staff","Ghost Scepter"], "для хила":["Mekansm","Guardian Greaves","Holy Locket"], "против магов":["Pipe of Insight","Glimmer Cape"], "для контроля":["Scythe of Vyse","Rod of Atos"], "для вижена":["Observer Ward","Sentinel Ward","Dust"] } }
+    carry: {
+      name: "Керри (Pos 1)",
+      early: ["Wraith Band", "Power Treads", "Magic Wand"],
+      core: ["Battle Fury", "Manta Style", "Black King Bar", "Butterfly", "Satanic"],
+      situational: {
+        "против магов": ["Black King Bar", "Mage Slayer"],
+        "против физики": ["Butterfly", "Heaven's Halberd"],
+        "против иллюзий": ["Mjollnir", "Battle Fury"],
+        "против бурста": ["Satanic", "Eye of Skadi"],
+        "против уклонения": ["Monkey King Bar"]
+      }
+    },
+    mid: {
+      name: "Мид (Pos 2)",
+      early: ["Null Talisman", "Bottle", "Magic Wand"],
+      core: ["Bottle", "Power Treads", "Black King Bar", "Aghanim's Scepter", "Shiva's Guard"],
+      situational: {
+        "против магов": ["Black King Bar", "Linken's Sphere"],
+        "против физики": ["Shiva's Guard", "Ghost Scepter"],
+        "против контроля": ["Linken's Sphere", "Aeon Disk"],
+        "для сноуболла": ["Orchid Malevolence", "Bloodthorn"],
+        "против хила": ["Spirit Vessel"]
+      }
+    },
+    offlane: {
+      name: "Оффлейн (Pos 3)",
+      early: ["Bracer", "Boots of Speed", "Magic Wand"],
+      core: ["Vanguard", "Blink Dagger", "Black King Bar", "Pipe of Insight", "Crimson Guard"],
+      situational: {
+        "против магов": ["Pipe of Insight", "Hood of Defiance"],
+        "против физики": ["Crimson Guard", "Blade Mail"],
+        "для инициации": ["Blink Dagger", "Aghanim's Scepter"],
+        "против мобильности": ["Rod of Atos", "Scythe of Vyse"],
+        "против иллюзий": ["Mjollnir", "Radiance"]
+      }
+    },
+    roam: {
+      name: "Роум (Pos 4)",
+      early: ["Boots of Speed", "Magic Wand", "Wind Lace"],
+      core: ["Blink Dagger", "Aghanim's Scepter", "Black King Bar", "Aether Lens", "Force Staff"],
+      situational: {
+        "для спасения": ["Glimmer Cape", "Force Staff"],
+        "для контроля": ["Scythe of Vyse", "Rod of Atos"],
+        "против магов": ["Black King Bar", "Aeon Disk"],
+        "против невидимок": ["Dust of Appearance", "Sentinel Ward"],
+        "для вижена": ["Observer Ward", "Sentinel Ward"]
+      }
+    },
+    support: {
+      name: "Саппорт (Pos 5)",
+      early: ["Boots of Speed", "Magic Wand", "Wind Lace"],
+      core: ["Glimmer Cape", "Force Staff", "Aghanim's Scepter", "Guardian Greaves", "Aether Lens"],
+      situational: {
+        "для спасения": ["Glimmer Cape", "Force Staff", "Ghost Scepter"],
+        "для хила": ["Mekansm", "Guardian Greaves", "Holy Locket"],
+        "против магов": ["Pipe of Insight", "Glimmer Cape"],
+        "для контроля": ["Scythe of Vyse", "Rod of Atos"],
+        "для вижена": ["Observer Ward", "Sentinel Ward", "Dust of Appearance"]
+      }
+    }
   },
 
   getRoleFromHero: function (heroName) {
@@ -30,13 +80,13 @@ var BrainBuilds = {
   analyzeThreats: function (enemyHeroes) {
     var t = [];
     if (!enemyHeroes || !enemyHeroes.length) return t;
-    var mg = ["Zeus","Storm Spirit","Lina","Lion","Invoker","Tinker","Outworld Destroyer","Leshrac","Queen of Pain","Puck","Void Spirit","Muerta"];
-    var ph = ["Phantom Assassin","Juggernaut","Troll Warlord","Ursa","Drow Ranger","Sniper","Clinkz","Weaver","Terrorblade","Luna"];
-    var il = ["Phantom Lancer","Naga Siren","Meepo","Terrorblade","Arc Warden","Chaos Knight"];
-    var ev = ["Phantom Assassin","Windranger","Faceless Void"];
-    var ct = ["Lion","Shadow Shaman","Bane","Pudge","Axe","Legion Commander","Doom"];
-    var hl = ["Dazzle","Oracle","Omniknight","Warlock","Treant Protector","Io"];
-    var iv = ["Riki","Bounty Hunter","Clinkz","Slark","Nyx Assassin","Weaver","Templar Assassin"];
+    var mg = ["Zeus", "Storm Spirit", "Lina", "Lion", "Invoker", "Tinker", "Outworld Destroyer", "Leshrac", "Queen of Pain", "Puck", "Void Spirit", "Muerta"];
+    var ph = ["Phantom Assassin", "Juggernaut", "Troll Warlord", "Ursa", "Drow Ranger", "Sniper", "Clinkz", "Weaver", "Terrorblade", "Luna"];
+    var il = ["Phantom Lancer", "Naga Siren", "Meepo", "Terrorblade", "Arc Warden", "Chaos Knight"];
+    var ev = ["Phantom Assassin", "Windranger", "Faceless Void"];
+    var ct = ["Lion", "Shadow Shaman", "Bane", "Pudge", "Axe", "Legion Commander", "Doom"];
+    var hl = ["Dazzle", "Oracle", "Omniknight", "Warlock", "Treant Protector", "Io"];
+    var iv = ["Riki", "Bounty Hunter", "Clinkz", "Slark", "Nyx Assassin", "Weaver", "Templar Assassin"];
     for (var i = 0; i < enemyHeroes.length; i++) {
       var h = enemyHeroes[i];
       if (mg.indexOf(h) >= 0) t.push({ type: "magic", hero: h });
@@ -82,7 +132,9 @@ var BrainBuilds = {
     return l.join("\n");
   },
 
-  _positionToRole: function (p) { return { 1: "carry", 2: "mid", 3: "offlane", 4: "roam", 5: "support" }[p] || "carry"; },
+  _positionToRole: function (p) {
+    return { 1: "carry", 2: "mid", 3: "offlane", 4: "roam", 5: "support" }[p] || "carry";
+  },
 
   detect: function (q) {
     var s = String(q || "").toLowerCase();
@@ -100,3 +152,5 @@ var BrainBuilds = {
     return null;
   }
 };
+
+console.log("brain-builds v1.0 ready");
