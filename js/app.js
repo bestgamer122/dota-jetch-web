@@ -1,11 +1,10 @@
-/* DOTA JETCH — APP v14.0 (админка) */
+/* DOTA JETCH — APP v15.0 (без трекера, только админка) */
 
-var APP_VERSION = "14.0";
+var APP_VERSION = "15.0";
 
 var PAGES = {
   dashboard:    { title: "Главная",           render: renderDashboard },
   analyze:      { title: "Анализ матча",      render: renderAnalyze },
-  tracker:      { title: "Трекер игрока",     render: renderPlayerTracker },
   history:      { title: "История",           render: renderHistory },
   charts:       { title: "Прогресс",          render: renderChartsPage },
   diary:        { title: "Дневник",           render: renderDiary },
@@ -20,7 +19,6 @@ var PAGES = {
 var NAV = [
   { page: "dashboard",    label: "Главная",           icon: "M3 11l9-8 9 8v9a2 2 0 0 1-2 2h-4v-7h-6v7H5a2 2 0 0 1-2-2z" },
   { page: "analyze",      label: "Анализ матча",      icon: "M5 3l14 9-14 9z" },
-  { page: "tracker",      label: "Трекер игрока",     icon: "M3 3v18h18M7 14l3-3 4 4 5-6" },
   { page: "history",      label: "История",           icon: "M3 6h18M3 12h18M3 18h18" },
   { page: "charts",       label: "Прогресс",          icon: "M21 12a9 9 0 1 1-9-9M21 3v9h-9" },
   { page: "diary",        label: "Дневник",           icon: "M4 4h12l4 4v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z" },
@@ -205,12 +203,11 @@ function renderDashboard() {
     buildGreeting(),
     [
       UI.btn("Анализ матча", { onclick: function () { switchPage("analyze"); } }),
-      UI.btn("Трекер игрока", { onclick: function () { switchPage("tracker"); }, variant: "ghost" }),
-      UI.btn("Мини-игры", { onclick: function () { switchPage("games"); }, variant: "ghost" })
+      UI.btn("Мини-игры", { onclick: function () { switchPage("games"); }, variant: "ghost" }),
+      UI.btn("Лидерборд", { onclick: function () { switchPage("leaderboard"); }, variant: "ghost" })
     ]
   ));
 
-  /* Глобальное уведомление */
   (function () {
     try {
       var db = window.__fbDB;
@@ -274,7 +271,6 @@ function renderAbout() {
   var feat = UI.card("Возможности");
   var list = [
     "Анализ матчей с оценкой S/A/B/C/D",
-    "Трекер игрока по Steam ID",
     "История и графики",
     "Дневник",
     "Мини-игры: Взлом замка, Атака автоматонов, Викторина",
