@@ -1,22 +1,14 @@
-/* DOTA JETCH — ADMIN PANEL v3.0 (clean maintenance + full user editor) */
+/* DOTA JETCH — ADMIN PANEL v5.0 (fully working toggles + live config) */
 
-/* ─── ХАРДКОД: только эти ники всегда админы ─── */
 var ADMIN_NICKNAMES = ["owner"];
 
-/* ═══════════════════════════════════════════════════════════════
-   ИНЖЕКТ СТИЛЕЙ
-   ═══════════════════════════════════════════════════════════════ */
 (function injectAdminStyles() {
   if (document.getElementById("adminPanelStyles")) return;
   var s = document.createElement("style");
   s.id = "adminPanelStyles";
   s.textContent = `
-    /* ── ФИКС КУРСОРА в модалках ── */
     .cursor-dot, .cursor-ring { z-index: 2147483647 !important; }
 
-    /* ══════════════════════════════════════════════
-       CLEAN MAINTENANCE SCREEN v2
-       ══════════════════════════════════════════════ */
     @keyframes mntFadeIn { from{opacity:0} to{opacity:1} }
     @keyframes mntCardIn { 0%{opacity:0;transform:translateY(24px) scale(0.98)} 100%{opacity:1;transform:translateY(0) scale(1)} }
     @keyframes mntIconPulse { 0%,100%{box-shadow:0 0 0 0 rgba(139,92,246,0.5), 0 0 40px -8px rgba(139,92,246,0.9)} 50%{box-shadow:0 0 0 16px rgba(139,92,246,0), 0 0 60px -8px rgba(139,92,246,1)} }
@@ -58,7 +50,6 @@ var ADMIN_NICKNAMES = ["owner"];
       animation: mntCardIn 0.55s cubic-bezier(0.34,1.56,0.64,1) both;
     }
 
-    /* Иконка */
     .mnt-ico-v2 {
       width: 96px; height: 96px;
       margin: 0 auto 28px;
@@ -77,7 +68,6 @@ var ADMIN_NICKNAMES = ["owner"];
       animation: mntSpin 24s linear infinite;
     }
 
-    /* Бренд */
     .mnt-brand-v2 {
       font-size: 11px; font-weight: 800; letter-spacing: 0.4em;
       color: #8b5cf6; text-transform: uppercase;
@@ -85,7 +75,6 @@ var ADMIN_NICKNAMES = ["owner"];
       opacity: 0.85;
     }
 
-    /* Заголовок */
     .mnt-title-v2 {
       font-size: 40px; font-weight: 900; letter-spacing: -0.025em;
       line-height: 1.05;
@@ -96,14 +85,12 @@ var ADMIN_NICKNAMES = ["owner"];
       margin-bottom: 16px;
     }
 
-    /* Сообщение */
     .mnt-msg-v2 {
       font-size: 15px; color: #9ba0ad;
       line-height: 1.7;
       max-width: 400px; margin: 0 auto 32px;
     }
 
-    /* Countdown */
     .mnt-timer-v2 {
       display: inline-flex; align-items: center; gap: 10px;
       padding: 12px 20px;
@@ -129,7 +116,6 @@ var ADMIN_NICKNAMES = ["owner"];
       font-variant-numeric: tabular-nums;
     }
 
-    /* Кнопка */
     .mnt-btn-v2 {
       display: inline-flex; align-items: center; justify-content: center; gap: 10px;
       padding: 14px 30px;
@@ -149,7 +135,6 @@ var ADMIN_NICKNAMES = ["owner"];
     }
     .mnt-btn-v2:active { transform: translateY(0); }
 
-    /* Футер */
     .mnt-footer-v2 {
       margin-top: 36px;
       padding-top: 22px;
@@ -158,9 +143,6 @@ var ADMIN_NICKNAMES = ["owner"];
       line-height: 1.55;
     }
 
-    /* ══════════════════════════════════════════════
-       ADMIN PANEL UI
-       ══════════════════════════════════════════════ */
     @keyframes admFadeUp { from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:translateY(0)} }
     @keyframes admSlideIn { from{opacity:0;transform:translateX(-10px)} to{opacity:1;transform:translateX(0)} }
     @keyframes admShimmer { 0%{background-position:200% 50%} 100%{background-position:-200% 50%} }
@@ -456,7 +438,6 @@ var ADMIN_NICKNAMES = ["owner"];
     .adm-empty-icon { font-size: 38px; opacity: 0.35; margin-bottom: 8px; }
     .adm-empty-text { font-size: 12.5px; }
 
-    /* Кнопки в модалке юзера */
     .adm-action-btn {
       display: flex; align-items: center; gap: 10px;
       width: 100%; padding: 11px 14px; margin-bottom: 7px;
@@ -469,7 +450,6 @@ var ADMIN_NICKNAMES = ["owner"];
     }
     .adm-action-btn:hover { transform: translateX(3px); filter: brightness(1.15); }
 
-    /* Инпуты в модалке */
     .adm-input-mini {
       width: 100%; padding: 9px 12px;
       background: rgba(15,18,28,0.9);
@@ -483,7 +463,6 @@ var ADMIN_NICKNAMES = ["owner"];
     .adm-input-mini:focus { border-color: var(--accent); }
     .adm-input-mono { font-family: 'JetBrains Mono', monospace; }
 
-    /* Вкладки в модалке юзера */
     .adm-modal-tabs {
       display: flex; gap: 4px; margin-bottom: 16px;
       padding: 4px; border-radius: 11px;
@@ -507,7 +486,6 @@ var ADMIN_NICKNAMES = ["owner"];
       box-shadow: 0 4px 16px -6px rgba(139,92,246,0.6);
     }
 
-    /* Поле-редактор */
     .adm-field {
       display: grid; grid-template-columns: 1fr auto;
       gap: 8px; align-items: center;
@@ -535,9 +513,6 @@ var ADMIN_NICKNAMES = ["owner"];
   document.head.appendChild(s);
 })();
 
-/* ═══════════════════════════════════════════════════════════════
-   ADMIN PANEL CORE
-   ═══════════════════════════════════════════════════════════════ */
 var AdminPanel = {
   isAdmin: false,
   cache: { users: null, config: null, logs: null, activeTab: "dashboard", userFilter: "all" },
@@ -724,33 +699,22 @@ var AdminPanel = {
     return admins[uid] === true;
   },
 
-  /* Смена ника пользователя (и в users, и в nicknames, и в publicProfiles) */
   changeUserNick: async function (uid, oldNick, newNick) {
     try {
       newNick = String(newNick || "").trim();
       if (!/^[A-Za-z0-9_]{3,20}$/.test(newNick)) return { ok: false, msg: "Ник: 3-20 символов, латиница, цифры, _" };
       var db = window.__fbDB;
       var lower = newNick.toLowerCase();
-
-      /* Проверяем что новый ник не занят */
       var taken = await db.get(db.ref(db.db, "nicknames/" + lower));
       if (taken.exists() && taken.val() !== uid) return { ok: false, msg: "Ник занят другим игроком" };
-
-      /* Освобождаем старый */
       if (oldNick) {
         var oldLower = oldNick.toLowerCase();
         try { await db.remove(db.ref(db.db, "nicknames/" + oldLower)); } catch (e) {}
       }
-
-      /* Занимаем новый */
-      var patch = {};
-      patch[lower] = uid;
+      var patch = {}; patch[lower] = uid;
       await db.update(db.ref(db.db, "nicknames"), patch);
-
-      /* Обновляем данные юзера */
       await db.update(db.ref(db.db, "users/" + uid), { nickname: newNick });
       try { await db.update(db.ref(db.db, "publicProfiles/" + uid), { nickname: newNick }); } catch (e) {}
-
       await this.log("change_nick", oldNick + " → " + newNick);
       return { ok: true, msg: "Ник изменён на " + newNick };
     } catch (e) { return { ok: false, msg: "Ошибка: " + (e.message || e) }; }
@@ -759,19 +723,34 @@ var AdminPanel = {
 window.AdminPanel = AdminPanel;
 
 /* ═══════════════════════════════════════════════════════════════
-   MAINTENANCE
+   MAINTENANCE — ЖИВАЯ ПОДПИСКА (onValue)
    ═══════════════════════════════════════════════════════════════ */
 window.checkMaintenance = async function () {
   try {
     var db = window.__fbDB;
     if (!db) return false;
-    var snap = await db.get(db.ref(db.db, "config/maintenance"));
-    var m = snap.val();
-    if (!m || !m.enabled) return false;
-    var isAdmin = await AdminPanel.checkAdmin();
-    if (isAdmin) return false;
-    showMaintenanceScreen(m);
-    return true;
+
+    db.onValue(db.ref(db.db, "config/maintenance"), async function (snap) {
+      try {
+        var m = snap.val();
+        var existingOverlay = document.getElementById("maintenanceOverlay");
+
+        if (!m || !m.enabled) {
+          if (existingOverlay) existingOverlay.remove();
+          return;
+        }
+
+        var isAdmin = await AdminPanel.checkAdmin();
+        if (isAdmin) {
+          if (existingOverlay) existingOverlay.remove();
+          return;
+        }
+
+        if (!existingOverlay) showMaintenanceScreen(m);
+      } catch (e) { console.warn("maintenance onValue:", e); }
+    });
+
+    return false;
   } catch (e) { return false; }
 };
 
@@ -785,31 +764,26 @@ function showMaintenanceScreen(m) {
   var card = document.createElement("div");
   card.className = "mnt-card-v2";
 
-  /* Иконка */
   var ico = document.createElement("div");
   ico.className = "mnt-ico-v2";
   ico.textContent = "🛠️";
   card.appendChild(ico);
 
-  /* Бренд */
   var brand = document.createElement("div");
   brand.className = "mnt-brand-v2";
   brand.textContent = "DOTA JETCH";
   card.appendChild(brand);
 
-  /* Заголовок */
   var title = document.createElement("div");
   title.className = "mnt-title-v2";
   title.textContent = "Технические работы";
   card.appendChild(title);
 
-  /* Сообщение */
   var msg = document.createElement("div");
   msg.className = "mnt-msg-v2";
   msg.textContent = m.message || "Мы обновляем сайт и скоро вернёмся. Спасибо за терпение!";
   card.appendChild(msg);
 
-  /* Countdown */
   var until = m.until ? new Date(m.until) : null;
   if (until && until.getTime() > Date.now()) {
     var timer = document.createElement("div");
@@ -848,7 +822,6 @@ function showMaintenanceScreen(m) {
     }, 100);
   }
 
-  /* Кнопка */
   var btn = document.createElement("button");
   btn.type = "button";
   btn.className = "mnt-btn-v2";
@@ -856,7 +829,6 @@ function showMaintenanceScreen(m) {
   btn.addEventListener("click", function () { location.reload(); });
   card.appendChild(btn);
 
-  /* Футер */
   var footer = document.createElement("div");
   footer.className = "mnt-footer-v2";
   footer.innerHTML = "Мы делаем сайт лучше для тебя.<br>Спасибо за терпение.";
@@ -866,9 +838,6 @@ function showMaintenanceScreen(m) {
   document.body.appendChild(ov);
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   RENDER ADMIN PANEL
-   ═══════════════════════════════════════════════════════════════ */
 function renderAdminPanel() {
   var frag = document.createDocumentFragment();
   var wrapper = el("div", { id: "adminWrapper", class: "adm-wrapper" });
@@ -953,7 +922,6 @@ async function renderAdminTab(tab) {
   else if (tab === "admins") c.appendChild(await renderAdminAdmins());
 }
 
-/* ═══ DASHBOARD ═══ */
 async function renderAdminDashboard() {
   var frag = document.createDocumentFragment();
   var section = el("div", { class: "adm-section" });
@@ -1029,7 +997,6 @@ function buildEmpty(icon, text) {
   return e;
 }
 
-/* ═══ USERS ═══ */
 async function renderAdminUsers() {
   var frag = document.createDocumentFragment();
   var section = el("div", { class: "adm-section" });
@@ -1114,7 +1081,6 @@ function buildUserCard(user, idx) {
   return card;
 }
 
-/* ═══ USER DETAIL MODAL (с вкладками) ═══ */
 function openUserDetailModal(user) {
   var existing = document.getElementById("adminUserModal");
   if (existing) existing.remove();
@@ -1125,7 +1091,6 @@ function openUserDetailModal(user) {
   var box = el("div");
   box.style.cssText = "max-width:580px;width:100%;background:linear-gradient(160deg,rgba(22,24,31,0.98),rgba(14,16,22,0.98));border:1px solid rgba(139,92,246,0.4);border-radius:18px;padding:24px;max-height:92vh;overflow-y:auto;box-shadow:0 40px 100px -30px rgba(0,0,0,0.9),0 0 80px -40px rgba(139,92,246,0.7);animation:admFadeUp 0.4s cubic-bezier(0.34,1.56,0.64,1) both;";
 
-  /* HEADER */
   var header = el("div", { style: "display:flex;align-items:center;gap:14px;margin-bottom:16px;" });
   var av = el("div", { class: "adm-avatar", style: "width:58px;height:58px;font-size:22px;border-radius:14px;" });
   if (user.avatar) av.style.backgroundImage = "url(" + user.avatar + ")";
@@ -1140,7 +1105,6 @@ function openUserDetailModal(user) {
   header.appendChild(closeBtn);
   box.appendChild(header);
 
-  /* STATUS BADGES */
   var statusRow = el("div", { style: "display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px;" });
   statusRow.appendChild(UI.badge("📈 Анализов: " + user.analyzed, "#22d3ee", "rgba(34,211,238,0.12)"));
   if (user.license.forever) statusRow.appendChild(UI.badge("⭐ JETCH+ ∞", "#fbbf24", "rgba(251,191,36,0.14)"));
@@ -1149,7 +1113,6 @@ function openUserDetailModal(user) {
   if (user.blocked) statusRow.appendChild(UI.badge("🚫 ЗАБЛОКИРОВАН", "#ef4444", "rgba(239,68,68,0.14)"));
   box.appendChild(statusRow);
 
-  /* TABS */
   var tabs = el("div", { class: "adm-modal-tabs" });
   var tabDefs = [
     { id: "actions", label: "⚡ Действия" },
@@ -1178,7 +1141,6 @@ function openUserDetailModal(user) {
   box.appendChild(tabs);
   box.appendChild(contentWrap);
 
-  /* ═══ RENDER CONTENT ═══ */
   function makeActionBtn(label, color, bg, handler) {
     var b = el("button", { type: "button" });
     b.className = "adm-action-btn";
@@ -1195,7 +1157,6 @@ function openUserDetailModal(user) {
   async function renderTabContent(tabId) {
     contentWrap.innerHTML = "";
 
-    /* ─── ACTIONS ─── */
     if (tabId === "actions") {
       contentWrap.appendChild(el("div", { class: "adm-section-title", style: "margin-top:0;" }, "Лицензия"));
       if (user.license.forever || user.license.active) {
@@ -1266,7 +1227,6 @@ function openUserDetailModal(user) {
       }));
     }
 
-    /* ─── EDIT ─── */
     if (tabId === "edit") {
       var raw = await AdminPanel.getUserRaw(user.uid);
 
@@ -1349,7 +1309,6 @@ function openUserDetailModal(user) {
       }
     }
 
-    /* ─── DATA ─── */
     if (tabId === "data") {
       var rawData = await AdminPanel.getUserRaw(user.uid);
       contentWrap.appendChild(el("div", { class: "adm-section-title", style: "margin-top:0;" }, "Сырые данные"));
@@ -1379,14 +1338,12 @@ function openUserDetailModal(user) {
   document.body.appendChild(ov);
 }
 
-/* ═══ CONFIG ═══ */
 async function renderAdminConfig() {
   var frag = document.createDocumentFragment();
   var section = el("div", { class: "adm-section" });
   var cfg = await AdminPanel.loadConfig();
   if (!cfg) cfg = { maintenance: { enabled: false, message: "" }, notification: { enabled: false, text: "" }, minigames: {} };
 
-  /* Тех работы */
   section.appendChild(el("div", { class: "adm-section-title" }, "🛠️ Тех работы"));
   var mntCard = el("div", { class: "adm-card" });
   mntCard.appendChild(el("div", { class: "dim", style: "font-size:12px;margin-bottom:12px;line-height:1.55;" }, "Все обычные пользователи увидят экран тех работ. Админы сохранят доступ."));
@@ -1443,7 +1400,6 @@ async function renderAdminConfig() {
   mntCard.appendChild(mntSaveBtn);
   section.appendChild(mntCard);
 
-  /* Уведомление */
   section.appendChild(el("div", { class: "adm-section-title" }, "📢 Уведомление"));
   var notifCard = el("div", { class: "adm-card" });
   notifCard.appendChild(el("div", { class: "dim", style: "font-size:12px;margin-bottom:12px;line-height:1.55;" }, "Баннер на главной странице для всех юзеров."));
@@ -1480,7 +1436,6 @@ async function renderAdminConfig() {
   notifCard.appendChild(notifSaveBtn);
   section.appendChild(notifCard);
 
-  /* Мини-игры */
   section.appendChild(el("div", { class: "adm-section-title" }, "🎮 Мини-игры"));
   var gamesCard = el("div", { class: "adm-card" });
   var games = [
@@ -1512,7 +1467,6 @@ async function renderAdminConfig() {
   return frag;
 }
 
-/* ═══ LOGS ═══ */
 function buildLogRow(log) {
   var actionMeta = {
     give_jetch_forever: { icon: "⭐", label: "Выдан JETCH+ ∞", color: "#fbbf24" },
@@ -1571,7 +1525,6 @@ async function renderAdminLogs() {
   return frag;
 }
 
-/* ═══ ADMINS ═══ */
 async function renderAdminAdmins() {
   var frag = document.createDocumentFragment();
   var section = el("div", { class: "adm-section" });
@@ -1671,4 +1624,4 @@ async function renderAdminAdmins() {
   return frag;
 }
 
-console.log("admin-panel v3.0 ready (clean maintenance, full user editor)");
+console.log("admin-panel v5.0 ready (fully working toggles + live config)");

@@ -1,7 +1,4 @@
-/* DOTA JETCH — MINI-GAMES v15.0
-   - Lockpick: синие зоны дают +1000 очков и +1.5 сек
-   - Dire Jumper: пачечный спавн платформ (нет дыр после 5000м)
-   - Dire Jumper: заряд ломает шипы (визуальное свечение) */
+/* DOTA JETCH — MINI-GAMES v16.0 (live config sync) */
 
 var QUIZ = [
   { q: "Какая способность у Juggernaut даёт неуязвимость во время каста?", a: "Omnislash", opts: ["Omnislash", "Blade Fury", "Blade Dance", "Healing Ward"] },
@@ -56,9 +53,72 @@ var _activeLockpick = null;
 var _activeAutomaton = null;
 var _activeDireJumper = null;
 
+/* ─── Подписка на настройки мини-игр (админ может выключить) ─── */
+(function setupMinigamesWatcher() {
+  if (typeof window === "undefined") return;
+  function trySubscribe() {
+    var db = window.__fbDB;
+    if (!db) { setTimeout(trySubscribe, 500); return; }
+    try {
+      db.onValue(db.ref(db.db, "config/minigames"), function (snap) {
+        var settings = snap.val() || {};
+        window.__minigamesSettings = settings;
+
+        var allOff = true;
+        for (var k in settings) {
+          if (settings[k] === true) { allOff = false; break; }
+        }
+
+        var gamesPage = document.querySelector('[data-page="games"]');
+        if (gamesPage) {
+          if (allOff) {
+            gamesPage.style.opacity = "0.4";
+            gamesPage.style.pointerEvents = "none";
+            gamesPage.title = "Мини-игры временно отключены администратором";
+          } else {
+            gamesPage.style.opacity = "";
+            gamesPage.style.pointerEvents = "";
+            gamesPage.title = "";
+          }
+        }
+
+        if (location.hash === "#games") {
+          setTimeout(function () {
+            if (typeof switchPage === "function") switchPage("games");
+          }, 100);
+        }
+      });
+    } catch (e) { console.warn("minigames watcher:", e); }
+  }
+  trySubscribe();
+})();
+
+function isGameEnabled(gameId) {
+  var s = window.__minigamesSettings;
+  if (!s) return true;
+  return s[gameId] !== false;
+}
+
 function renderGames() {
   var frag = document.createDocumentFragment();
   frag.appendChild(UI.heroBanner("Мини-игры", "Выбери игру и покажи лучший результат", []));
+
+  var anyEnabled = false;
+  var gamesList = ["lockpick", "automaton", "direjumper", "quiz"];
+  for (var ii = 0; ii < gamesList.length; ii++) {
+    if (isGameEnabled(gamesList[ii])) { anyEnabled = true; break; }
+  }
+
+  if (!anyEnabled) {
+    var offCard = UI.card("");
+    offCard.style.cssText = "text-align:center;padding:60px 30px;";
+    offCard.appendChild(el("div", { style: "font-size:64px;margin-bottom:20px;opacity:0.4;" }, "🛠️"));
+    offCard.appendChild(el("div", { style: "font-size:18px;font-weight:800;color:var(--text);margin-bottom:8px;" }, "Мини-игры отключены"));
+    offCard.appendChild(el("div", { class: "dim", style: "font-size:13px;line-height:1.6;max-width:400px;margin:0 auto;" }, "Администратор временно отключил все мини-игры. Заходи позже."));
+    frag.appendChild(offCard);
+    return frag;
+  }
+
   var tabs = el("div", { class: "row", style: "margin-bottom:16px;gap:8px;flex-wrap:wrap;" });
   var tabDefs = [
     { id: "lockpick", label: "🔓 Взлом замка" },
@@ -68,26 +128,35 @@ function renderGames() {
   ];
   for (var t = 0; t < tabDefs.length; t++) {
     (function (tab) {
-      var isActive = tab.id === CURRENT_GAME;
-      var b = UI.btn(tab.label, { variant: isActive ? undefined : "ghost", id: "gameTab_" + tab.id });
-      b.addEventListener("click", function () {
-        stopActiveGames();
-        CURRENT_GAME = tab.id;
-        qsa("#gameTab_lockpick, #gameTab_automaton, #gameTab_direjumper, #gameTab_quiz").forEach(function (btn) {
-          btn.classList.remove("active");
-          btn.classList.add("btn-ghost");
+      var enabled = isGameEnabled(tab.id);
+      var isActive = tab.id === CURRENT_GAME && enabled;
+      var b = UI.btn(tab.label + (enabled ? "" : " 🚫"), { variant: isActive ? undefined : "ghost", id: "gameTab_" + tab.id });
+      if (!enabled) {
+        b.disabled = true;
+        b.style.opacity = "0.4";
+        b.style.cursor = "not-allowed";
+      } else {
+        b.addEventListener("click", function () {
+          stopActiveGames();
+          CURRENT_GAME = tab.id;
+          qsa("#gameTab_lockpick, #gameTab_automaton, #gameTab_direjumper, #gameTab_quiz").forEach(function (btn) {
+            btn.classList.remove("active");
+            btn.classList.add("btn-ghost");
+          });
+          b.classList.add("active");
+          b.classList.remove("btn-ghost");
+          showIntro(tab.id);
         });
-        b.classList.add("active");
-        b.classList.remove("btn-ghost");
-        showIntro(tab.id);
-      });
+      }
       tabs.appendChild(b);
     })(tabDefs[t]);
   }
   frag.appendChild(tabs);
+
   if (typeof window.renderRatingWidget === "function") {
     try { frag.appendChild(window.renderRatingWidget()); } catch (e) {}
   }
+
   var stats = el("div", { class: "stat-grid" });
   var lpBest = Store.get("lockpickbest", 0) || 0;
   var autoBest = Store.get("automatonbest", 0) || 0;
@@ -98,6 +167,7 @@ function renderGames() {
   stats.appendChild(UI.statCard("🎪", "var(--accent-light)", "var(--accent-bg)", "Дири-Джампер", djBest ? djBest.toLocaleString() : "—", "лучший"));
   stats.appendChild(UI.statCard("🧠", "var(--green)", "var(--green-bg)", "Викторина", q ? q + "/10" : "—", "лучший"));
   frag.appendChild(stats);
+
   var area = el("div", { id: "gameArea" });
   frag.appendChild(area);
   setTimeout(function () { showIntro(CURRENT_GAME); }, 50);
@@ -116,6 +186,17 @@ function showIntro(kind) {
   var area = qs("#gameArea");
   if (!area) return;
   area.innerHTML = "";
+
+  if (!isGameEnabled(kind)) {
+    var offCard = UI.card("");
+    offCard.style.cssText = "text-align:center;padding:50px 30px;";
+    offCard.appendChild(el("div", { style: "font-size:56px;margin-bottom:16px;opacity:0.4;" }, "🚫"));
+    offCard.appendChild(el("div", { style: "font-size:16px;font-weight:800;color:var(--text);margin-bottom:6px;" }, "Игра недоступна"));
+    offCard.appendChild(el("div", { class: "dim", style: "font-size:12.5px;line-height:1.55;" }, "Эта мини-игра временно отключена администратором."));
+    area.appendChild(offCard);
+    return;
+  }
+
   if (kind === "lockpick") area.appendChild(buildLockpickIntro());
   else if (kind === "automaton") area.appendChild(buildAutomatonIntro());
   else if (kind === "direjumper") area.appendChild(buildDireJumperIntro());
@@ -123,6 +204,10 @@ function showIntro(kind) {
 }
 
 function startGame(kind) {
+  if (!isGameEnabled(kind)) {
+    showIntro(kind);
+    return;
+  }
   var area = qs("#gameArea");
   if (!area) return;
   area.innerHTML = "";
@@ -295,7 +380,6 @@ function renderLockpick() {
       if (isInZone(state.angle, z)) {
         hit = true;
         if (z.blue) {
-          /* ФИКС: синяя зона теперь даёт +1000 очков И +1.5 сек */
           state.score += 1000;
           state.hitCount++;
           state.timeLeft = Math.min(60, state.timeLeft + 1.5);
@@ -436,7 +520,6 @@ function renderAutomaton() {
     if (!st.running) return;
     var typed = String(rawVal || "").toLowerCase().replace(/[^a-z0-9]/g, "");
     if (!typed) return;
-    var matched = false;
     for (var i = 0; i < st.words.length; i++) {
       var w = st.words[i]; var target = w.word.toLowerCase().replace(/[^a-z0-9]/g, "");
       if (target === typed) {
@@ -449,6 +532,7 @@ function renderAutomaton() {
         return;
       }
     }
+    var matched = false;
     for (var j = 0; j < st.words.length; j++) {
       var w2 = st.words[j]; var t2 = w2.word.toLowerCase().replace(/[^a-z0-9]/g, "");
       if (t2.indexOf(typed) === 0) { w2.el.style.background = "rgba(251,191,36,0.18)"; w2.el.style.borderColor = "var(--gold)"; matched = true; }
@@ -562,7 +646,6 @@ function renderQuiz() {
   return card;
 }
 
-/* ─── DIRE JUMPER v15.0 — FEEL + FIXES ─── */
 function renderDireJumper() {
   var card = UI.card("🎪 Дири-Джампер");
   var topRow = el("div", { style: "display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;" });
@@ -594,8 +677,6 @@ function renderDireJumper() {
   card.appendChild(statusEl);
   var W = canvas.width, H = canvas.height;
   var LAVA_HEIGHT = 28, SHOT_COOLDOWN = 300, JUMP_POWER = -14, MAX_VY = 16;
-
-  /* FEEL TUNING */
   var COYOTE_TIME = 0.12;
   var JUMP_BUFFER_TIME = 0.15;
   var RISE_GRAVITY = 0.5;
@@ -603,7 +684,6 @@ function renderDireJumper() {
   var APEX_THRESHOLD = 2.5;
   var APEX_GRAVITY_MULT = 0.45;
   var PLATFORMS_ABOVE_CAMERA = 10;
-
   var lastShotTime = 0;
   var state = {
     running: false, score: 0, best: Store.get("direjumperbest", 0) || 0,
@@ -617,7 +697,6 @@ function renderDireJumper() {
     screenShake: 0, screenShakeDecay: 0.88
   };
   var rafId = null; var listenersAttached = false;
-
   function attachListeners() {
     if (listenersAttached) return;
     document.addEventListener("keydown", onKeyDown, true);
@@ -634,29 +713,22 @@ function renderDireJumper() {
   _activeDireJumper = { stop: stop };
   function stopDireJumper() { stop(); _activeDireJumper = null; }
   window._stopDireJumper = stopDireJumper;
-
-  /* ─── ЗИГЗАГ-ГЕНЕРАЦИЯ ─── */
   function spawnPlatformAbove(baseX, baseY) {
     var isFirst3 = state.platformCount < 3;
     for (var attempt = 0; attempt < 30; attempt++) {
       var w = isFirst3 ? 100 : (85 + Math.random() * 30);
       var step = isFirst3 ? 70 : (70 + Math.random() * 30);
       var y = baseY - step;
-
       var side = (state.platformCount % 2 === 0) ? 1 : -1;
       var dist = isFirst3 ? 30 : (50 + Math.random() * 60);
       var bias = side * dist;
-
       var pull = 0;
       if (baseX < W * 0.25) pull = 30;
       else if (baseX > W * 0.75) pull = -30;
-
       var xCenter = baseX + bias + pull;
       var x = xCenter - w / 2;
-
       if (x < 15) x = 15;
       if (x + w > W - 15) x = W - 15 - w;
-
       var overlaps = false;
       for (var i = 0; i < state.platforms.length; i++) {
         var p = state.platforms[i];
@@ -664,7 +736,6 @@ function renderDireJumper() {
           if (x < p.x + p.w + 20 && x + w + 20 > p.x) { overlaps = true; break; }
         }
       }
-
       if (!overlaps) {
         var type = "static";
         if (!isFirst3) {
@@ -676,7 +747,6 @@ function renderDireJumper() {
         var p2 = { x: x, y: y, w: w, h: 12, type: type, dir: Math.random() < 0.5 ? 1 : -1, speed: 0.35 + Math.random() * 0.35, baseX: x };
         state.platforms.push(p2);
         state.platformCount++;
-
         if (!isFirst3 && type === "static" && Math.random() < 0.18 && y < -300) {
           var obsW = 18;
           var obsX = x + 20 + Math.random() * Math.max(1, w - obsW - 40);
@@ -699,8 +769,6 @@ function renderDireJumper() {
     state.platformCount++;
     return pf;
   }
-
-  /* ФИКС: пачечный спавн — всегда поддерживаем N платформ выше камеры */
   function ensurePlatformsAbove() {
     var topPlatform = null;
     var platformsAboveCam = 0;
@@ -716,7 +784,6 @@ function renderDireJumper() {
       iterations++;
     }
   }
-
   function reset() {
     state.score = 0; state.cameraY = 0; state.maxHeight = 0;
     state.platforms = []; state.obstacles = []; state.projectiles = []; state.particles = []; state.powerups = [];
@@ -726,24 +793,20 @@ function renderDireJumper() {
     state.coyoteTimer = 0; state.jumpBufferTimer = 0;
     state.grounded = false; state.currentPlatform = null;
     state.screenShake = 0;
-
     var startPlatformY = H - LAVA_HEIGHT - 70;
     var startX = W / 2 - 50;
     var startY = startPlatformY - 30;
     state.player = { x: startX + 35, y: startY, vx: 0, vy: 0, w: 30, h: 30, facing: 1, animT: 0, prevY: startY, charge: false };
     state.platforms.push({ x: startX, y: startPlatformY, w: 100, h: 12, type: "static", dir: 1, speed: 0, baseX: startX });
-
     ensurePlatformsAbove();
     updateHUD();
   }
-
   function updateHUD() {
     scoreH.val.textContent = state.score.toLocaleString();
     var h = Math.max(0, Math.floor(state.maxHeight / 10));
     heightH.val.textContent = h + " м";
     bestH.val.textContent = state.best.toLocaleString();
   }
-
   function onKeyDown(e) {
     if (!state.running) return;
     var code = e.code || "";
@@ -772,14 +835,12 @@ function renderDireJumper() {
     state.projectiles.push({ x: state.player.x + state.player.w / 2, y: state.player.y, vy: -12, animT: 0 });
     _snd("hit");
   }
-
   canvas.addEventListener("mousedown", function (e) {
     if (!state.running) return;
     e.preventDefault();
     fireProjectile();
   });
   canvas.addEventListener("contextmenu", function (e) { e.preventDefault(); });
-
   function checkPlatformCollision(p) {
     if (p.vy < -0.1) return null;
     var prevBottom = p.prevY + p.h;
@@ -793,7 +854,6 @@ function renderDireJumper() {
     }
     return null;
   }
-
   function addParticles(x, y, count, color, speed) {
     for (var i = 0; i < count; i++) {
       state.particles.push({
@@ -807,7 +867,6 @@ function renderDireJumper() {
       });
     }
   }
-
   function loop(ts) {
     if (!state.running) return;
     var dt = Math.min((ts - state.lastFrame) / 16.67, 1.5);
@@ -817,7 +876,6 @@ function renderDireJumper() {
     p.animT += dt;
     p.prevY = p.y;
     var wasGrounded = state.grounded;
-
     for (var i = 0; i < state.platforms.length; i++) {
       var pl = state.platforms[i];
       if (pl.type === "moving") {
@@ -826,13 +884,11 @@ function renderDireJumper() {
         if (pl.x + pl.w > W - 10) { pl.x = W - 10 - pl.w; pl.dir = -1; }
       }
     }
-
     if (state.grounded && state.currentPlatform && state.currentPlatform.type === "moving") {
       p.x += state.currentPlatform.dir * state.currentPlatform.speed * dt;
       if (p.x < -p.w) p.x = W;
       if (p.x > W) p.x = -p.w;
     }
-
     var accel = 0.7;
     if (state.keys.left) p.vx -= accel;
     if (state.keys.right) p.vx += accel;
@@ -843,7 +899,6 @@ function renderDireJumper() {
     p.x += p.vx * dt;
     if (p.x < -p.w) p.x = W;
     if (p.x > W) p.x = -p.w;
-
     var grav = p.vy < 0 ? RISE_GRAVITY : FALL_GRAVITY;
     if (Math.abs(p.vy) < APEX_THRESHOLD && !state.grounded) {
       grav *= APEX_GRAVITY_MULT;
@@ -851,14 +906,12 @@ function renderDireJumper() {
     p.vy += grav * dt;
     if (p.vy > MAX_VY) p.vy = MAX_VY;
     p.y += p.vy * dt;
-
     var hitPlatform = checkPlatformCollision(p);
     if (hitPlatform) {
       p.y = hitPlatform.y - p.h;
       state.grounded = true;
       state.coyoteTimer = COYOTE_TIME;
       state.currentPlatform = hitPlatform;
-
       if (hitPlatform.type === "fragile") {
         var idx = state.platforms.indexOf(hitPlatform);
         if (idx >= 0) state.platforms.splice(idx, 1);
@@ -874,7 +927,6 @@ function renderDireJumper() {
         state.grounded = false;
       } else {
         p.vy = 0;
-        /* ФИКС: приземление на обычную платформу сбрасывает заряд */
         p.charge = false;
         if (!wasGrounded) {
           addParticles(p.x + p.w / 2, p.y + p.h, 4, "#6b7593", 2);
@@ -884,7 +936,6 @@ function renderDireJumper() {
       state.grounded = false;
       state.currentPlatform = null;
     }
-
     if (state.jumpBufferTimer > 0 && (state.grounded || state.coyoteTimer > 0)) {
       p.vy = JUMP_POWER;
       state.grounded = false;
@@ -893,11 +944,8 @@ function renderDireJumper() {
       addParticles(p.x + p.w / 2, p.y + p.h, 6, "#38bdf8", 4);
       _snd("hit");
     }
-
     if (state.jumpBufferTimer > 0) state.jumpBufferTimer -= dt * (1/60);
     if (!state.grounded && state.coyoteTimer > 0) state.coyoteTimer -= dt * (1/60);
-
-    /* ФИКС: пружина/ракета дают заряд для ломания шипов */
     for (var j = state.powerups.length - 1; j >= 0; j--) {
       var pu = state.powerups[j];
       if (p.x + p.w > pu.x && p.x < pu.x + pu.w && p.y + p.h > pu.y && p.y < pu.y + pu.h) {
@@ -915,15 +963,12 @@ function renderDireJumper() {
         _snd("hit");
       }
     }
-
-    /* ФИКС: с зарядом шипы ломаются, без заряда — смерть */
     for (var oi = state.obstacles.length - 1; oi >= 0; oi--) {
       var ob = state.obstacles[oi];
       if (!ob.alive) continue;
       if (p.x + p.w > ob.x + 3 && p.x < ob.x + ob.w - 3 && p.y + p.h > ob.y + 3 && p.y < ob.y + ob.h - 3) {
         if (ob.type === "spike") {
           if (p.charge) {
-            /* Ломаем шип */
             ob.alive = false;
             addParticles(ob.x + ob.w / 2, ob.y + ob.h / 2, 16, "#fbbf24", 7);
             state.obstacles.splice(oi, 1);
@@ -942,7 +987,6 @@ function renderDireJumper() {
         }
       }
     }
-
     for (var pi = state.projectiles.length - 1; pi >= 0; pi--) {
       var pr = state.projectiles[pi];
       pr.y -= 12 * dt;
@@ -961,7 +1005,6 @@ function renderDireJumper() {
         }
       }
     }
-
     var targetCam = p.y - H * 0.55;
     if (targetCam < state.cameraY) {
       var diff = state.cameraY - targetCam;
@@ -969,26 +1012,20 @@ function renderDireJumper() {
       if (state.maxHeight < state.cameraY * -1) state.maxHeight = state.cameraY * -1;
       state.score = Math.floor(state.maxHeight);
     }
-
     var lavaTopWorld = state.cameraY + H - LAVA_HEIGHT;
     if (p.y + p.h >= lavaTopWorld) { die("lava"); return; }
-
     if (state.score > state.lastCheckedScore + 500) {
       state.lastCheckedScore = state.score;
       if (typeof Achievements !== "undefined") Achievements.check();
     }
-
-    /* ФИКС: пачечный спавн вместо одиночного */
     state.spawnAcc += dt;
     if (state.spawnAcc > 15) {
       state.spawnAcc = 0;
       ensurePlatformsAbove();
     }
-
     for (var di = state.platforms.length - 1; di >= 0; di--) if (state.platforms[di].y > state.cameraY + H + 100) state.platforms.splice(di, 1);
     for (var di2 = state.obstacles.length - 1; di2 >= 0; di2--) if (state.obstacles[di2].y > state.cameraY + H + 100) state.obstacles.splice(di2, 1);
     for (var di3 = state.powerups.length - 1; di3 >= 0; di3--) if (state.powerups[di3].y > state.cameraY + H + 100) state.powerups.splice(di3, 1);
-
     for (var qi = state.particles.length - 1; qi >= 0; qi--) {
       var q = state.particles[qi];
       q.x += q.vx * dt;
@@ -996,17 +1033,14 @@ function renderDireJumper() {
       q.life -= dt;
       if (q.life <= 0) state.particles.splice(qi, 1);
     }
-
     if (state.screenShake > 0) {
       state.screenShake *= state.screenShakeDecay;
       if (state.screenShake < 0.1) state.screenShake = 0;
     }
-
     draw();
     updateHUD();
     rafId = requestAnimationFrame(loop);
   }
-
   function drawBackground(ctx) {
     var bgGrad = ctx.createLinearGradient(0, 0, 0, H);
     bgGrad.addColorStop(0, "#080a10"); bgGrad.addColorStop(0.6, "#0e1420"); bgGrad.addColorStop(1, "#1a0f14");
@@ -1190,8 +1224,6 @@ function renderDireJumper() {
     var sway = grounded ? 0 : Math.sin(animT * 0.15) * 1.2;
     var squash = 1 + Math.max(-0.15, Math.min(0.15, -vy * 0.012));
     var rw = w / 2, rh = h / 2;
-
-    /* ФИКС: свечение при заряде */
     if (charged) {
       var glowPulse = 1 + Math.sin(performance.now() / 100) * 0.15;
       var glowR = rw * 2.2 * glowPulse;
@@ -1204,7 +1236,6 @@ function renderDireJumper() {
       ctx.arc(cx, cy, glowR, 0, Math.PI * 2);
       ctx.fill();
     }
-
     ctx.save();
     ctx.translate(cx, cy + sway);
     ctx.scale(2 - squash, squash);
@@ -1370,4 +1401,4 @@ if (!window._gamesGlobalListeners) {
   });
 }
 
-console.log("games v15.0 ready (Lockpick blue=+1000; DireJumper: batch spawn, charge breaks spikes)");
+console.log("games v16.0 ready (live config sync)");

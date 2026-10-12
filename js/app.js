@@ -1,6 +1,6 @@
-/* DOTA JETCH — APP v15.0 (без трекера, только админка) */
+/* DOTA JETCH — APP v16.0 (live config sync) */
 
-var APP_VERSION = "15.0";
+var APP_VERSION = "16.0";
 
 var PAGES = {
   dashboard:    { title: "Главная",           render: renderDashboard },
@@ -212,19 +212,24 @@ function renderDashboard() {
     try {
       var db = window.__fbDB;
       if (!db) return;
-      db.get(db.ref(db.db, "config/notification")).then(function (snap) {
+      db.onValue(db.ref(db.db, "config/notification"), function (snap) {
         var n = snap.val();
+        var existing = document.getElementById("globalNotifBox");
         if (n && n.enabled && n.text) {
-          var box = document.createElement("div");
-          box.style.cssText = "padding:12px 16px;background:var(--accent-bg);border:1px solid var(--accent);border-radius:12px;margin-bottom:16px;font-size:13px;color:var(--accent-light);line-height:1.5;";
-          box.textContent = "📢 " + n.text;
-          var wrap = document.getElementById("pageContent");
-          if (wrap && !document.getElementById("globalNotifBox")) {
+          if (existing) {
+            existing.textContent = "📢 " + n.text;
+          } else {
+            var box = document.createElement("div");
             box.id = "globalNotifBox";
-            wrap.insertBefore(box, wrap.firstChild);
+            box.style.cssText = "padding:12px 16px;background:var(--accent-bg);border:1px solid var(--accent);border-radius:12px;margin-bottom:16px;font-size:13px;color:var(--accent-light);line-height:1.5;";
+            box.textContent = "📢 " + n.text;
+            var wrap = document.getElementById("pageContent");
+            if (wrap) wrap.insertBefore(box, wrap.firstChild);
           }
+        } else {
+          if (existing) existing.remove();
         }
-      }).catch(function () {});
+      });
     } catch (e) {}
   })();
 
@@ -265,7 +270,7 @@ function renderChartsPage() {
 function renderAbout() {
   var frag = document.createDocumentFragment();
   var head = UI.card("");
-  head.appendChild(el("div", { style: "font-size:20px;font-weight:bold;color:var(--accent-light);" }, "DOTA JETCH AI 2.0"));
+  head.appendChild(el("div", { style: "font-size:20px;font-weight:bold;color:var(--accent-light);" }, "DOTA JETCH"));
   head.appendChild(el("div", { class: "dim", style: "font-size:12px;margin-top:6px;" }, "Version " + APP_VERSION));
   frag.appendChild(head);
   var feat = UI.card("Возможности");
@@ -273,7 +278,7 @@ function renderAbout() {
     "Анализ матчей с оценкой S/A/B/C/D",
     "История и графики",
     "Дневник",
-    "Мини-игры: Взлом замка, Атака автоматонов, Викторина",
+    "Мини-игры: Взлом замка, Атака автоматонов, Дири-Джампер, Викторина",
     "Рейтинг и медали",
     "Лидерборд",
     "Достижения (24)",
@@ -535,3 +540,5 @@ window.addEventListener("hashchange", function () {
   var h = (location.hash || "#dashboard").slice(1);
   if (h !== currentPage && PAGES[h]) switchPage(h);
 });
+
+console.log("SWSW")
