@@ -1,7 +1,7 @@
 {
-  "name": "DOTA JETCH · AI 2.0",
+  "name": "DOTA JETCH",
   "short_name": "DOTA JETCH",
-  "description": "Анализ матчей, ИИ-ассистент, дневник и мини-игры для Dota 2",
+  "description": "Анализ матчей, дневник и мини-игры для Dota 2",
   "start_url": "./index.html",
   "display": "standalone",
   "orientation": "any",
