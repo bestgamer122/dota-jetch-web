@@ -12,7 +12,6 @@ var Daily = {
   tasks: function () {
     var all = [
       { id: "analyze", title: "Разбери 1 матч", desc: "Вкладка Анализ", prog: function () { return Store.get("dailyprogress.analyze", 0) || 0; }, goal: 1 },
-      { id: "chat", title: "Задай 2 вопроса ИИ", desc: "Только JETCH+", prog: function () { return Store.get("dailyprogress.chat", 0) || 0; }, goal: 2 },
       { id: "diary", title: "Запиши в дневник", desc: "1 запись", prog: function () { return Store.get("dailyprogress.diary", 0) || 0; }, goal: 1 },
       { id: "game", title: "Сыграй в мини-игру", desc: "Реакция, викторина", prog: function () { return Store.get("dailyprogress.game", 0) || 0; }, goal: 1 },
       { id: "chart", title: "Открой графики", desc: "Прогресс", prog: function () { return Store.get("dailyprogress.chart", 0) || 0; }, goal: 1 },
@@ -68,21 +67,19 @@ function renderDailyWidget() {
     Store.set("dailystreakclaimed", false);
   }
   var grid = el("div", { style: "display:flex;flex-direction:column;gap:10px;" });
-  var plus = Store.get("license.active", false) === true;
   for (var j = 0; j < tasks.length; j++) {
     var t = tasks[j];
     var cur = Math.min(t.prog(), t.goal);
     var done = cur >= t.goal;
-    var locked = (t.id === "chat" && !plus);
     var row = el("div", {
       style: "display:flex;align-items:center;gap:14px;padding:12px 14px;border-radius:12px;background:" + (done ? "var(--green-bg)" : "var(--bg-elev)") + ";border:1px solid " + (done ? "var(--green)" : "var(--border)") + ";"
     });
-    row.appendChild(el("div", { style: "font-size:16px;font-weight:800;color:" + (done ? "var(--green)" : "var(--text-muted)") + ";width:28px;text-align:center;font-family:'JetBrains Mono',monospace;" }, done ? "V" : locked ? "L" : String(cur)));
+    row.appendChild(el("div", { style: "font-size:16px;font-weight:800;color:" + (done ? "var(--green)" : "var(--text-muted)") + ";width:28px;text-align:center;font-family:'JetBrains Mono',monospace;" }, done ? "V" : String(cur)));
     var info = el("div", { style: "flex:1;" });
     info.appendChild(el("div", { style: "font-size:13px;font-weight:600;" }, t.title));
-    info.appendChild(el("div", { class: "dim", style: "font-size:11px;margin-top:3px;" }, done ? "Выполнено" : locked ? "Только JETCH+" : t.desc));
+    info.appendChild(el("div", { class: "dim", style: "font-size:11px;margin-top:3px;" }, done ? "Выполнено" : t.desc));
     row.appendChild(info);
-    row.appendChild(el("div", { style: "font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:" + (done ? "var(--green)" : "var(--text-muted)") + ";" }, locked ? "-" : cur + "/" + t.goal));
+    row.appendChild(el("div", { style: "font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:" + (done ? "var(--green)" : "var(--text-muted)") + ";" }, cur + "/" + t.goal));
     grid.appendChild(row);
   }
   card.appendChild(grid);
@@ -102,3 +99,5 @@ function renderDailyWidget() {
   card.appendChild(foot);
   return card;
 }
+
+console.log("daily v2.0 ready (без ИИ-заданий)");

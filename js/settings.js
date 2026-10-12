@@ -1,5 +1,4 @@
-/* DOTA JETCH — SETTINGS v7.0
-   Убрана карточка настройки нейросети — всё работает автоматически через Pollinations */
+/* DOTA JETCH — SETTINGS v8.0 */
 
 var FOREVER_KEY = "DANYA8228PRO";
 
@@ -147,8 +146,8 @@ function renderPlanCard(frag) {
 
     var feats = el("div", { class: "dim", style: "font-size:12px;margin-bottom:12px;line-height:1.6;" });
     feats.appendChild(el("div", {}, "+ Бесконечные анализы"));
-    feats.appendChild(el("div", {}, "+ ИИ чат (локальная + внешняя)"));
-    feats.appendChild(el("div", {}, "+ Все функции"));
+    feats.appendChild(el("div", {}, "+ Расширенная статистика"));
+    feats.appendChild(el("div", {}, "+ Ранний доступ к новым функциям"));
     plan.appendChild(feats);
 
     plan.appendChild(el("div", { style: "font-size:11px;color:var(--text-muted);margin-bottom:8px;" }, "КЛЮЧ АКТИВАЦИИ:"));
@@ -261,3 +260,5 @@ function renderSettings() {
   renderPerfCard(frag);
   return frag;
 }
+
+console.log("settings v8.0 ready (без ИИ)");

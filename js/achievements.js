@@ -1,4 +1,4 @@
-/* DOTA JETCH — ACHIEVEMENTS v2.1 (Dire Jumper) */
+/* DOTA JETCH — ACHIEVEMENTS v3.0 (без ИИ-категорий) */
 
 var ACHIEVEMENTS = [
   { id: "a1", cat: "Анализ", icon: "1", title: "Первый анализ", desc: "1 матч", check: function (s) { return s.analyzed >= 1; } },
@@ -8,9 +8,6 @@ var ACHIEVEMENTS = [
   { id: "a5", cat: "Герои", icon: "5", title: "Разнообразие", desc: "5 героев", check: function (s) { return s.uniqueHeroes >= 5; } },
   { id: "a6", cat: "Герои", icon: "15", title: "Коллекционер", desc: "15 героев", check: function (s) { return s.uniqueHeroes >= 15; } },
   { id: "a7", cat: "Герои", icon: "50", title: "Все", desc: "50 героев", check: function (s) { return s.uniqueHeroes >= 50; } },
-  { id: "a8", cat: "Ассистент", icon: "1", title: "Первый вопрос", desc: "1 вопрос ИИ", check: function (s) { return s.aiQuestions >= 1; } },
-  { id: "a9", cat: "Ассистент", icon: "10", title: "Любознательный", desc: "10 вопросов", check: function (s) { return s.aiQuestions >= 10; } },
-  { id: "a10", cat: "Ассистент", icon: "50", title: "Болтун", desc: "50 вопросов", check: function (s) { return s.aiQuestions >= 50; } },
   { id: "a11", cat: "Дневник", icon: "1", title: "Первая запись", desc: "1 запись", check: function (s) { return s.diaryNotes >= 1; } },
   { id: "a12", cat: "Дневник", icon: "10", title: "Хроникёр", desc: "10 записей", check: function (s) { return s.diaryNotes >= 10; } },
   { id: "a13", cat: "Дневник", icon: "50", title: "Автор", desc: "50 записей", check: function (s) { return s.diaryNotes >= 50; } },
@@ -37,7 +34,6 @@ var Achievements = {
     return {
       analyzed: Store.get("analyzedcount", 0) || 0,
       uniqueHeroes: Array.isArray(u) ? u.length : 0,
-      aiQuestions: Store.get("aiquestions", 0) || 0,
       diaryNotes: (Store.get("diarynotes", []) || []).length,
       gamesPlayed: Store.get("gamesplayed", 0) || 0,
       reactionBest: Store.get("reactionbest", 0) || 0,
@@ -152,3 +148,5 @@ function renderAchievements() {
   }
   return frag;
 }
+
+console.log("achievements v3.0 ready");
