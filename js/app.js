@@ -1,9 +1,10 @@
-/* DOTA JETCH — APP v16.0 (live config sync) */
+/* DOTA JETCH — APP v17.0 (profile analyzer) */
 
-var APP_VERSION = "16.0";
+var APP_VERSION = "17.0";
 
 var PAGES = {
   dashboard:    { title: "Главная",           render: renderDashboard },
+  profile:      { title: "Мой профиль",       render: function () { return ProfileAnalyzer.render(); } },
   analyze:      { title: "Анализ матча",      render: renderAnalyze },
   history:      { title: "История",           render: renderHistory },
   charts:       { title: "Прогресс",          render: renderChartsPage },
@@ -18,6 +19,7 @@ var PAGES = {
 
 var NAV = [
   { page: "dashboard",    label: "Главная",           icon: "M3 11l9-8 9 8v9a2 2 0 0 1-2 2h-4v-7h-6v7H5a2 2 0 0 1-2-2z" },
+  { page: "profile",      label: "Мой профиль",       icon: "M12 2a10 10 0 1 0 0 20a10 10 0 1 0 0-20zm0 3a3 3 0 1 1 0 6a3 3 0 1 0 0-6zm0 14.2a7.2 7.2 0 0 1-4.8-2.2c1.4-1.8 3.2-2.8 4.8-2.8s3.4 1 4.8 2.8a7.2 7.2 0 0 1-4.8 2.2z" },
   { page: "analyze",      label: "Анализ матча",      icon: "M5 3l14 9-14 9z" },
   { page: "history",      label: "История",           icon: "M3 6h18M3 12h18M3 18h18" },
   { page: "charts",       label: "Прогресс",          icon: "M21 12a9 9 0 1 1-9-9M21 3v9h-9" },
@@ -202,9 +204,9 @@ function renderDashboard() {
     "DOTA JETCH",
     buildGreeting(),
     [
-      UI.btn("Анализ матча", { onclick: function () { switchPage("analyze"); } }),
-      UI.btn("Мини-игры", { onclick: function () { switchPage("games"); }, variant: "ghost" }),
-      UI.btn("Лидерборд", { onclick: function () { switchPage("leaderboard"); }, variant: "ghost" })
+      UI.btn("Мой профиль", { onclick: function () { switchPage("profile"); } }),
+      UI.btn("Анализ матча", { onclick: function () { switchPage("analyze"); }, variant: "ghost" }),
+      UI.btn("Мини-игры", { onclick: function () { switchPage("games"); }, variant: "ghost" })
     ]
   ));
 
@@ -276,6 +278,7 @@ function renderAbout() {
   var feat = UI.card("Возможности");
   var list = [
     "Анализ матчей с оценкой S/A/B/C/D",
+    "Личный профиль с аналитикой (JETCH+)",
     "История и графики",
     "Дневник",
     "Мини-игры: Взлом замка, Атака автоматонов, Дири-Джампер, Викторина",
@@ -541,4 +544,4 @@ window.addEventListener("hashchange", function () {
   if (h !== currentPage && PAGES[h]) switchPage(h);
 });
 
-console.log("SWSW")
+console.log("app v17.0 ready (profile analyzer)");
