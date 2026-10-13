@@ -1,4 +1,4 @@
-/* DOTA JETCH — PROFILE ANALYZER v5.0 (strict hidden check + debug logs) */
+/* DOTA JETCH — PROFILE ANALYZER v6.0 (refresh button + strict hidden check) */
 
 var ProfileAnalyzer = {
   cache: null,
@@ -80,7 +80,7 @@ var ProfileAnalyzer = {
   loadProfile: async function (accountId) {
     try {
       var player = await apiGet("/players/" + accountId);
-      console.log("[ProfileAnalyzer] /players/" + accountId + " →", player);
+      console.log("[ProfileAnalyzer] /players →", player);
       return player || null;
     } catch (e) {
       console.warn("[ProfileAnalyzer] /players error:", e);
@@ -113,12 +113,8 @@ var ProfileAnalyzer = {
   loadTotals: async function (accountId) {
     try {
       var totals = await apiGet("/players/" + accountId + "/totals");
-      console.log("[ProfileAnalyzer] /totals → count=" + (Array.isArray(totals) ? totals.length : "?"));
       return Array.isArray(totals) ? totals : [];
-    } catch (e) {
-      console.warn("[ProfileAnalyzer] /totals error:", e);
-      return [];
-    }
+    } catch (e) { return []; }
   },
 
   loadCounts: async function (accountId) {
@@ -133,37 +129,29 @@ var ProfileAnalyzer = {
       var wl = await apiGet("/players/" + accountId + "/wl");
       console.log("[ProfileAnalyzer] /wl →", wl);
       return wl || {};
-    } catch (e) {
-      console.warn("[ProfileAnalyzer] /wl error:", e);
-      return {};
-    }
+    } catch (e) { return {}; }
   },
 
   loadAll: async function (accountId) {
     if (this.cache && this.cache.accountId === accountId && (Date.now() - this.cacheTime) < this.CACHE_TTL) {
-      console.log("[ProfileAnalyzer] использую кэш");
       return this.cache;
     }
 
     this.loading = true;
-    console.log("[ProfileAnalyzer] ЗАГРУЗКА для account_id=" + accountId);
+    console.log("[ProfileAnalyzer] ЗАГРУЗКА account_id=" + accountId);
 
     var player = await this.loadProfile(accountId);
 
-    /* Профиль вообще не вернулся */
     if (!player) {
       this.loading = false;
       return { ok: false, reason: "hidden", accountId: accountId };
     }
 
-    /* Профиль есть, но пустой (personaname отсутствует) */
     if (!player.profile || !player.profile.personaname) {
-      console.log("[ProfileAnalyzer] profile пустой → hidden");
       this.loading = false;
       return { ok: false, reason: "hidden", accountId: accountId, player: player };
     }
 
-    /* Параллельная загрузка */
     var results = await Promise.all([
       this.loadRecentMatches(accountId, 30),
       this.loadHeroes(accountId),
@@ -180,14 +168,12 @@ var ProfileAnalyzer = {
 
     this.loading = false;
 
-    /* 🔥 СТРОГАЯ ПРОВЕРКА: если матчи пусты — данные скрыты.
-       Не важно, что там в heroes/wl — если нет matches, значит публичные данные off. */
     if (matches.length === 0) {
-      console.log("[ProfileAnalyzer] matches.length = 0 → HIDDEN. heroes=" + heroes.length + " wl.win=" + wl.win);
+      console.log("[ProfileAnalyzer] matches.length=0 → HIDDEN");
       return { ok: false, reason: "hidden", accountId: accountId, player: player };
     }
 
-    console.log("[ProfileAnalyzer] ✅ Данные загружены. matches=" + matches.length + " heroes=" + heroes.length);
+    console.log("[ProfileAnalyzer] ✅ OK. matches=" + matches.length);
 
     var data = {
       ok: true,
@@ -348,16 +334,16 @@ var ProfileAnalyzer = {
 
     card.appendChild(el("div", { style: "font-size:80px;line-height:1;margin-bottom:20px;" }, "🔒"));
     card.appendChild(el("div", { style: "font-size:22px;font-weight:900;color:var(--gold);margin-bottom:10px;" }, "Публичные матчи выключены"));
-    card.appendChild(el("div", { class: "dim", style: "font-size:13.5px;line-height:1.7;max-width:460px;margin:0 auto 24px;" },
-      "OpenDota не видит твои матчи, потому что в Dota 2 отключена опция показа публичных данных."));
+    card.appendChild(el("div", { class: "dim", style: "font-size:13.5px;line-height:1.7;max-width:460px;margin:0 auto 20px;" },
+      "Если ты уже включил галочку в Dota — нужно заставить OpenDota пересканировать аккаунт."));
 
-    var steps = el("div", { style: "max-width:420px;margin:0 auto 24px;text-align:left;background:var(--bg-elev);border:1px solid var(--border);border-radius:14px;padding:18px 22px;" });
+    var steps = el("div", { style: "max-width:440px;margin:0 auto 20px;text-align:left;background:var(--bg-elev);border:1px solid var(--border);border-radius:14px;padding:18px 22px;" });
     var stepsList = [
-      "Открой Dota 2",
-      "Настройки → Социальные",
+      "Открой Dota 2 → Настройки → Социальные",
       "Поставь галочку «Публичные данные о матчах»",
-      "Запусти хотя бы 1 матч, чтобы сервер увидел",
-      "Вернись и нажми «Обновить»"
+      "Сыграй 1 матч (любой режим), чтобы сервер увидел",
+      "Нажми «Запросить проверку» ниже",
+      "Подожди 5-15 минут и обнови страницу"
     ];
     for (var i = 0; i < stepsList.length; i++) {
       var step = el("div", { style: "display:flex;gap:12px;align-items:flex-start;padding:7px 0;font-size:13px;color:var(--text-muted);line-height:1.5;" });
@@ -368,21 +354,53 @@ var ProfileAnalyzer = {
     card.appendChild(steps);
 
     if (data && data.player && data.player.profile) {
-      var info = el("div", { style: "max-width:420px;margin:0 auto 20px;padding:12px 16px;background:var(--bg-elev);border:1px solid var(--border);border-radius:12px;font-size:12px;color:var(--text-muted);text-align:left;" });
+      var info = el("div", { style: "max-width:440px;margin:0 auto 20px;padding:12px 16px;background:var(--bg-elev);border:1px solid var(--border);border-radius:12px;font-size:12px;color:var(--text-muted);text-align:left;" });
       info.appendChild(el("div", { style: "font-weight:700;color:var(--text);margin-bottom:4px;" }, "Аккаунт:"));
       info.appendChild(el("div", {}, data.player.profile.personaname + " · ID " + data.accountId));
       card.appendChild(info);
     }
 
+    var statusEl = el("div", { style: "font-size:12px;min-height:18px;margin-bottom:12px;line-height:1.4;" });
+    card.appendChild(statusEl);
+
     var btnRow = el("div", { style: "display:flex;gap:10px;justify-content:center;flex-wrap:wrap;" });
 
-    var refreshBtn = UI.btn("🔄 Я включил, обновить");
-    refreshBtn.addEventListener("click", function () {
-      ProfileAnalyzer.cache = null;
-      ProfileAnalyzer.cacheTime = 0;
-      switchPage("profile");
+    /* ЗАПРОС REFRESH через OpenDota */
+    var refreshRequestBtn = UI.btn("🔄 Запросить проверку");
+    refreshRequestBtn.addEventListener("click", async function () {
+      refreshRequestBtn.disabled = true;
+      refreshRequestBtn.textContent = "⏳ Отправляю запрос...";
+      statusEl.textContent = "";
+      try {
+        var url = "https://api.opendota.com/api/players/" + data.accountId + "/refresh";
+        var res = await fetch(url, { method: "POST" });
+        var json = null;
+        try { json = await res.json(); } catch (e) {}
+        console.log("[ProfileAnalyzer] refresh response:", json);
+        if (res.ok) {
+          statusEl.textContent = "✓ Запрос отправлен. OpenDota сканирует аккаунт. Подожди 5-15 минут и обнови.";
+          statusEl.style.color = "var(--green)";
+          refreshRequestBtn.textContent = "✓ Отправлено";
+          setTimeout(function () {
+            ProfileAnalyzer.cache = null;
+            ProfileAnalyzer.cacheTime = 0;
+            switchPage("profile");
+          }, 60000);
+        } else {
+          statusEl.textContent = "⚠ OpenDota ответила кодом " + res.status + ". Попробуй ещё раз через минуту.";
+          statusEl.style.color = "var(--yellow)";
+          refreshRequestBtn.disabled = false;
+          refreshRequestBtn.textContent = "🔄 Запросить проверку";
+        }
+      } catch (e) {
+        console.warn("refresh error:", e);
+        statusEl.textContent = "✕ Ошибка запроса. Сыграй 1 матч в Dota и подожди 10 минут.";
+        statusEl.style.color = "var(--red)";
+        refreshRequestBtn.disabled = false;
+        refreshRequestBtn.textContent = "🔄 Запросить проверку";
+      }
     });
-    btnRow.appendChild(refreshBtn);
+    btnRow.appendChild(refreshRequestBtn);
 
     var changeBtn = UI.btn("Сменить аккаунт", { variant: "ghost" });
     changeBtn.addEventListener("click", function () {
@@ -544,7 +562,7 @@ var ProfileAnalyzer = {
     grid.appendChild(this.metricTile("⏱️", "Длительность", s.avgDuration + " мин", "средняя за матч", "var(--text-muted)"));
     frag.appendChild(grid);
 
-    /* ─── Форма ─── */
+    /* ─── Форма + серии ─── */
     if (s.recentForm && s.recentForm.length) {
       var formCard = UI.card("📈 Форма и серии");
       formCard.appendChild(el("div", { class: "dim", style: "font-size:11px;margin-bottom:10px;" }, "Последние " + s.recentForm.length + " матчей (свежие слева):"));
@@ -732,4 +750,4 @@ var ProfileAnalyzer = {
 
 ProfileAnalyzer.init();
 
-console.log("profile-analyzer v5.0 ready");
+console.log("profile-analyzer v6.0 ready");
