@@ -1,4 +1,4 @@
-/* DOTA JETCH — PROFILE ANALYZER v13.0 (STRATZ: heroPerformance + правильные поля) */
+/* DOTA JETCH — PROFILE ANALYZER v14.0 (STRATZ: heroPerformance без take/avg) */
 
 var ProfileAnalyzer = {
   cache: null,
@@ -89,7 +89,7 @@ var ProfileAnalyzer = {
     if (!res.ok) {
       var txt = "";
       try { txt = await res.text(); } catch (e) {}
-      throw new Error("STRATZ HTTP " + res.status + ": " + txt.slice(0, 300));
+      throw new Error("STRATZ HTTP " + res.status + ": " + txt.slice(0, 400));
     }
     var json = await res.json();
     if (json.errors && json.errors.length) {
@@ -120,17 +120,10 @@ var ProfileAnalyzer = {
             countryCode
             isAnonymous
           }
-          heroPerformance(take: 30) {
+          heroPerformance {
             heroId
             matchCount
             winCount
-            kills
-            deaths
-            assists
-            goldPerMinute
-            experiencePerMinute
-            numLastHits
-            numDenies
           }
           matches(request: { take: 30 }) {
             id
@@ -172,6 +165,8 @@ var ProfileAnalyzer = {
     var p = data.player;
     var steamAccount = p.steamAccount || {};
 
+    console.log("[PA-STRATZ] heroPerformance sample:", (p.heroPerformance || [])[0]);
+
     if (steamAccount.isAnonymous || (!steamAccount.name && !p.matchCount)) {
       return { ok: false, reason: "hidden", accountId: accountId, player: { profile: { personaname: steamAccount.name } } };
     }
@@ -197,12 +192,12 @@ var ProfileAnalyzer = {
           hero_id: h.heroId,
           games: h.matchCount || 0,
           win: h.winCount || 0,
-          avgKills: h.kills || 0,
-          avgDeaths: h.deaths || 0,
-          avgAssists: h.assists || 0,
-          avgGPM: h.goldPerMinute || 0,
-          avgXPM: h.experiencePerMinute || 0,
-          avgLH: h.numLastHits || 0
+          avgKills: 0,
+          avgDeaths: 0,
+          avgAssists: 0,
+          avgGPM: 0,
+          avgXPM: 0,
+          avgLH: 0
         };
       }),
       matches: (p.matches || []).map(function (m) {
@@ -270,26 +265,24 @@ var ProfileAnalyzer = {
       stats.lifetimeGames = stats.totalLifetime;
     }
 
-    var sumG = 0, sumX = 0, sumL = 0, sumK = 0, sumD = 0, sumA = 0, tot = 0;
-    for (var hg = 0; hg < heroes.length; hg++) {
-      var hero = heroes[hg];
-      var games = hero.games || 0;
-      if (games === 0) continue;
-      sumG += (hero.avgGPM || 0) * games;
-      sumX += (hero.avgXPM || 0) * games;
-      sumL += (hero.avgLH || 0) * games;
-      sumK += (hero.avgKills || 0) * games;
-      sumD += (hero.avgDeaths || 0) * games;
-      sumA += (hero.avgAssists || 0) * games;
-      tot += games;
-    }
-    if (tot > 0) {
-      stats.avgGPM = Math.round(sumG / tot);
-      stats.avgXPM = Math.round(sumX / tot);
-      stats.avgLH = Math.round(sumL / tot);
-      stats.avgKills = (sumK / tot).toFixed(1);
-      stats.avgDeaths = (sumD / tot).toFixed(1);
-      stats.avgAssists = (sumA / tot).toFixed(1);
+    /* Считаем средние метрики из matches (не из heroPerformance) */
+    if (matches.length) {
+      var sumK = 0, sumD = 0, sumA = 0, sumG = 0, sumX = 0, sumL = 0;
+      for (var mi = 0; mi < matches.length; mi++) {
+        sumK += (matches[mi].kills || 0);
+        sumD += (matches[mi].deaths || 0);
+        sumA += (matches[mi].assists || 0);
+        sumG += (matches[mi].gold_per_min || 0);
+        sumX += (matches[mi].xp_per_min || 0);
+        sumL += (matches[mi].last_hits || 0);
+      }
+      var mn = matches.length;
+      stats.avgGPM = Math.round(sumG / mn);
+      stats.avgXPM = Math.round(sumX / mn);
+      stats.avgLH = Math.round(sumL / mn);
+      stats.avgKills = (sumK / mn).toFixed(1);
+      stats.avgDeaths = (sumD / mn).toFixed(1);
+      stats.avgAssists = (sumA / mn).toFixed(1);
       stats.avgKDA = ((sumK + sumA) / Math.max(sumD, 1)).toFixed(2);
     }
 
@@ -593,8 +586,8 @@ var ProfileAnalyzer = {
     if (s.avgKDA > 0) {
       grid.appendChild(this.metricTile("⚔️", "KDA", s.avgKDA, s.avgKills + " / " + s.avgDeaths + " / " + s.avgAssists, "var(--cyan)"));
     }
-    if (s.avgGPM > 0) grid.appendChild(this.metricTile("💰", "GPM", s.avgGPM, "средний за всё время", "var(--gold)"));
-    if (s.avgXPM > 0) grid.appendChild(this.metricTile("⚡", "XPM", s.avgXPM, "средний за всё время", "var(--accent-light)"));
+    if (s.avgGPM > 0) grid.appendChild(this.metricTile("💰", "GPM", s.avgGPM, "средний за 30 матчей", "var(--gold)"));
+    if (s.avgXPM > 0) grid.appendChild(this.metricTile("⚡", "XPM", s.avgXPM, "средний за 30 матчей", "var(--accent-light)"));
     if (s.avgLH > 0) grid.appendChild(this.metricTile("🎯", "Ластхиты", s.avgLH, "средние за матч", "var(--cyan)"));
     if (s.avgDuration > 0) grid.appendChild(this.metricTile("⏱️", "Длительность", s.avgDuration + " мин", "средняя за матч", "var(--text-muted)"));
     frag.appendChild(grid);
@@ -789,4 +782,4 @@ var ProfileAnalyzer = {
 
 ProfileAnalyzer.init();
 
-console.log("profile-analyzer v13.0 ready (STRATZ: heroPerformance)");
+console.log("profile-analyzer v14.0 ready (STRATZ: heroPerformance minimal)");
