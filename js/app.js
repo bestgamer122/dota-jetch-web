@@ -1,6 +1,6 @@
-/* DOTA JETCH — APP v17.0 (profile analyzer) */
+/* DOTA JETCH — APP v18.0 (fix admin nav) */
 
-var APP_VERSION = "17.0";
+var APP_VERSION = "18.0";
 
 var PAGES = {
   dashboard:    { title: "Главная",           render: renderDashboard },
@@ -40,7 +40,9 @@ function buildNav() {
   if (!nav) return;
   nav.innerHTML = "";
   var list = NAV.slice();
-  if (window.AdminPanel && window.AdminPanel.isAdmin) {
+  var isAdmin = window.AdminPanel && window.AdminPanel.isAdmin === true;
+  console.log("[NAV] buildNav: isAdmin =", isAdmin);
+  if (isAdmin) {
     list.push(ADMIN_NAV_ITEM);
   }
   for (var i = 0; i < list.length; i++) {
@@ -521,11 +523,24 @@ async function init() {
   try { if (typeof applyTheme === "function") applyTheme(loadTheme()); } catch (e) {}
   try { if (typeof applyLiteMode === "function") applyLiteMode(isLiteMode()); } catch (e) {}
 
+  /* Проверка прав администратора ДО построения навигации */
   if (window.AdminPanel && typeof window.AdminPanel.checkAdmin === "function") {
-    try { await window.AdminPanel.checkAdmin(); } catch (e) {}
+    try {
+      await window.AdminPanel.checkAdmin();
+      console.log("[INIT] checkAdmin completed, isAdmin =", window.AdminPanel.isAdmin);
+    } catch (e) { console.warn("[INIT] checkAdmin error:", e); }
   }
 
   buildNav();
+
+  /* Дополнительно: если isAdmin стал true позже, перестроим навигацию */
+  setTimeout(function () {
+    if (window.AdminPanel && window.AdminPanel.isAdmin === true) {
+      console.log("[INIT] isAdmin true in timeout, rebuilding nav");
+      buildNav();
+    }
+  }, 1500);
+
   document.addEventListener("click", function () { if (typeof closeAllDropdowns === "function") closeAllDropdowns(); });
   bindProfileModal();
   try { Store.set("sessions", (Store.get("sessions", 0) || 0) + 1); } catch (e) {}
@@ -544,4 +559,4 @@ window.addEventListener("hashchange", function () {
   if (h !== currentPage && PAGES[h]) switchPage(h);
 });
 
-console.log("app v17.0 ready (profile analyzer)");
+console.log("app v18.0 ready (fix admin nav)");
