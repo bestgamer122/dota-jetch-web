@@ -1,4 +1,4 @@
-/* DOTA JETCH — MINI-GAMES v16.0 (live config sync) */
+/* DOTA JETCH — MINI-GAMES v18.0 (admin bypass, fix async checkAdmin) */
 
 var QUIZ = [
   { q: "Какая способность у Juggernaut даёт неуязвимость во время каста?", a: "Omnislash", opts: ["Omnislash", "Blade Fury", "Blade Dance", "Healing Ward"] },
@@ -53,47 +53,85 @@ var _activeLockpick = null;
 var _activeAutomaton = null;
 var _activeDireJumper = null;
 
-/* ─── Подписка на настройки мини-игр (админ может выключить) ─── */
+/* Админ ли пользователь? Проверяем динамически */
+function _isAdmin() {
+  return !!(window.AdminPanel && window.AdminPanel.isAdmin === true);
+}
+
+/* Сбрасываем блокировку у вкладки "Мини-игры" */
+function _unblockGamesPage() {
+  var gamesPage = document.querySelector('[data-page="games"]');
+  if (gamesPage) {
+    gamesPage.style.opacity = "";
+    gamesPage.style.pointerEvents = "";
+    gamesPage.title = "";
+  }
+}
+
+/* Блокируем вкладку "Мини-игры" */
+function _blockGamesPage() {
+  var gamesPage = document.querySelector('[data-page="games"]');
+  if (gamesPage) {
+    gamesPage.style.opacity = "0.4";
+    gamesPage.style.pointerEvents = "none";
+    gamesPage.title = "Мини-игры временно отключены администратором";
+  }
+}
+
+/* ─── Вотчер настроек. Админ игнорируется при каждом вызове ─── */
 (function setupMinigamesWatcher() {
   if (typeof window === "undefined") return;
+
+  function applySettings(settings) {
+    /* Если админ — снимаем блокировку и выходим */
+    if (_isAdmin()) {
+      window.__minigamesSettings = settings || {};
+      _unblockGamesPage();
+      if (location.hash === "#games") {
+        setTimeout(function () {
+          if (typeof switchPage === "function") switchPage("games");
+        }, 100);
+      }
+      return;
+    }
+
+    window.__minigamesSettings = settings || {};
+
+    var allOff = true;
+    for (var k in settings) {
+      if (settings[k] === true) { allOff = false; break; }
+    }
+
+    if (allOff) _blockGamesPage();
+    else _unblockGamesPage();
+
+    if (location.hash === "#games") {
+      setTimeout(function () {
+        if (typeof switchPage === "function") switchPage("games");
+      }, 100);
+    }
+  }
+
   function trySubscribe() {
     var db = window.__fbDB;
     if (!db) { setTimeout(trySubscribe, 500); return; }
-    try {
-      db.onValue(db.ref(db.db, "config/minigames"), function (snap) {
-        var settings = snap.val() || {};
-        window.__minigamesSettings = settings;
 
-        var allOff = true;
-        for (var k in settings) {
-          if (settings[k] === true) { allOff = false; break; }
-        }
+    db.onValue(db.ref(db.db, "config/minigames"), function (snap) {
+      applySettings(snap.val() || {});
+    });
 
-        var gamesPage = document.querySelector('[data-page="games"]');
-        if (gamesPage) {
-          if (allOff) {
-            gamesPage.style.opacity = "0.4";
-            gamesPage.style.pointerEvents = "none";
-            gamesPage.title = "Мини-игры временно отключены администратором";
-          } else {
-            gamesPage.style.opacity = "";
-            gamesPage.style.pointerEvents = "";
-            gamesPage.title = "";
-          }
-        }
-
-        if (location.hash === "#games") {
-          setTimeout(function () {
-            if (typeof switchPage === "function") switchPage("games");
-          }, 100);
-        }
-      });
-    } catch (e) { console.warn("minigames watcher:", e); }
+    /* Если админ залогинился позже и isAdmin стал true —
+       периодически снимаем блокировку на всякий случай */
+    setInterval(function () {
+      if (_isAdmin()) _unblockGamesPage();
+    }, 2000);
   }
+
   trySubscribe();
 })();
 
 function isGameEnabled(gameId) {
+  if (_isAdmin()) return true;
   var s = window.__minigamesSettings;
   if (!s) return true;
   return s[gameId] !== false;
@@ -1401,4 +1439,4 @@ if (!window._gamesGlobalListeners) {
   });
 }
 
-console.log("games v16.0 ready (live config sync)");
+console.log("games v18.0 ready (admin bypass, async-safe)");
