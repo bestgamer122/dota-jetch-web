@@ -1,4 +1,4 @@
-/* DOTA JETCH — PROFILE ANALYZER v9.0 (STRATZ GraphQL, fix: опечатка в имени метода) */
+/* DOTA JETCH — PROFILE ANALYZER v10.0 (STRATZ: ranks field fix) */
 
 var ProfileAnalyzer = {
   cache: null,
@@ -115,7 +115,7 @@ var ProfileAnalyzer = {
           steamAccountId
           matchCount
           winCount
-          rank
+          ranks
           leaderboardRank
           behaviorScore
           steamAccount {
@@ -177,11 +177,16 @@ var ProfileAnalyzer = {
     var p = data.player;
     var steamAccount = p.steamAccount || {};
 
+    console.log("[PA-STRATZ] ranks:", p.ranks);
+
     if (steamAccount.isAnonymous || (!steamAccount.name && !p.matchCount)) {
       return { ok: false, reason: "hidden", accountId: accountId, player: { profile: { personaname: steamAccount.name } } };
     }
 
     var self = this;
+
+    var ranksArr = Array.isArray(p.ranks) ? p.ranks : (p.ranks ? [p.ranks] : []);
+    var rankTier = (ranksArr.length > 0) ? (ranksArr[0].rank || 0) : 0;
 
     var result = {
       ok: true,
@@ -193,7 +198,7 @@ var ProfileAnalyzer = {
           profileurl: steamAccount.profileUri || ("https://steamcommunity.com/profiles/" + (BigInt(accountId) + BigInt("76561197960265728")).toString()),
           loccountrycode: steamAccount.countryCode || null
         },
-        rank_tier: p.rank || 0
+        rank_tier: rankTier
       },
       behavior: p.behaviorScore || 0,
       leaderboardRank: p.leaderboardRank || 0,
@@ -812,4 +817,4 @@ var ProfileAnalyzer = {
 
 ProfileAnalyzer.init();
 
-console.log("profile-analyzer v9.0 ready (STRATZ fixed)");
+console.log("profile-analyzer v10.0 ready (STRATZ ranks fix)");
