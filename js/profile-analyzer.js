@@ -1,4 +1,4 @@
-/* DOTA JETCH — PROFILE ANALYZER v11.0 (STRATZ: ranks with subfields) */
+/* DOTA JETCH — PROFILE ANALYZER v12.0 (STRATZ: leaderboardRank removed) */
 
 var ProfileAnalyzer = {
   cache: null,
@@ -112,7 +112,6 @@ var ProfileAnalyzer = {
           steamAccountId
           matchCount
           winCount
-          leaderboardRank
           behaviorScore
           steamAccount {
             name
@@ -179,10 +178,6 @@ var ProfileAnalyzer = {
 
     var self = this;
 
-    /* Ранг неизвестен без отдельного запроса ranks — оставляем 0,
-       но покажем имя ранга по общему matchCount */
-    var rankTier = 0;
-
     var result = {
       ok: true,
       accountId: accountId,
@@ -193,10 +188,10 @@ var ProfileAnalyzer = {
           profileurl: steamAccount.profileUri || ("https://steamcommunity.com/profiles/" + (BigInt(accountId) + BigInt("76561197960265728")).toString()),
           loccountrycode: steamAccount.countryCode || null
         },
-        rank_tier: rankTier
+        rank_tier: 0
       },
       behavior: p.behaviorScore || 0,
-      leaderboardRank: p.leaderboardRank || 0,
+      leaderboardRank: 0,
       heroes: (p.heroes || []).map(function (h) {
         return {
           hero_id: h.heroId,
@@ -553,7 +548,6 @@ var ProfileAnalyzer = {
     if (prof.loccountrycode) metaRow.appendChild(el("span", {}, "🌍 " + prof.loccountrycode));
     if (s.lifetimeGames > 0) metaRow.appendChild(el("span", {}, "🎮 " + s.lifetimeGames + " матчей"));
     if (data.behavior > 0) metaRow.appendChild(el("span", {}, "🎭 поведение " + data.behavior));
-    if (data.leaderboardRank > 0) metaRow.appendChild(el("span", { style: "color:var(--gold);font-weight:700;" }, "🏆 #" + data.leaderboardRank + " в ладдере"));
     if (prof.profileurl) {
       var link = el("a", { href: prof.profileurl, target: "_blank", rel: "noopener", style: "color:var(--cyan);text-decoration:none;font-weight:600;" }, "Steam ↗");
       metaRow.appendChild(link);
@@ -795,4 +789,4 @@ var ProfileAnalyzer = {
 
 ProfileAnalyzer.init();
 
-console.log("profile-analyzer v11.0 ready (STRATZ: ranks removed)");
+console.log("profile-analyzer v12.0 ready (STRATZ: leaderboardRank removed)");
