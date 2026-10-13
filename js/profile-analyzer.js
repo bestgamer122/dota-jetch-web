@@ -1,4 +1,4 @@
-/* DOTA JETCH — PROFILE ANALYZER v14.0 (STRATZ: heroPerformance без take/avg) */
+/* DOTA JETCH — PROFILE ANALYZER v15.0 (STRATZ: только matches, heroes считаются из них) */
 
 var ProfileAnalyzer = {
   cache: null,
@@ -89,7 +89,7 @@ var ProfileAnalyzer = {
     if (!res.ok) {
       var txt = "";
       try { txt = await res.text(); } catch (e) {}
-      throw new Error("STRATZ HTTP " + res.status + ": " + txt.slice(0, 400));
+      throw new Error("STRATZ HTTP " + res.status + ": " + txt.slice(0, 300));
     }
     var json = await res.json();
     if (json.errors && json.errors.length) {
@@ -120,12 +120,7 @@ var ProfileAnalyzer = {
             countryCode
             isAnonymous
           }
-          heroPerformance {
-            heroId
-            matchCount
-            winCount
-          }
-          matches(request: { take: 30 }) {
+          matches(request: { take: 50 }) {
             id
             startDateTime
             durationSeconds
@@ -165,13 +160,76 @@ var ProfileAnalyzer = {
     var p = data.player;
     var steamAccount = p.steamAccount || {};
 
-    console.log("[PA-STRATZ] heroPerformance sample:", (p.heroPerformance || [])[0]);
-
     if (steamAccount.isAnonymous || (!steamAccount.name && !p.matchCount)) {
       return { ok: false, reason: "hidden", accountId: accountId, player: { profile: { personaname: steamAccount.name } } };
     }
 
     var self = this;
+
+    /* Парсим матчи */
+    var matches = (p.matches || []).map(function (m) {
+      var me = (m.players && m.players.length) ? m.players[0] : null;
+      return {
+        match_id: m.id,
+        duration: m.durationSeconds || 0,
+        radiant_win: !!m.didRadiantWin,
+        game_mode: self._stratzModeToDota(m.gameMode),
+        player_slot: me ? (me.isRadiant ? 0 : 128) : 0,
+        hero_id: me ? me.heroId : 0,
+        kills: me ? me.kills : 0,
+        deaths: me ? me.deaths : 0,
+        assists: me ? me.assists : 0,
+        gold_per_min: me ? me.goldPerMinute : 0,
+        xp_per_min: me ? me.experiencePerMinute : 0,
+        last_hits: me ? me.numLastHits : 0,
+        position: me ? me.position : null,
+        start_time: m.startDateTime || 0
+      };
+    });
+
+    /* Считаем статистику по героям из matches */
+    var heroMap = {};
+    for (var i = 0; i < matches.length; i++) {
+      var m = matches[i];
+      if (!m.hero_id) continue;
+      var isRadiant = m.player_slot < 128;
+      var won = (m.radiant_win && isRadiant) || (!m.radiant_win && !isRadiant);
+      if (!heroMap[m.hero_id]) {
+        heroMap[m.hero_id] = {
+          hero_id: m.hero_id,
+          games: 0,
+          win: 0,
+          sumK: 0, sumD: 0, sumA: 0,
+          sumGPM: 0, sumXPM: 0, sumLH: 0
+        };
+      }
+      var h = heroMap[m.hero_id];
+      h.games++;
+      if (won) h.win++;
+      h.sumK += m.kills;
+      h.sumD += m.deaths;
+      h.sumA += m.assists;
+      h.sumGPM += m.gold_per_min;
+      h.sumXPM += m.xp_per_min;
+      h.sumLH += m.last_hits;
+    }
+
+    var heroes = [];
+    for (var hid in heroMap) {
+      if (!heroMap.hasOwnProperty(hid)) continue;
+      var hh = heroMap[hid];
+      heroes.push({
+        hero_id: hh.hero_id,
+        games: hh.games,
+        win: hh.win,
+        avgKills: hh.sumK / hh.games,
+        avgDeaths: hh.sumD / hh.games,
+        avgAssists: hh.sumA / hh.games,
+        avgGPM: hh.sumGPM / hh.games,
+        avgXPM: hh.sumXPM / hh.games,
+        avgLH: hh.sumLH / hh.games
+      });
+    }
 
     var result = {
       ok: true,
@@ -187,38 +245,8 @@ var ProfileAnalyzer = {
       },
       behavior: p.behaviorScore || 0,
       leaderboardRank: 0,
-      heroes: (p.heroPerformance || []).map(function (h) {
-        return {
-          hero_id: h.heroId,
-          games: h.matchCount || 0,
-          win: h.winCount || 0,
-          avgKills: 0,
-          avgDeaths: 0,
-          avgAssists: 0,
-          avgGPM: 0,
-          avgXPM: 0,
-          avgLH: 0
-        };
-      }),
-      matches: (p.matches || []).map(function (m) {
-        var me = (m.players && m.players.length) ? m.players[0] : null;
-        return {
-          match_id: m.id,
-          duration: m.durationSeconds || 0,
-          radiant_win: !!m.didRadiantWin,
-          game_mode: self._stratzModeToDota(m.gameMode),
-          player_slot: me ? (me.isRadiant ? 0 : 128) : 0,
-          hero_id: me ? me.heroId : 0,
-          kills: me ? me.kills : 0,
-          deaths: me ? me.deaths : 0,
-          assists: me ? me.assists : 0,
-          gold_per_min: me ? me.goldPerMinute : 0,
-          xp_per_min: me ? me.experiencePerMinute : 0,
-          last_hits: me ? me.numLastHits : 0,
-          position: me ? me.position : null,
-          start_time: m.startDateTime || 0
-        };
-      })
+      heroes: heroes,
+      matches: matches
     };
 
     result.wl = { win: p.winCount || 0, lose: (p.matchCount || 0) - (p.winCount || 0) };
@@ -265,45 +293,15 @@ var ProfileAnalyzer = {
       stats.lifetimeGames = stats.totalLifetime;
     }
 
-    /* Считаем средние метрики из matches (не из heroPerformance) */
-    if (matches.length) {
-      var sumK = 0, sumD = 0, sumA = 0, sumG = 0, sumX = 0, sumL = 0;
-      for (var mi = 0; mi < matches.length; mi++) {
-        sumK += (matches[mi].kills || 0);
-        sumD += (matches[mi].deaths || 0);
-        sumA += (matches[mi].assists || 0);
-        sumG += (matches[mi].gold_per_min || 0);
-        sumX += (matches[mi].xp_per_min || 0);
-        sumL += (matches[mi].last_hits || 0);
-      }
-      var mn = matches.length;
-      stats.avgGPM = Math.round(sumG / mn);
-      stats.avgXPM = Math.round(sumX / mn);
-      stats.avgLH = Math.round(sumL / mn);
-      stats.avgKills = (sumK / mn).toFixed(1);
-      stats.avgDeaths = (sumD / mn).toFixed(1);
-      stats.avgAssists = (sumA / mn).toFixed(1);
-      stats.avgKDA = ((sumK + sumA) / Math.max(sumD, 1)).toFixed(2);
-    }
-
     if (!matches.length) {
       stats.topHeroes = heroes.slice().sort(function (a, b) { return b.games - a.games; }).slice(0, 8).map(function (h) {
         return { heroId: h.hero_id, games: h.games, winrate: h.games ? Math.round((h.win / h.games) * 100) : 0 };
       });
-      var bestH = null, bestWR = 0, worstH = null, worstWR = 1;
-      for (var hh = 0; hh < heroes.length; hh++) {
-        if (heroes[hh].games < 3) continue;
-        var w = heroes[hh].win / heroes[hh].games;
-        if (w > bestWR) { bestWR = w; bestH = heroes[hh]; }
-        if (w < worstWR) { worstWR = w; worstH = heroes[hh]; }
-      }
-      stats.bestHero = bestH ? { heroId: bestH.hero_id, games: bestH.games, winrate: Math.round(bestWR * 100) } : null;
-      stats.worstHero = worstH ? { heroId: worstH.hero_id, games: worstH.games, winrate: Math.round(worstWR * 100) } : null;
       return stats;
     }
 
     var wins = 0, losses = 0;
-    var sumDur = 0;
+    var sumK = 0, sumD = 0, sumA = 0, sumGPM = 0, sumXPM = 0, sumLH = 0, sumDur = 0;
     var roles = {}, form = [];
     var longestW = 0, longestL = 0, curW = 0, curL = 0;
 
@@ -315,6 +313,12 @@ var ProfileAnalyzer = {
       else { losses++; curL++; curW = 0; if (curL > longestL) longestL = curL; }
       form.push(won ? 1 : 0);
 
+      sumK += (m.kills || 0);
+      sumD += (m.deaths || 0);
+      sumA += (m.assists || 0);
+      sumGPM += (m.gold_per_min || 0);
+      sumXPM += (m.xp_per_min || 0);
+      sumLH += (m.last_hits || 0);
       sumDur += (m.duration || 0);
 
       var roleKey = "unknown";
@@ -331,6 +335,13 @@ var ProfileAnalyzer = {
     stats.wins = wins;
     stats.losses = losses;
     stats.winrate = n > 0 ? Math.round((wins / n) * 100) : 0;
+    stats.avgKills = (sumK / n).toFixed(1);
+    stats.avgDeaths = (sumD / n).toFixed(1);
+    stats.avgAssists = (sumA / n).toFixed(1);
+    stats.avgKDA = ((sumK + sumA) / Math.max(sumD, 1)).toFixed(2);
+    stats.avgGPM = Math.round(sumGPM / n);
+    stats.avgXPM = Math.round(sumXPM / n);
+    stats.avgLH = Math.round(sumLH / n);
     stats.avgDuration = Math.round(sumDur / n / 60);
     stats.roleCounts = roles;
     stats.recentForm = form;
@@ -352,7 +363,7 @@ var ProfileAnalyzer = {
     var worstHero = null, worstWR = 1;
     for (var h = 0; h < heroes.length; h++) {
       var hero2 = heroes[h];
-      if (hero2.games < 3) continue;
+      if (hero2.games < 2) continue;
       var wr = hero2.win / hero2.games;
       if (wr > bestWR) { bestWR = wr; bestHero = hero2; }
       if (wr < worstWR) { worstWR = wr; worstHero = hero2; }
@@ -580,24 +591,17 @@ var ProfileAnalyzer = {
 
     var grid = el("div", { style: "display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-bottom:18px;" });
     if (s.totalMatches > 0) {
-      grid.appendChild(this.metricTile("🏆", "Винрейт (30 матчей)", s.winrate + "%", s.wins + "W · " + s.losses + "L",
+      grid.appendChild(this.metricTile("🏆", "Винрейт (за " + s.totalMatches + ")", s.winrate + "%", s.wins + "W · " + s.losses + "L",
         s.winrate >= 55 ? "var(--green)" : s.winrate >= 45 ? "var(--yellow)" : "var(--red)"));
     }
     if (s.avgKDA > 0) {
       grid.appendChild(this.metricTile("⚔️", "KDA", s.avgKDA, s.avgKills + " / " + s.avgDeaths + " / " + s.avgAssists, "var(--cyan)"));
     }
-    if (s.avgGPM > 0) grid.appendChild(this.metricTile("💰", "GPM", s.avgGPM, "средний за 30 матчей", "var(--gold)"));
-    if (s.avgXPM > 0) grid.appendChild(this.metricTile("⚡", "XPM", s.avgXPM, "средний за 30 матчей", "var(--accent-light)"));
+    if (s.avgGPM > 0) grid.appendChild(this.metricTile("💰", "GPM", s.avgGPM, "средний за " + s.totalMatches + " матчей", "var(--gold)"));
+    if (s.avgXPM > 0) grid.appendChild(this.metricTile("⚡", "XPM", s.avgXPM, "средний за " + s.totalMatches + " матчей", "var(--accent-light)"));
     if (s.avgLH > 0) grid.appendChild(this.metricTile("🎯", "Ластхиты", s.avgLH, "средние за матч", "var(--cyan)"));
     if (s.avgDuration > 0) grid.appendChild(this.metricTile("⏱️", "Длительность", s.avgDuration + " мин", "средняя за матч", "var(--text-muted)"));
     frag.appendChild(grid);
-
-    if (s.totalMatches === 0) {
-      var noMatchesCard = UI.card("📜 Последние матчи");
-      noMatchesCard.appendChild(el("div", { class: "dim", style: "font-size:12.5px;line-height:1.6;padding:10px 0;" },
-        "STRATZ отдал статистику по героям, но список последних матчей пуст. Попробуй «Обновить» через 5-10 минут."));
-      frag.appendChild(noMatchesCard);
-    }
 
     if (s.recentForm && s.recentForm.length) {
       var formCard = UI.card("📈 Форма и серии");
@@ -695,7 +699,7 @@ var ProfileAnalyzer = {
     }
 
     if (s.topHeroes && s.topHeroes.length) {
-      var heroesCard = UI.card("🎮 Топ-" + s.topHeroes.length + " героев по количеству игр");
+      var heroesCard = UI.card("🎮 Топ-" + s.topHeroes.length + " героев за " + s.totalMatches + " матчей");
       var heroesList = el("div", { style: "display:flex;flex-direction:column;gap:10px;" });
       for (var hi = 0; hi < s.topHeroes.length; hi++) {
         (function (h, idx) {
@@ -782,4 +786,4 @@ var ProfileAnalyzer = {
 
 ProfileAnalyzer.init();
 
-console.log("profile-analyzer v14.0 ready (STRATZ: heroPerformance minimal)");
+console.log("profile-analyzer v15.0 ready (STRATZ: matches-only)");
