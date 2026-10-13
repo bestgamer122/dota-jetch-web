@@ -1,4 +1,4 @@
-/* DOTA JETCH — PROFILE ANALYZER v12.0 (STRATZ: leaderboardRank removed) */
+/* DOTA JETCH — PROFILE ANALYZER v13.0 (STRATZ: heroPerformance + правильные поля) */
 
 var ProfileAnalyzer = {
   cache: null,
@@ -120,17 +120,17 @@ var ProfileAnalyzer = {
             countryCode
             isAnonymous
           }
-          heroes(take: 30) {
+          heroPerformance(take: 30) {
             heroId
             matchCount
             winCount
-            avgKills
-            avgDeaths
-            avgAssists
-            avgGoldPerMinute
-            avgExperiencePerMinute
-            avgLastHits
-            avgDenies
+            kills
+            deaths
+            assists
+            goldPerMinute
+            experiencePerMinute
+            numLastHits
+            numDenies
           }
           matches(request: { take: 30 }) {
             id
@@ -146,7 +146,7 @@ var ProfileAnalyzer = {
               assists
               goldPerMinute
               experiencePerMinute
-              lastHits
+              numLastHits
               position
             }
           }
@@ -192,17 +192,17 @@ var ProfileAnalyzer = {
       },
       behavior: p.behaviorScore || 0,
       leaderboardRank: 0,
-      heroes: (p.heroes || []).map(function (h) {
+      heroes: (p.heroPerformance || []).map(function (h) {
         return {
           hero_id: h.heroId,
           games: h.matchCount || 0,
           win: h.winCount || 0,
-          avgKills: h.avgKills || 0,
-          avgDeaths: h.avgDeaths || 0,
-          avgAssists: h.avgAssists || 0,
-          avgGPM: h.avgGoldPerMinute || 0,
-          avgXPM: h.avgExperiencePerMinute || 0,
-          avgLH: h.avgLastHits || 0
+          avgKills: h.kills || 0,
+          avgDeaths: h.deaths || 0,
+          avgAssists: h.assists || 0,
+          avgGPM: h.goldPerMinute || 0,
+          avgXPM: h.experiencePerMinute || 0,
+          avgLH: h.numLastHits || 0
         };
       }),
       matches: (p.matches || []).map(function (m) {
@@ -219,7 +219,7 @@ var ProfileAnalyzer = {
           assists: me ? me.assists : 0,
           gold_per_min: me ? me.goldPerMinute : 0,
           xp_per_min: me ? me.experiencePerMinute : 0,
-          last_hits: me ? me.lastHits : 0,
+          last_hits: me ? me.numLastHits : 0,
           position: me ? me.position : null,
           start_time: m.startDateTime || 0
         };
@@ -789,4 +789,4 @@ var ProfileAnalyzer = {
 
 ProfileAnalyzer.init();
 
-console.log("profile-analyzer v12.0 ready (STRATZ: leaderboardRank removed)");
+console.log("profile-analyzer v13.0 ready (STRATZ: heroPerformance)");
