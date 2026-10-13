@@ -1,4 +1,4 @@
-/* DOTA JETCH — PROFILE ANALYZER v7.0 (fix: heroes>0 = public, fallback to recentMatches) */
+/* DOTA JETCH — PROFILE ANALYZER v8.0 (STRATZ GraphQL) */
 
 var ProfileAnalyzer = {
   cache: null,
@@ -6,6 +6,8 @@ var ProfileAnalyzer = {
   CACHE_TTL: 10 * 60 * 1000,
   loading: false,
 
+  STRATZ_ENDPOINT: "https://api.stratz.com/graphql",
+  STRATZ_TOKEN: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJTdWJqZWN0IjoiMDU0OGI4YWQtN2ZmOC00YzczLTljODAtNDM2NDNiYTdmYWUwIiwiU3RlYW1JZCI6IjExMzUyNTQ1MDEiLCJBUElVc2VyIjoidHJ1ZSIsIm5iZiI6MTc5MTkwMDg4OCwiZXhwIjoxODIzNDM2ODg4LCJpYXQiOjE3OTE5MDA4ODgsImlzcyI6Imh0dHBzOi8vYXBpLnN0cmF0ei5jb20ifQ.BA03Klw7gTTzsi6NvVahT85LjqJtl9wi0sOm_fCI6KU",
   STEAM_OPENID_URL: "https://steamcommunity.com/openid/login",
 
   /* ═══════════════ ДОСТУП ═══════════════ */
@@ -76,64 +78,27 @@ var ProfileAnalyzer = {
     } catch (e) {}
   },
 
-  /* ═══════════════ ЗАГРУЗКА ═══════════════ */
-  loadProfile: async function (accountId) {
-    try {
-      var player = await apiGet("/players/" + accountId);
-      console.log("[PA] /players →", player);
-      return player || null;
-    } catch (e) { return null; }
-  },
-
-  loadRecentMatches: async function (accountId, limit) {
-    /* Пробуем сначала /recentMatches — самый надёжный эндпоинт */
-    try {
-      var recent = await apiGet("/players/" + accountId + "/recentMatches");
-      if (Array.isArray(recent) && recent.length > 0) {
-        console.log("[PA] /recentMatches → count=" + recent.length);
-        return recent;
-      }
-    } catch (e) {}
-
-    /* Fallback: /matches?limit=N */
-    try {
-      var matches = await apiGet("/players/" + accountId + "/matches", { limit: limit || 30 });
-      console.log("[PA] /matches → count=" + (Array.isArray(matches) ? matches.length : "?"));
-      return Array.isArray(matches) ? matches : [];
-    } catch (e) {
-      console.warn("[PA] /matches error:", e);
-      return [];
+  /* ═══════════════ STRATZ GRAPHQL ═══════════════ */
+  stratзQuery: async function (query, variables) {
+    var res = await fetch(this.STRATZ_ENDPOINT, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer " + this.STRATZ_TOKEN,
+        "User-Agent": "STRATZ_API"
+      },
+      body: JSON.stringify({ query: query, variables: variables || {} })
+    });
+    if (!res.ok) {
+      var txt = "";
+      try { txt = await res.text(); } catch (e) {}
+      throw new Error("STRATZ HTTP " + res.status + ": " + txt.slice(0, 200));
     }
-  },
-
-  loadHeroes: async function (accountId) {
-    try {
-      var heroes = await apiGet("/players/" + accountId + "/heroes");
-      console.log("[PA] /heroes → count=" + (Array.isArray(heroes) ? heroes.length : "?"));
-      return Array.isArray(heroes) ? heroes : [];
-    } catch (e) { return []; }
-  },
-
-  loadTotals: async function (accountId) {
-    try {
-      var totals = await apiGet("/players/" + accountId + "/totals");
-      return Array.isArray(totals) ? totals : [];
-    } catch (e) { return []; }
-  },
-
-  loadCounts: async function (accountId) {
-    try {
-      var counts = await apiGet("/players/" + accountId + "/counts");
-      return counts || {};
-    } catch (e) { return {}; }
-  },
-
-  loadWinLoss: async function (accountId) {
-    try {
-      var wl = await apiGet("/players/" + accountId + "/wl");
-      console.log("[PA] /wl →", wl);
-      return wl || {};
-    } catch (e) { return {}; }
+    var json = await res.json();
+    if (json.errors && json.errors.length) {
+      throw new Error("STRATZ GraphQL: " + json.errors[0].message);
+    }
+    return json.data;
   },
 
   loadAll: async function (accountId) {
@@ -142,66 +107,174 @@ var ProfileAnalyzer = {
     }
 
     this.loading = true;
-    console.log("[PA] ЗАГРУЗКА account_id=" + accountId);
+    console.log("[PA-STRATZ] ЗАГРУЗКА account_id=" + accountId);
 
-    var player = await this.loadProfile(accountId);
-    if (!player || !player.profile || !player.profile.personaname) {
+    var query = `
+      query Player($id: Long!) {
+        player(steamAccountId: $id) {
+          steamAccountId
+          matchCount
+          winCount
+          rank
+          leaderboardRank
+          behaviorScore
+          steamAccount {
+            name
+            avatar
+            profileUri
+            countryCode
+            isAnonymous
+          }
+          heroes(take: 30) {
+            heroId
+            matchCount
+            winCount
+            avgKills
+            avgDeaths
+            avgAssists
+            avgGoldPerMinute
+            avgExperiencePerMinute
+            avgLastHits
+            avgDenies
+          }
+          matches(request: { take: 30 }) {
+            id
+            startDateTime
+            durationSeconds
+            didRadiantWin
+            gameMode
+            lobbyType
+            players(steamAccountId: $id) {
+              heroId
+              isRadiant
+              kills
+              deaths
+              assists
+              goldPerMinute
+              experiencePerMinute
+              lastHits
+              position
+            }
+          }
+        }
+      }
+    `;
+
+    var data;
+    try {
+      data = await this.stratzQuery(query, { id: Number(accountId) });
+    } catch (e) {
       this.loading = false;
-      return { ok: false, reason: "hidden", accountId: accountId, player: player };
+      console.warn("[PA-STRATZ] error:", e);
+      return { ok: false, reason: "error", msg: e.message || String(e), accountId: accountId };
     }
-
-    var results = await Promise.all([
-      this.loadRecentMatches(accountId, 30),
-      this.loadHeroes(accountId),
-      this.loadTotals(accountId),
-      this.loadCounts(accountId),
-      this.loadWinLoss(accountId)
-    ]);
-
-    var matches = results[0] || [];
-    var heroes = results[1] || [];
-    var totals = results[2] || [];
-    var counts = results[3] || {};
-    var wl = results[4] || {};
 
     this.loading = false;
 
-    /* 🔑 ФИКС: если heroes > 0 ИЛИ есть WL данные — аккаунт публичный.
-       Матчи могут быть пустыми из-за глюков OpenDota — это НЕ значит что данные скрыты. */
-    var isPublic = (heroes.length > 0) ||
-                   (wl.win !== undefined && wl.win > 0) ||
-                   (totals.length > 0);
-
-    if (!isPublic) {
-      console.log("[PA] Нет данных: heroes=" + heroes.length + " wl=" + JSON.stringify(wl) + " totals=" + totals.length);
-      return { ok: false, reason: "hidden", accountId: accountId, player: player };
+    if (!data || !data.player) {
+      return { ok: false, reason: "hidden", accountId: accountId };
     }
 
-    console.log("[PA] ✅ Данные доступны. matches=" + matches.length + " heroes=" + heroes.length);
+    var p = data.player;
+    var steamAccount = p.steamAccount || {};
 
-    var data = {
+    /* Скрытые данные — если имени нет и матчей нет */
+    if (steamAccount.isAnonymous || (!steamAccount.name && !p.matchCount)) {
+      return { ok: false, reason: "hidden", accountId: accountId, player: { profile: { personaname: steamAccount.name } } };
+    }
+
+    /* Формируем единый объект, похожий на старый формат OpenDota */
+    var result = {
       ok: true,
       accountId: accountId,
-      player: player,
-      matches: matches,
-      heroes: heroes,
-      totals: totals,
-      counts: counts,
-      wl: wl
+      player: {
+        profile: {
+          personaname: steamAccount.name || "Игрок",
+          avatarfull: steamAccount.avatar || null,
+          profileurl: steamAccount.profileUri || ("https://steamcommunity.com/profiles/" + (BigInt(accountId) + BigInt("76561197960265728")).toString()),
+          loccountrycode: steamAccount.countryCode || null
+        },
+        rank_tier: this._rankToTier(p.rank)
+      },
+      behavior: p.behaviorScore || 0,
+      leaderboardRank: p.leaderboardRank || 0,
+      heroes: (p.heroes || []).map(function (h) {
+        return {
+          hero_id: h.heroId,
+          games: h.matchCount || 0,
+          win: h.winCount || 0,
+          avgKills: h.avgKills || 0,
+          avgDeaths: h.avgDeaths || 0,
+          avgAssists: h.avgAssists || 0,
+          avgGPM: h.avgGoldPerMinute || 0,
+          avgXPM: h.avgExperiencePerMinute || 0,
+          avgLH: h.avgLastHits || 0
+        };
+      }),
+      matches: (p.matches || []).map(function (m) {
+        var me = (m.players && m.players.length) ? m.players[0] : null;
+        return {
+          match_id: m.id,
+          duration: m.durationSeconds || 0,
+          radiant_win: !!m.didRadiantWin,
+          game_mode: this._stratzModeToDota(m.gameMode),
+          player_slot: me ? (me.isRadiant ? 0 : 128) : 0,
+          hero_id: me ? me.heroId : 0,
+          kills: me ? me.kills : 0,
+          deaths: me ? me.deaths : 0,
+          assists: me ? me.assists : 0,
+          gold_per_min: me ? me.goldPerMinute : 0,
+          xp_per_min: me ? me.experiencePerMinute : 0,
+          last_hits: me ? me.lastHits : 0,
+          position: me ? me.position : null,
+          start_time: m.startDateTime || 0
+        };
+      }.bind(this))
     };
 
-    data.stats = this.computeStats(data);
+    /* Общее количество матчей / побед из player */
+    result.wl = { win: p.winCount || 0, lose: (p.matchCount || 0) - (p.winCount || 0) };
+    result.totals = [];
 
-    this.cache = data;
+    result.stats = this.computeStats(result);
+
+    this.cache = result;
     this.cacheTime = Date.now();
-    return data;
+    return result;
+  },
+
+  _stratzModeToDota: function (stratzMode) {
+    /* STRATZ использует строки, Dota числа. Упрощаем: */
+    if (!stratzMode) return 22;
+    var m = String(stratzMode).toUpperCase();
+    if (m.indexOf("RANKED") >= 0) return 22;
+    if (m.indexOf("TURBO") >= 0) return 23;
+    if (m.indexOf("SINGLE") >= 0) return 4;
+    if (m.indexOf("RANDOM") >= 0) return 3;
+    if (m.indexOf("CAPTAINS") >= 0) return 2;
+    return 22;
+  },
+
+  _rankToTier: function (rank) {
+    /* STRATZ отдаёт rank как число: 1-80 (Herald 1-5 = 11-15, ... Immortal = 80) */
+    /* Просто прокидываем как есть — в дашборде отобразим по значению */
+    return rank || 0;
+  },
+
+  _rankName: function (rank) {
+    if (!rank) return null;
+    var names = ["", "Herald", "Guardian", "Crusader", "Archon", "Legend", "Ancient", "Divine", "Immortal"];
+    /* STRATZ rank: 1..8 * 10 + star (1-5). Пример 25 = Guardian 5. */
+    var tier = Math.floor(rank / 10);
+    if (tier < 1) tier = 1;
+    if (tier > 8) tier = 8;
+    return names[tier] || null;
   },
 
   /* ═══════════════ МЕТРИКИ ═══════════════ */
   computeStats: function (data) {
     var matches = data.matches || [];
     var heroes = data.heroes || [];
-    var totals = data.totals || [];
     var wl = data.wl || {};
 
     var stats = {
@@ -215,7 +288,7 @@ var ProfileAnalyzer = {
       lifetimeGames: 0
     };
 
-    /* Общее за всю жизнь из /wl */
+    /* Общее за всю жизнь из STRATZ */
     if (wl.win !== undefined && wl.lose !== undefined) {
       stats.lifetimeWins = wl.win;
       stats.totalLifetime = wl.win + wl.lose;
@@ -223,17 +296,49 @@ var ProfileAnalyzer = {
       stats.lifetimeGames = stats.totalLifetime;
     }
 
-    /* Общее количество игр — сумма из heroes (если /wl пустой) */
-    if (stats.lifetimeGames === 0) {
-      var sum = 0;
-      for (var hg = 0; hg < heroes.length; hg++) sum += (heroes[hg].games || 0);
-      stats.lifetimeGames = sum;
+    /* Считаем метрики из heroes (STRATZ даёт avgGPM/avgXPM/avgLH) */
+    var sumG = 0, sumX = 0, sumL = 0, sumK = 0, sumD = 0, sumA = 0, tot = 0;
+    for (var hg = 0; hg < heroes.length; hg++) {
+      var hero = heroes[hg];
+      var games = hero.games || 0;
+      if (games === 0) continue;
+      sumG += (hero.avgGPM || 0) * games;
+      sumX += (hero.avgXPM || 0) * games;
+      sumL += (hero.avgLH || 0) * games;
+      sumK += (hero.avgKills || 0) * games;
+      sumD += (hero.avgDeaths || 0) * games;
+      sumA += (hero.avgAssists || 0) * games;
+      tot += games;
+    }
+    if (tot > 0) {
+      stats.avgGPM = Math.round(sumG / tot);
+      stats.avgXPM = Math.round(sumX / tot);
+      stats.avgLH = Math.round(sumL / tot);
+      stats.avgKills = (sumK / tot).toFixed(1);
+      stats.avgDeaths = (sumD / tot).toFixed(1);
+      stats.avgAssists = (sumA / tot).toFixed(1);
+      stats.avgKDA = ((sumK + sumA) / Math.max(sumD, 1)).toFixed(2);
     }
 
-    if (!matches.length) return stats;
+    if (!matches.length) {
+      /* Без матчей всё равно возвращаем heroes-статистику */
+      stats.topHeroes = heroes.slice().sort(function (a, b) { return b.games - a.games; }).slice(0, 8).map(function (h) {
+        return { heroId: h.hero_id, games: h.games, winrate: h.games ? Math.round((h.win / h.games) * 100) : 0 };
+      });
+      var bestH = null, bestWR = 0, worstH = null, worstWR = 1;
+      for (var hh = 0; hh < heroes.length; hh++) {
+        if (heroes[hh].games < 3) continue;
+        var w = heroes[hh].win / heroes[hh].games;
+        if (w > bestWR) { bestWR = w; bestH = heroes[hh]; }
+        if (w < worstWR) { worstWR = w; worstH = heroes[hh]; }
+      }
+      stats.bestHero = bestH ? { heroId: bestH.hero_id, games: bestH.games, winrate: Math.round(bestWR * 100) } : null;
+      stats.worstHero = worstH ? { heroId: worstH.hero_id, games: worstH.games, winrate: Math.round(worstWR * 100) } : null;
+      return stats;
+    }
 
     var wins = 0, losses = 0;
-    var sumK = 0, sumD = 0, sumA = 0, sumDur = 0;
+    var sumDur = 0;
     var roles = {}, form = [];
     var longestW = 0, longestL = 0, curW = 0, curL = 0;
 
@@ -245,26 +350,15 @@ var ProfileAnalyzer = {
       else { losses++; curL++; curW = 0; if (curL > longestL) longestL = curL; }
       form.push(won ? 1 : 0);
 
-      sumK += (m.kills || 0);
-      sumD += (m.deaths || 0);
-      sumA += (m.assists || 0);
       sumDur += (m.duration || 0);
 
       var roleKey = "unknown";
-      if (m.is_roaming) roleKey = "roam";
-      else if (m.lane_role === 1) roleKey = "safelane";
-      else if (m.lane_role === 2) roleKey = "mid";
-      else if (m.lane_role === 3) roleKey = "offlane";
-      else if (m.lane_role === 4) roleKey = "jungle";
+      if (m.position === 1) roleKey = "safelane";
+      else if (m.position === 2) roleKey = "mid";
+      else if (m.position === 3) roleKey = "offlane";
+      else if (m.position === 4) roleKey = "roam";
+      else if (m.position === 5) roleKey = "safelane5";
       roles[roleKey] = (roles[roleKey] || 0) + 1;
-    }
-
-    var gpmTotal = 0, xpmTotal = 0, lhTotal = 0, durationTotal = 0;
-    for (var t = 0; t < totals.length; t++) {
-      if (totals[t].field === "gold_per_min") gpmTotal = totals[t].sum / Math.max(totals[t].n, 1);
-      if (totals[t].field === "xp_per_min") xpmTotal = totals[t].sum / Math.max(totals[t].n, 1);
-      if (totals[t].field === "last_hits") lhTotal = totals[t].sum / Math.max(totals[t].n, 1);
-      if (totals[t].field === "duration") durationTotal = totals[t].sum / Math.max(totals[t].n, 1);
     }
 
     var n = matches.length;
@@ -272,31 +366,33 @@ var ProfileAnalyzer = {
     stats.wins = wins;
     stats.losses = losses;
     stats.winrate = n > 0 ? Math.round((wins / n) * 100) : 0;
-    stats.avgKills = (sumK / n).toFixed(1);
-    stats.avgDeaths = (sumD / n).toFixed(1);
-    stats.avgAssists = (sumA / n).toFixed(1);
-    stats.avgKDA = ((sumK + sumA) / Math.max(sumD, 1)).toFixed(2);
-    stats.avgGPM = Math.round(gpmTotal || 0);
-    stats.avgXPM = Math.round(xpmTotal || 0);
-    stats.avgLH = Math.round(lhTotal || 0);
-    stats.avgDuration = Math.round((durationTotal || sumDur / n) / 60);
+    stats.avgDuration = Math.round(sumDur / n / 60);
     stats.roleCounts = roles;
     stats.recentForm = form;
     stats.longestWinStreak = longestW;
     stats.longestLoseStreak = longestL;
 
+    /* Избранная роль: роли 4 и 5 объединяем в "support", 1 и 5 отдельно */
+    var merged = {};
+    for (var r in roles) {
+      var k = r;
+      if (r === "safelane5") k = "roam";
+      merged[k] = (merged[k] || 0) + roles[r];
+    }
+    stats.roleCounts = merged;
     var bestRole = null, bestCount = 0;
-    for (var r in roles) if (roles[r] > bestCount) { bestCount = roles[r]; bestRole = r; }
+    for (var r2 in merged) if (merged[r2] > bestCount) { bestCount = merged[r2]; bestRole = r2; }
     stats.favoriteRole = bestRole;
 
+    /* Герои — best/worst/top */
     var bestHero = null, bestWR = 0;
     var worstHero = null, worstWR = 1;
     for (var h = 0; h < heroes.length; h++) {
-      var hero = heroes[h];
-      if (hero.games < 3) continue;
-      var wr = hero.win / hero.games;
-      if (wr > bestWR) { bestWR = wr; bestHero = hero; }
-      if (wr < worstWR) { worstWR = wr; worstHero = hero; }
+      var hero2 = heroes[h];
+      if (hero2.games < 3) continue;
+      var wr = hero2.win / hero2.games;
+      if (wr > bestWR) { bestWR = wr; bestHero = hero2; }
+      if (wr < worstWR) { worstWR = wr; worstHero = hero2; }
     }
     stats.bestHero = bestHero ? { heroId: bestHero.hero_id, games: bestHero.games, winrate: Math.round(bestWR * 100) } : null;
     stats.worstHero = worstHero ? { heroId: worstHero.hero_id, games: worstHero.games, winrate: Math.round(worstWR * 100) } : null;
@@ -329,7 +425,7 @@ var ProfileAnalyzer = {
     card.appendChild(el("div", { style: "font-size:80px;line-height:1;margin-bottom:24px;" }, "🎮"));
     card.appendChild(el("div", { style: "font-size:22px;font-weight:900;color:var(--text);margin-bottom:10px;" }, "Войди через Steam"));
     card.appendChild(el("div", { class: "dim", style: "font-size:13px;line-height:1.6;max-width:400px;margin:0 auto 28px;" },
-      "Получим твой Steam ID и загрузим статистику матчей из OpenDota."));
+      "Получим твой Steam ID и загрузим полную статистику через STRATZ."));
 
     var steamBtn = el("button", { type: "button" });
     steamBtn.style.cssText = "display:inline-flex;align-items:center;justify-content:center;gap:14px;padding:18px 36px;border-radius:14px;font-size:16px;font-weight:800;font-family:inherit;cursor:pointer;border:1px solid rgba(102,192,244,0.6);background:linear-gradient(135deg,#1b2838,#2a475e);color:#fff;transition:transform 0.2s ease, filter 0.2s ease;box-shadow:0 12px 34px -14px rgba(102,192,244,0.9);";
@@ -345,11 +441,10 @@ var ProfileAnalyzer = {
   renderHiddenCard: function (data) {
     var card = UI.card("");
     card.style.cssText = "text-align:center;padding:50px 30px;";
-
     card.appendChild(el("div", { style: "font-size:80px;line-height:1;margin-bottom:20px;" }, "🔒"));
     card.appendChild(el("div", { style: "font-size:22px;font-weight:900;color:var(--gold);margin-bottom:10px;" }, "Публичные матчи выключены"));
     card.appendChild(el("div", { class: "dim", style: "font-size:13.5px;line-height:1.7;max-width:460px;margin:0 auto 24px;" },
-      "OpenDota не видит твои матчи. Чтобы включить — нужно:"));
+      "STRATZ не видит твои матчи. Чтобы включить — нужно:"));
 
     var steps = el("div", { style: "max-width:440px;margin:0 auto 24px;text-align:left;background:var(--bg-elev);border:1px solid var(--border);border-radius:14px;padding:18px 22px;" });
     var stepsList = [
@@ -365,13 +460,6 @@ var ProfileAnalyzer = {
       steps.appendChild(step);
     }
     card.appendChild(steps);
-
-    if (data && data.player && data.player.profile) {
-      var info = el("div", { style: "max-width:440px;margin:0 auto 20px;padding:12px 16px;background:var(--bg-elev);border:1px solid var(--border);border-radius:12px;font-size:12px;color:var(--text-muted);text-align:left;" });
-      info.appendChild(el("div", { style: "font-weight:700;color:var(--text);margin-bottom:4px;" }, "Аккаунт:"));
-      info.appendChild(el("div", {}, data.player.profile.personaname + " · ID " + data.accountId));
-      card.appendChild(info);
-    }
 
     var btnRow = el("div", { style: "display:flex;gap:10px;justify-content:center;flex-wrap:wrap;" });
 
@@ -396,7 +484,7 @@ var ProfileAnalyzer = {
   },
 
   roleName: function (key) {
-    return { safelane: "Керри", mid: "Мид", offlane: "Оффлейн", roam: "Роум", jungle: "Лес", unknown: "Другое" }[key] || key;
+    return { safelane: "Керри", mid: "Мид", offlane: "Оффлейн", roam: "Роум / Сапорт", jungle: "Лес", unknown: "Другое" }[key] || key;
   },
 
   roleIcon: function (key) {
@@ -433,7 +521,7 @@ var ProfileAnalyzer = {
     var loadingCard = UI.card("");
     loadingCard.style.cssText = "text-align:center;padding:60px 30px;";
     loadingCard.appendChild(el("div", { style: "font-size:48px;margin-bottom:14px;opacity:0.6;" }, "⏳"));
-    loadingCard.appendChild(el("div", { class: "dim", style: "font-size:13px;" }, "Загружаю данные из OpenDota..."));
+    loadingCard.appendChild(el("div", { class: "dim", style: "font-size:13px;" }, "Загружаю данные из STRATZ..."));
     frag.appendChild(loadingCard);
 
     setTimeout(async function () {
@@ -486,16 +574,19 @@ var ProfileAnalyzer = {
     var info = el("div", { style: "flex:1;min-width:220px;" });
     var nameRow = el("div", { style: "display:flex;align-items:center;gap:12px;flex-wrap:wrap;" });
     nameRow.appendChild(el("div", { style: "font-size:30px;font-weight:900;color:var(--text);line-height:1.1;letter-spacing:-0.02em;" }, prof.personaname || "Игрок"));
-    if (rank) {
-      var rankNames = ["", "Herald", "Guardian", "Crusader", "Archon", "Legend", "Ancient", "Divine", "Immortal"];
-      nameRow.appendChild(el("div", { style: "padding:5px 12px;border-radius:9px;font-size:11px;font-weight:800;letter-spacing:0.06em;background:var(--gold-bg);border:1px solid var(--gold);color:var(--gold);text-transform:uppercase;" }, rankNames[Math.floor(rank / 10)] || "?"));
+
+    var rankName = this._rankName(rank);
+    if (rankName) {
+      nameRow.appendChild(el("div", { style: "padding:5px 12px;border-radius:9px;font-size:11px;font-weight:800;letter-spacing:0.06em;background:var(--gold-bg);border:1px solid var(--gold);color:var(--gold);text-transform:uppercase;" }, rankName));
     }
     info.appendChild(nameRow);
 
     var metaRow = el("div", { style: "display:flex;gap:14px;margin-top:12px;flex-wrap:wrap;font-size:12px;color:var(--text-muted);" });
     metaRow.appendChild(el("span", {}, "🆔 " + data.accountId));
     if (prof.loccountrycode) metaRow.appendChild(el("span", {}, "🌍 " + prof.loccountrycode));
-    if (s.lifetimeGames > 0) metaRow.appendChild(el("span", {}, "🎮 " + s.lifetimeGames + " матчей за всё время"));
+    if (s.lifetimeGames > 0) metaRow.appendChild(el("span", {}, "🎮 " + s.lifetimeGames + " матчей"));
+    if (data.behavior > 0) metaRow.appendChild(el("span", {}, "🎭 поведение " + data.behavior));
+    if (data.leaderboardRank > 0) metaRow.appendChild(el("span", { style: "color:var(--gold);font-weight:700;" }, "🏆 #" + data.leaderboardRank + " в ладдере"));
     if (prof.profileurl) {
       var link = el("a", { href: prof.profileurl, target: "_blank", rel: "noopener", style: "color:var(--cyan);text-decoration:none;font-weight:600;" }, "Steam ↗");
       metaRow.appendChild(link);
@@ -533,24 +624,26 @@ var ProfileAnalyzer = {
     head.appendChild(headRow);
     frag.appendChild(head);
 
-    /* ─── 6 метрик ─── */
+    /* ─── Метрики ─── */
     var grid = el("div", { style: "display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-bottom:18px;" });
     if (s.totalMatches > 0) {
       grid.appendChild(this.metricTile("🏆", "Винрейт (30 матчей)", s.winrate + "%", s.wins + "W · " + s.losses + "L",
         s.winrate >= 55 ? "var(--green)" : s.winrate >= 45 ? "var(--yellow)" : "var(--red)"));
+    }
+    if (s.avgKDA > 0) {
       grid.appendChild(this.metricTile("⚔️", "KDA", s.avgKDA, s.avgKills + " / " + s.avgDeaths + " / " + s.avgAssists, "var(--cyan)"));
-      grid.appendChild(this.metricTile("⏱️", "Длительность", s.avgDuration + " мин", "средняя за матч", "var(--text-muted)"));
     }
     if (s.avgGPM > 0) grid.appendChild(this.metricTile("💰", "GPM", s.avgGPM, "средний за всё время", "var(--gold)"));
     if (s.avgXPM > 0) grid.appendChild(this.metricTile("⚡", "XPM", s.avgXPM, "средний за всё время", "var(--accent-light)"));
     if (s.avgLH > 0) grid.appendChild(this.metricTile("🎯", "Ластхиты", s.avgLH, "средние за матч", "var(--cyan)"));
+    if (s.avgDuration > 0) grid.appendChild(this.metricTile("⏱️", "Длительность", s.avgDuration + " мин", "средняя за матч", "var(--text-muted)"));
     frag.appendChild(grid);
 
-    /* ─── Если нет матчей — плашка с пояснением ─── */
+    /* ─── Плашка если матчей нет ─── */
     if (s.totalMatches === 0) {
       var noMatchesCard = UI.card("📜 Последние матчи");
       noMatchesCard.appendChild(el("div", { class: "dim", style: "font-size:12.5px;line-height:1.6;padding:10px 0;" },
-        "OpenDota временно не отдаёт список матчей. Но зато видит твою статистику по героям, WL и totals. Попробуй «Обновить» через 5-10 минут."));
+        "STRATZ отдал статистику по героям, но список последних матчей пуст. Попробуй «Обновить» через 5-10 минут."));
       frag.appendChild(noMatchesCard);
     }
 
@@ -617,7 +710,7 @@ var ProfileAnalyzer = {
       frag.appendChild(roleCard);
     }
 
-    /* ─── Лучший / худший ─── */
+    /* ─── Best/worst ─── */
     if (s.bestHero || s.worstHero) {
       var hlCard = UI.card("⚔️ Сильные и слабые герои");
       var hlRow = el("div", { style: "display:grid;grid-template-columns:1fr 1fr;gap:14px;" });
@@ -707,7 +800,7 @@ var ProfileAnalyzer = {
 
           var mInfo = el("div", { style: "flex:1;min-width:0;" });
           mInfo.appendChild(el("div", { style: "font-size:12.5px;font-weight:700;color:var(--text);" }, "Матч #" + m.match_id));
-          mInfo.appendChild(el("div", { class: "dim", style: "font-size:10.5px;margin-top:3px;" }, durMin + " мин · " + (m.game_mode === 22 ? "Ranked" : "Обычный")));
+          mInfo.appendChild(el("div", { class: "dim", style: "font-size:10.5px;margin-top:3px;" }, durMin + " мин · " + (m.position ? "Поз. " + m.position : "—")));
           mRow.appendChild(mInfo);
 
           var kdaColor = won ? "var(--green)" : "var(--red)";
@@ -717,7 +810,7 @@ var ProfileAnalyzer = {
           mRow.appendChild(kdaBox);
 
           mRow.addEventListener("click", function () {
-            window.open("https://www.opendota.com/matches/" + m.match_id, "_blank");
+            window.open("https://stratz.com/matches/" + m.match_id, "_blank");
           });
           list.appendChild(mRow);
         })(data.matches[mi]);
@@ -742,4 +835,4 @@ var ProfileAnalyzer = {
 
 ProfileAnalyzer.init();
 
-console.log("profile-analyzer v7.0 ready");
+console.log("profile-analyzer v8.0 ready (STRATZ)");
