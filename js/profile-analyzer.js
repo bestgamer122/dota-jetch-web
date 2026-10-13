@@ -1,4 +1,4 @@
-/* DOTA JETCH — PROFILE ANALYZER v2.0 (JETCH+ only, Steam OpenID login) */
+/* DOTA JETCH — PROFILE ANALYZER v3.0 (Steam OpenID only, public-data check) */
 
 var ProfileAnalyzer = {
   cache: null,
@@ -55,7 +55,6 @@ var ProfileAnalyzer = {
     window.location.href = this.STEAM_OPENID_URL + "?" + params.join("&");
   },
 
-  /* Проверяем URL — не вернулись ли мы из Steam */
   checkSteamCallback: function () {
     var search = window.location.search;
     if (!search || search.indexOf("openid.mode=id_res") < 0) return null;
@@ -94,41 +93,12 @@ var ProfileAnalyzer = {
     } catch (e) {}
   },
 
-  /* ═══════════════ ПАРСЕР РУЧНОГО ВВОДА ═══════════════ */
-  parseSteamId: function (raw) {
-    var s = String(raw || "").trim();
-    if (!s) return { ok: false, msg: "Пусто" };
-
-    var linkMatch = s.match(/steamcommunity\.com\/profiles\/(\d+)/i);
-    if (linkMatch) s = linkMatch[1];
-
-    if (/steamcommunity\.com\/id\//i.test(s)) {
-      return { ok: false, msg: "Vanity-ссылка не поддерживается — используй кнопку «Войти через Steam»" };
-    }
-
-    if (!/^\d+$/.test(s)) {
-      return { ok: false, msg: "ID должен содержать только цифры" };
-    }
-
-    var num = s;
-
-    if (num.length === 17 && num.indexOf("7656119") === 0) {
-      var accountId = this.steam64ToAccountId(num);
-      return { ok: true, accountId: accountId, original: num, type: "steam64" };
-    }
-
-    if (num.length >= 4 && num.length <= 11) {
-      return { ok: true, accountId: num, original: num, type: "steam32" };
-    }
-
-    return { ok: false, msg: "Неизвестный формат ID" };
-  },
-
   /* ═══════════════ ЗАГРУЗКА ДАННЫХ ═══════════════ */
   loadProfile: async function (accountId) {
     try {
       var player = await apiGet("/players/" + accountId);
-      if (!player || !player.profile) return { ok: false, reason: "hidden" };
+      if (!player) return { ok: false, reason: "error", msg: "Пустой ответ OpenDota" };
+      if (!player.profile) return { ok: false, reason: "hidden" };
       return { ok: true, player: player };
     } catch (e) {
       return { ok: false, reason: "error", msg: e.message || String(e) };
@@ -170,8 +140,14 @@ var ProfileAnalyzer = {
 
     this.loading = true;
 
+    var profileRes = await this.loadProfile(accountId);
+
+    if (!profileRes.ok) {
+      this.loading = false;
+      return { ok: false, reason: profileRes.reason, msg: profileRes.msg };
+    }
+
     var results = await Promise.all([
-      this.loadProfile(accountId),
       this.loadRecentMatches(accountId, 20),
       this.loadHeroes(accountId),
       this.loadTotals(accountId),
@@ -180,19 +156,14 @@ var ProfileAnalyzer = {
 
     this.loading = false;
 
-    var profileRes = results[0];
-    if (!profileRes.ok) {
-      return { ok: false, reason: profileRes.reason, msg: profileRes.msg };
-    }
-
     var data = {
       ok: true,
       accountId: accountId,
       player: profileRes.player,
-      matches: results[1] || [],
-      heroes: results[2] || [],
-      totals: results[3] || [],
-      counts: results[4] || {}
+      matches: results[0] || [],
+      heroes: results[1] || [],
+      totals: results[2] || [],
+      counts: results[3] || {}
     };
 
     data.stats = this.computeStats(data);
@@ -304,100 +275,54 @@ var ProfileAnalyzer = {
     return card;
   },
 
-  renderSetupCard: function () {
-    var frag = document.createDocumentFragment();
+  renderLoginCard: function () {
+    var card = UI.card("");
+    card.style.cssText = "text-align:center;padding:60px 30px;";
 
-    // ─── Заголовок ───
-    var head = UI.card("🎮 Подключи Steam-аккаунт");
-    head.appendChild(el("div", { class: "dim", style: "font-size:12.5px;line-height:1.6;margin-bottom:18px;" },
-      "Чтобы видеть свою статистику — войди через Steam. Мы возьмём твой Steam ID и подтянем матчи из OpenDota."));
+    card.appendChild(el("div", { style: "font-size:80px;line-height:1;margin-bottom:24px;" }, "🎮"));
+    card.appendChild(el("div", { style: "font-size:22px;font-weight:900;color:var(--text);margin-bottom:10px;" }, "Войди через Steam"));
+    card.appendChild(el("div", { class: "dim", style: "font-size:13px;line-height:1.6;max-width:380px;margin:0 auto 28px;" },
+      "Мы получим твой Steam ID и подтянем статистику матчей из OpenDota."));
 
-    // ─── Основная кнопка Steam ───
     var steamBtn = el("button", { type: "button" });
-    steamBtn.style.cssText = "display:flex;align-items:center;justify-content:center;gap:14px;width:100%;padding:18px 24px;border-radius:14px;font-size:15px;font-weight:800;font-family:inherit;cursor:pointer;border:1px solid rgba(102,192,244,0.6);background:linear-gradient(135deg,#1b2838,#2a475e);color:#fff;transition:transform 0.2s ease, filter 0.2s ease;box-shadow:0 12px 34px -14px rgba(102,192,244,0.9);";
+    steamBtn.style.cssText = "display:inline-flex;align-items:center;justify-content:center;gap:14px;padding:18px 36px;border-radius:14px;font-size:16px;font-weight:800;font-family:inherit;cursor:pointer;border:1px solid rgba(102,192,244,0.6);background:linear-gradient(135deg,#1b2838,#2a475e);color:#fff;transition:transform 0.2s ease, filter 0.2s ease;box-shadow:0 12px 34px -14px rgba(102,192,244,0.9);";
     steamBtn.appendChild(el("div", { style: "font-size:26px;line-height:1;" }, "🎮"));
     steamBtn.appendChild(el("div", {}, "Войти через Steam"));
     steamBtn.addEventListener("mouseenter", function () { steamBtn.style.transform = "translateY(-2px)"; steamBtn.style.filter = "brightness(1.15)"; });
     steamBtn.addEventListener("mouseleave", function () { steamBtn.style.transform = "translateY(0)"; steamBtn.style.filter = "brightness(1)"; });
     steamBtn.addEventListener("click", function () { ProfileAnalyzer.loginViaSteam(); });
-    head.appendChild(steamBtn);
+    card.appendChild(steamBtn);
 
-    var note1 = el("div", { class: "dim", style: "font-size:10.5px;margin-top:12px;text-align:center;line-height:1.5;" },
-      "Откроется страница Steam. Если ты уже залогинен — подтверди вход.");
-    head.appendChild(note1);
-    frag.appendChild(head);
-
-    // ─── Ручной ввод (сворачиваемый) ───
-    var manualWrap = UI.card("");
-    var manualBtn = el("button", { type: "button" });
-    manualBtn.style.cssText = "width:100%;padding:12px;border-radius:10px;font-size:12.5px;font-weight:700;font-family:inherit;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--text-muted);";
-    manualBtn.textContent = "⌨️ Или ввести Steam ID вручную";
-    manualWrap.appendChild(manualBtn);
-
-    var manualForm = el("div", { style: "display:none;margin-top:16px;padding-top:16px;border-top:1px solid var(--border);" });
-    manualForm.appendChild(el("div", { class: "dim", style: "font-size:11.5px;line-height:1.6;margin-bottom:10px;" },
-      "Steam64 ID (17 цифр, начинается с 7656119...) или Steam32 ID (короткий, 6-10 цифр). Найти можно в URL своего профиля на steamcommunity.com"));
-
-    var inp = UI.input("76561198123456789");
-    inp.id = "steamIdInput";
-    inp.style.marginBottom = "8px";
-    manualForm.appendChild(inp);
-
-    var msgEl = el("div", { style: "font-size:11.5px;min-height:16px;margin-bottom:10px;line-height:1.5;" });
-    manualForm.appendChild(msgEl);
-
-    var saveBtn = UI.btn("🔗 Подключить");
-    saveBtn.style.width = "100%";
-    saveBtn.addEventListener("click", function () {
-      var parsed = ProfileAnalyzer.parseSteamId(inp.value);
-      if (!parsed.ok) { msgEl.textContent = "✕ " + parsed.msg; msgEl.style.color = "var(--red)"; return; }
-      ProfileAnalyzer.saveId(parsed.accountId);
-      msgEl.textContent = "✓ Подключено. Загружаю...";
-      msgEl.style.color = "var(--green)";
-      setTimeout(function () { switchPage("profile"); }, 400);
-    });
-    manualForm.appendChild(saveBtn);
-
-    manualBtn.addEventListener("click", function () {
-      var shown = manualForm.style.display === "block";
-      manualForm.style.display = shown ? "none" : "block";
-      manualBtn.textContent = shown ? "⌨️ Или ввести Steam ID вручную" : "▲ Скрыть ручной ввод";
-    });
-
-    manualWrap.appendChild(manualForm);
-    frag.appendChild(manualWrap);
-
-    // ─── Инфо-блок ───
-    var infoCard = UI.card("💡 Полезно знать");
-    var infoList = [
-      "Публичные матчи должны быть включены (Dota 2 → Настройки → Соц. → «Публичные данные о матчах»).",
-      "Если матчи не отображаются — включи и подожди 5-10 минут.",
-      "Данные подтягиваются из OpenDota — обновление раз в 10 минут.",
-      "Steam ID привязан к твоему аккаунту DOTA JETCH — никто другой его не увидит."
-    ];
-    for (var i = 0; i < infoList.length; i++) {
-      infoCard.appendChild(el("div", { class: "dim", style: "font-size:11.5px;line-height:1.6;padding:3px 0;" }, "• " + infoList[i]));
-    }
-    frag.appendChild(infoCard);
-
-    return frag;
+    return card;
   },
 
   renderPublicDataWarning: function () {
     var card = UI.card("");
-    card.style.cssText = "background:linear-gradient(135deg,rgba(251,191,36,0.10),var(--bg-card));border-color:var(--gold);";
-    var row = el("div", { style: "display:flex;align-items:flex-start;gap:14px;" });
-    row.appendChild(el("div", { style: "font-size:28px;flex-shrink:0;" }, "⚠️"));
-    var info = el("div", { style: "flex:1;" });
-    info.appendChild(el("div", { style: "font-size:14px;font-weight:800;color:var(--gold);margin-bottom:6px;" }, "Публичные матчи отключены"));
-    info.appendChild(el("div", { class: "dim", style: "font-size:12px;line-height:1.6;" },
-      "Мы не можем найти твои матчи. Чтобы включить: Dota 2 → Настройки → Соц. → галочка «Публичные данные о матчах». После этого подожди 5-10 минут и нажми «Обновить»."));
-    row.appendChild(info);
-    card.appendChild(row);
+    card.style.cssText = "text-align:center;padding:60px 30px;";
 
-    var btnRow = el("div", { style: "display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;" });
+    card.appendChild(el("div", { style: "font-size:80px;line-height:1;margin-bottom:24px;opacity:0.85;" }, "🔒"));
+    card.appendChild(el("div", { style: "font-size:22px;font-weight:900;color:var(--gold);margin-bottom:12px;" }, "Публичные матчи отключены"));
+    card.appendChild(el("div", { class: "dim", style: "font-size:13.5px;line-height:1.7;max-width:480px;margin:0 auto 28px;" },
+      "Чтобы видеть свою статистику — включи в Dota 2 публичный доступ к матчам:"));
 
-    var refreshBtn = UI.btn("🔄 Обновить", { variant: "ghost" });
+    var steps = el("div", { style: "max-width:400px;margin:0 auto 28px;text-align:left;background:var(--bg-elev);border:1px solid var(--border);border-radius:14px;padding:18px 22px;" });
+    var stepsList = [
+      "Открой Dota 2",
+      "Настройки → Соц.",
+      "Поставь галочку «Публичные данные о матчах»",
+      "Подожди 5-10 минут и нажми «Обновить»"
+    ];
+    for (var i = 0; i < stepsList.length; i++) {
+      var step = el("div", { style: "display:flex;gap:12px;align-items:flex-start;padding:7px 0;font-size:13px;color:var(--text-muted);line-height:1.5;" });
+      step.appendChild(el("div", { style: "width:22px;height:22px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:900;background:var(--gold-bg);color:var(--gold);border:1px solid var(--gold);font-family:'JetBrains Mono',monospace;" }, String(i + 1)));
+      step.appendChild(el("div", {}, stepsList[i]));
+      steps.appendChild(step);
+    }
+    card.appendChild(steps);
+
+    var btnRow = el("div", { style: "display:flex;gap:10px;justify-content:center;flex-wrap:wrap;" });
+
+    var refreshBtn = UI.btn("🔄 Я включил, обновить");
     refreshBtn.addEventListener("click", function () {
       ProfileAnalyzer.cache = null;
       ProfileAnalyzer.cacheTime = 0;
@@ -455,8 +380,7 @@ var ProfileAnalyzer = {
     var accountId = this.getSavedId();
 
     if (!accountId) {
-      var setupFrag = this.renderSetupCard();
-      frag.appendChild(setupFrag);
+      frag.appendChild(this.renderLoginCard());
       return frag;
     }
 
@@ -470,7 +394,6 @@ var ProfileAnalyzer = {
     setTimeout(async function () {
       var data = await ProfileAnalyzer.loadAll(accountId);
 
-      // Ищем контейнер и заменяем содержимое
       var container = document.getElementById("pageContent");
       if (!container) return;
       container.innerHTML = "";
@@ -481,14 +404,26 @@ var ProfileAnalyzer = {
         } else {
           var errCard = UI.card("Ошибка");
           errCard.appendChild(el("div", { style: "color:var(--red);font-size:12.5px;line-height:1.6;" },
-            "Не удалось загрузить профиль: " + (data.msg || "неизвестная ошибка") + ". Проверь Steam ID или попробуй позже."));
-          var resetBtn = UI.btn("Сменить Steam ID", { variant: "ghost" });
-          resetBtn.style.marginTop = "12px";
-          resetBtn.addEventListener("click", function () {
+            "Не удалось загрузить профиль: " + (data.msg || "неизвестная ошибка") + ". Попробуй позже."));
+
+          var btnRow = el("div", { style: "display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;" });
+
+          var retryBtn = UI.btn("🔄 Повторить", { variant: "ghost" });
+          retryBtn.addEventListener("click", function () {
+            ProfileAnalyzer.cache = null;
+            ProfileAnalyzer.cacheTime = 0;
+            switchPage("profile");
+          });
+          btnRow.appendChild(retryBtn);
+
+          var changeBtn = UI.btn("Сменить аккаунт", { variant: "ghost" });
+          changeBtn.addEventListener("click", function () {
             ProfileAnalyzer.clearId();
             switchPage("profile");
           });
-          errCard.appendChild(resetBtn);
+          btnRow.appendChild(changeBtn);
+
+          errCard.appendChild(btnRow);
           container.appendChild(errCard);
         }
         return;
@@ -548,7 +483,7 @@ var ProfileAnalyzer = {
     });
     actions.appendChild(refreshBtn);
 
-    var changeBtn = UI.btn("Сменить ID", { variant: "ghost" });
+    var changeBtn = UI.btn("Сменить аккаунт", { variant: "ghost" });
     changeBtn.style.cssText = "padding:8px 14px;font-size:12px;";
     changeBtn.addEventListener("click", function () {
       if (!confirm("Отключить текущий Steam ID?")) return;
@@ -696,16 +631,14 @@ var ProfileAnalyzer = {
   init: function () {
     var callback = this.checkSteamCallback();
     if (callback && callback.accountId) {
-      console.log("🎮 Steam OpenID callback: steam64=" + callback.steam64 + " → account_id=" + callback.accountId);
+      console.log("🎮 Steam OpenID: steam64=" + callback.steam64 + " → account_id=" + callback.accountId);
       this.saveId(callback.accountId);
       this.cleanUrlAfterLogin();
-      // Перезагружаемся чтобы SPA подхватил и показал страницу profile
       setTimeout(function () { location.reload(); }, 100);
     }
   }
 };
 
-/* Автозапуск при загрузке скрипта */
 ProfileAnalyzer.init();
 
-console.log("profile-analyzer v2.0 ready (Steam OpenID)");
+console.log("profile-analyzer v3.0 ready (Steam OpenID only)");
