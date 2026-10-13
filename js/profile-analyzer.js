@@ -1,4 +1,4 @@
-/* DOTA JETCH — PROFILE ANALYZER v18.0 (winrate heroes, rank removed) */
+/* DOTA JETCH — PROFILE ANALYZER v19.0 (smart best/worst + more data) */
 
 var ProfileAnalyzer = {
   cache: null,
@@ -90,9 +90,7 @@ var ProfileAnalyzer = {
       throw new Error("STRATZ HTTP " + res.status + ": " + txt.slice(0, 300));
     }
     var json = await res.json();
-    if (json.errors && json.errors.length) {
-      throw new Error("STRATZ GraphQL: " + json.errors[0].message);
-    }
+    if (json.errors && json.errors.length) throw new Error("STRATZ GraphQL: " + json.errors[0].message);
     return json.data;
   },
 
@@ -113,11 +111,8 @@ var ProfileAnalyzer = {
   },
 
   loadAll: async function (accountId) {
-    if (this.cache && this.cache.accountId === accountId && (Date.now() - this.cacheTime) < this.CACHE_TTL) {
-      return this.cache;
-    }
+    if (this.cache && this.cache.accountId === accountId && (Date.now() - this.cacheTime) < this.CACHE_TTL) return this.cache;
     this.loading = true;
-    console.log("[PA-STRATZ] ЗАГРУЗКА account_id=" + accountId);
 
     var query = `
       query Player($id: Long!) {
@@ -160,7 +155,6 @@ var ProfileAnalyzer = {
       data = await this.stratzQuery(query, { id: Number(accountId) });
     } catch (e) {
       this.loading = false;
-      console.warn("[PA-STRATZ] error:", e);
       return { ok: false, reason: "error", msg: e.message || String(e), accountId: accountId };
     }
     this.loading = false;
@@ -218,8 +212,7 @@ var ProfileAnalyzer = {
           avatarfull: steamAccount.avatar || null,
           profileurl: steamAccount.profileUri || null,
           loccountrycode: steamAccount.countryCode || null
-        },
-        rank_tier: 0
+        }
       },
       behavior: p.behaviorScore || 0,
       heroes: heroes,
@@ -255,15 +248,6 @@ var ProfileAnalyzer = {
     return 22;
   },
 
-  rankName: function (rank) {
-    if (!rank) return null;
-    var names = ["", "Herald", "Guardian", "Crusader", "Archon", "Legend", "Ancient", "Divine", "Immortal"];
-    var tier = Math.floor(rank / 10);
-    if (tier < 1) tier = 1;
-    if (tier > 8) tier = 8;
-    return names[tier] || null;
-  },
-
   computeStats: function (data) {
     var matches = data.matches || [];
     var heroes = data.heroes || [];
@@ -273,10 +257,12 @@ var ProfileAnalyzer = {
       totalMatches: 0, wins: 0, losses: 0, winrate: 0,
       avgKills: 0, avgDeaths: 0, avgAssists: 0, avgKDA: 0,
       avgGPM: 0, avgXPM: 0, avgLH: 0, avgDuration: 0,
-      roleCounts: {}, favoriteRole: null,
+      roleCounts: {}, favoriteRole: null, roleWinrates: {},
       topHeroes: [], bestHero: null, worstHero: null,
       recentForm: [], longestWinStreak: 0, longestLoseStreak: 0,
-      totalLifetime: 0, lifetimeWinrate: 0, lifetimeGames: 0
+      totalLifetime: 0, lifetimeWinrate: 0, lifetimeGames: 0,
+      rankedCount: 0, turboCount: 0,
+      avgNetWorth: 0
     };
 
     if (wl.win !== undefined && wl.lose !== undefined) {
@@ -285,39 +271,49 @@ var ProfileAnalyzer = {
       stats.lifetimeGames = stats.totalLifetime;
     }
 
-    /* Best/worst — по винрейту, минимум 10 игр (или 5 если не нашлось) */
-    var minGames = 10;
-    var heroesForPick = heroes.filter(function (h) { return h.games >= minGames; });
-    if (heroesForPick.length < 2) {
-      minGames = 5;
-      heroesForPick = heroes.filter(function (h) { return h.games >= minGames; });
+    /* Best/worst — умный fallback по порогу игр */
+    var thresholds = [10, 5, 3, 2];
+    var bestHero = null, worstHero = null;
+    var usedThreshold = 10;
+    for (var ti = 0; ti < thresholds.length; ti++) {
+      var th = thresholds[ti];
+      var pool = heroes.filter(function (h) { return h.games >= th; });
+      if (pool.length < 2) continue;
+      var b = pool[0], w = pool[0];
+      for (var pi = 1; pi < pool.length; pi++) {
+        var wrb = b.win / b.games, wrw = w.win / w.games, wrx = pool[pi].win / pool[pi].games;
+        if (wrx > wrb) b = pool[pi];
+        if (wrx < wrw) w = pool[pi];
+      }
+      if (b !== w) {
+        bestHero = b;
+        worstHero = w;
+        usedThreshold = th;
+        break;
+      }
     }
-    var bestHero = null, bestWR = -1;
-    var worstHero = null, worstWR = 2;
-    for (var i = 0; i < heroesForPick.length; i++) {
-      var h = heroesForPick[i];
-      var wr = h.win / h.games;
-      if (wr > bestWR) { bestWR = wr; bestHero = h; }
-      if (wr < worstWR) { worstWR = wr; worstHero = h; }
-    }
-    stats.bestHero = bestHero ? { heroId: bestHero.hero_id, games: bestHero.games, winrate: Math.round(bestWR * 100) } : null;
-    stats.worstHero = worstHero && worstHero !== bestHero ? { heroId: worstHero.hero_id, games: worstHero.games, winrate: Math.round(worstWR * 100) } : null;
+    stats.bestHero = bestHero ? { heroId: bestHero.hero_id, games: bestHero.games, winrate: Math.round((bestHero.win / bestHero.games) * 100) } : null;
+    stats.worstHero = worstHero ? { heroId: worstHero.hero_id, games: worstHero.games, winrate: Math.round((worstHero.win / worstHero.games) * 100) } : null;
+    stats.bestWorstThreshold = usedThreshold;
 
-    /* Топ-5 по винрейту, минимум 5 игр */
-    var heroesForTop = heroes.filter(function (h) { return h.games >= 5; });
+    /* Топ-5 по винрейту */
+    var heroesForTop = heroes.filter(function (h) { return h.games >= 3; });
     var sortedByWinrate = heroesForTop.slice().sort(function (a, b) {
-      return (b.win / b.games) - (a.win / a.games);
+      var wa = a.win / a.games, wb = b.win / b.games;
+      if (wa !== wb) return wb - wa;
+      return b.games - a.games;
     });
     stats.topHeroes = sortedByWinrate.slice(0, 5).map(function (h) {
-      return { heroId: h.hero_id, games: h.games, winrate: h.games ? Math.round((h.win / h.games) * 100) : 0 };
+      return { heroId: h.hero_id, games: h.games, winrate: Math.round((h.win / h.games) * 100) };
     });
 
     if (!matches.length) return stats;
 
     var wins = 0, losses = 0;
     var sumK = 0, sumD = 0, sumA = 0, sumGPM = 0, sumXPM = 0, sumLH = 0, sumDur = 0;
-    var roles = {}, form = [];
+    var roles = {}, roleWins = {}, form = [];
     var longestW = 0, longestL = 0, curW = 0, curL = 0;
+    var ranked = 0, turbo = 0;
 
     for (var j = 0; j < matches.length; j++) {
       var m = matches[j];
@@ -335,8 +331,14 @@ var ProfileAnalyzer = {
       sumLH += m.last_hits;
       sumDur += m.duration;
 
+      if (m.game_mode === 22) ranked++;
+      else if (m.game_mode === 23) turbo++;
+
       var p = m.position || 0;
-      if (p >= 1 && p <= 5) roles[p] = (roles[p] || 0) + 1;
+      if (p >= 1 && p <= 5) {
+        roles[p] = (roles[p] || 0) + 1;
+        if (won) roleWins[p] = (roleWins[p] || 0) + 1;
+      }
     }
 
     var n = matches.length;
@@ -356,9 +358,18 @@ var ProfileAnalyzer = {
     stats.recentForm = form;
     stats.longestWinStreak = longestW;
     stats.longestLoseStreak = longestL;
+    stats.rankedCount = ranked;
+    stats.turboCount = turbo;
+
+    /* Winrate по ролям */
+    for (var rk in roles) {
+      if (roles[rk] >= 2) {
+        stats.roleWinrates[rk] = Math.round((roleWins[rk] || 0) / roles[rk] * 100);
+      }
+    }
 
     var bestPos = 0, bestCount = 0;
-    for (var rk in roles) if (roles[rk] > bestCount) { bestCount = roles[rk]; bestPos = parseInt(rk, 10); }
+    for (var rp in roles) if (roles[rp] > bestCount) { bestCount = roles[rp]; bestPos = parseInt(rp, 10); }
     stats.favoriteRole = bestPos > 0 ? bestPos : null;
 
     return stats;
@@ -383,7 +394,7 @@ var ProfileAnalyzer = {
     card.appendChild(el("div", { style: "font-size:72px;line-height:1;margin-bottom:20px;" }, "🎮"));
     card.appendChild(el("div", { style: "font-size:20px;font-weight:900;color:var(--text);margin-bottom:8px;" }, "Войди через Steam"));
     card.appendChild(el("div", { class: "dim", style: "font-size:12.5px;line-height:1.6;max-width:380px;margin:0 auto 24px;" },
-      "Получим твой Steam ID и загрузим статистику через STRATZ."));
+      "Получим твой Steam ID и загрузим статистику."));
     var steamBtn = el("button", { type: "button" });
     steamBtn.style.cssText = "display:inline-flex;align-items:center;justify-content:center;gap:12px;padding:16px 32px;border-radius:12px;font-size:15px;font-weight:800;font-family:inherit;cursor:pointer;border:1px solid rgba(102,192,244,0.6);background:linear-gradient(135deg,#1b2838,#2a475e);color:#fff;box-shadow:0 10px 30px -12px rgba(102,192,244,0.9);";
     steamBtn.appendChild(el("div", { style: "font-size:22px;line-height:1;" }, "🎮"));
@@ -434,15 +445,27 @@ var ProfileAnalyzer = {
   },
 
   metric: function (icon, label, value, sub, color) {
-    var m = el("div", { style: "background:var(--bg-elev);border:1px solid var(--border);border-radius:10px;padding:10px 12px;position:relative;overflow:hidden;" });
+    var m = el("div", { style: "background:var(--bg-elev);border:1px solid var(--border);border-radius:10px;padding:9px 11px;position:relative;overflow:hidden;" });
     m.appendChild(el("div", { style: "position:absolute;top:0;left:0;width:3px;height:100%;background:" + color + ";" }));
-    var top = el("div", { style: "display:flex;align-items:center;gap:6px;margin-bottom:4px;" });
-    top.appendChild(el("span", { style: "font-size:13px;" }, icon));
+    var top = el("div", { style: "display:flex;align-items:center;gap:6px;margin-bottom:3px;" });
+    top.appendChild(el("span", { style: "font-size:12px;" }, icon));
     top.appendChild(el("span", { style: "font-size:9px;font-weight:800;letter-spacing:0.08em;color:var(--text-muted);text-transform:uppercase;" }, label));
     m.appendChild(top);
-    m.appendChild(el("div", { style: "font-size:19px;font-weight:900;color:" + color + ";font-variant-numeric:tabular-nums;line-height:1.1;" }, String(value)));
+    m.appendChild(el("div", { style: "font-size:18px;font-weight:900;color:" + color + ";font-variant-numeric:tabular-nums;line-height:1.1;" }, String(value)));
     if (sub) m.appendChild(el("div", { class: "dim", style: "font-size:9.5px;margin-top:2px;" }, sub));
     return m;
+  },
+
+  heroCard: function (heroId, games, winrate, label, color, bg) {
+    var box = el("div", { style: "display:flex;align-items:center;gap:10px;padding:10px 12px;background:" + bg + ";border:1px solid " + color + ";border-radius:10px;position:relative;overflow:hidden;" });
+    box.appendChild(heroImgEl({ id: heroId, name: "" }, 42));
+    var info = el("div", { style: "min-width:0;flex:1;" });
+    info.appendChild(el("div", { style: "font-size:9px;font-weight:800;letter-spacing:0.08em;color:" + color + ";text-transform:uppercase;" }, label));
+    info.appendChild(el("div", { style: "font-size:14px;font-weight:800;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.15;" }, ProfileAnalyzer.heroNameById(heroId)));
+    info.appendChild(el("div", { class: "dim", style: "font-size:10px;margin-top:1px;" }, games + " игр"));
+    box.appendChild(info);
+    box.appendChild(el("div", { style: "font-family:'JetBrains Mono',monospace;font-size:17px;font-weight:900;color:" + color + ";" }, winrate + "%"));
+    return box;
   },
 
   goToAnalyze: function (matchId, heroId) {
@@ -507,16 +530,16 @@ var ProfileAnalyzer = {
     var prof = p.profile || {};
 
     /* ═══════ ШАПКА ═══════ */
-    var head = el("div", { style: "position:relative;display:flex;align-items:center;gap:16px;flex-wrap:wrap;background:linear-gradient(135deg,rgba(139,92,246,0.25),rgba(34,211,238,0.10),var(--bg-card));border:1px solid var(--accent);border-radius:16px;padding:16px 20px;margin-bottom:14px;" });
+    var head = el("div", { style: "position:relative;display:flex;align-items:center;gap:14px;flex-wrap:wrap;background:linear-gradient(135deg,rgba(139,92,246,0.22),rgba(34,211,238,0.08),var(--bg-card));border:1px solid var(--accent);border-radius:14px;padding:14px 18px;margin-bottom:12px;" });
 
-    var av = el("div", { style: "width:72px;height:72px;border-radius:18px;flex-shrink:0;background:linear-gradient(135deg,var(--accent),var(--cyan));background-size:cover;background-position:center;border:2px solid rgba(167,139,250,0.7);box-shadow:0 6px 20px -6px rgba(139,92,246,0.7);" });
+    var av = el("div", { style: "width:64px;height:64px;border-radius:16px;flex-shrink:0;background:linear-gradient(135deg,var(--accent),var(--cyan));background-size:cover;background-position:center;border:2px solid rgba(167,139,250,0.7);" });
     if (prof.avatarfull) av.style.backgroundImage = "url(" + prof.avatarfull + ")";
     head.appendChild(av);
 
     var info = el("div", { style: "flex:1;min-width:180px;" });
-    info.appendChild(el("div", { style: "font-size:20px;font-weight:900;color:var(--text);line-height:1.15;letter-spacing:-0.01em;" }, prof.personaname || "Игрок"));
+    info.appendChild(el("div", { style: "font-size:19px;font-weight:900;color:var(--text);line-height:1.15;" }, prof.personaname || "Игрок"));
 
-    var metaRow = el("div", { style: "display:flex;gap:10px;margin-top:6px;flex-wrap:wrap;font-size:11px;color:var(--text-muted);" });
+    var metaRow = el("div", { style: "display:flex;gap:10px;margin-top:5px;flex-wrap:wrap;font-size:11px;color:var(--text-muted);" });
     metaRow.appendChild(el("span", {}, "🆔 " + data.accountId));
     if (prof.loccountrycode) metaRow.appendChild(el("span", {}, "🌍 " + prof.loccountrycode));
     if (s.lifetimeGames > 0) metaRow.appendChild(el("span", {}, "🎮 " + s.lifetimeGames + " игр"));
@@ -551,82 +574,67 @@ var ProfileAnalyzer = {
     head.appendChild(actions);
     frag.appendChild(head);
 
-    /* ═══════ МЕТРИКИ ═══════ */
-    var metricsGrid = el("div", { style: "display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-bottom:12px;" });
+    /* ═══════ МЕТРИКИ (3 в ряд) ═══════ */
+    var metricsGrid = el("div", { style: "display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-bottom:12px;" });
     if (s.totalMatches > 0) {
       metricsGrid.appendChild(this.metric("🏆", "Винрейт", s.winrate + "%", s.wins + "W / " + s.losses + "L",
         s.winrate >= 55 ? "var(--green)" : s.winrate >= 45 ? "var(--yellow)" : "var(--red)"));
       metricsGrid.appendChild(this.metric("⚔️", "KDA", s.avgKDA, s.avgKills + "/" + s.avgDeaths + "/" + s.avgAssists, "var(--cyan)"));
+      metricsGrid.appendChild(this.metric("💰", "GPM", s.avgGPM, "средн.", "var(--gold)"));
+      metricsGrid.appendChild(this.metric("⚡", "XPM", s.avgXPM, "средн.", "var(--accent-light)"));
+      metricsGrid.appendChild(this.metric("🎯", "ЛХ", s.avgLH, "средн.", "var(--cyan)"));
+      metricsGrid.appendChild(this.metric("⏱️", "Длит.", s.avgDuration + "м", "средн.", "var(--text-muted)"));
     }
-    if (s.avgGPM > 0) metricsGrid.appendChild(this.metric("💰", "GPM", s.avgGPM, "средн.", "var(--gold)"));
-    if (s.avgXPM > 0) metricsGrid.appendChild(this.metric("⚡", "XPM", s.avgXPM, "средн.", "var(--accent-light)"));
-    if (s.avgLH > 0) metricsGrid.appendChild(this.metric("🎯", "ЛХ", s.avgLH, "средн.", "var(--cyan)"));
-    if (s.avgDuration > 0) metricsGrid.appendChild(this.metric("⏱️", "Длит.", s.avgDuration + "м", "средн.", "var(--text-muted)"));
     frag.appendChild(metricsGrid);
 
-    /* ═══════ 2 КОЛОНКИ ═══════ */
+    /* ═══════ BEST/WORST + ТОП-5 ═══════ */
     var twoCol = el("div", { style: "display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;" });
     if (window.innerWidth < 700) twoCol.style.gridTemplateColumns = "1fr";
 
-    /* Best/worst */
-    var bwCard = UI.card("⚔️ Лучший / Худший (10+ игр)");
+    var bwCard = UI.card("⚔️ Лучший / Худший" + (s.bestWorstThreshold && s.bestWorstThreshold !== 10 ? " (" + s.bestWorstThreshold + "+ игр)" : ""));
     bwCard.style.cssText += "padding:12px 14px;margin-bottom:0;";
-    var bwRow = el("div", { style: "display:grid;grid-template-columns:1fr 1fr;gap:8px;" });
+    var bwCol = el("div", { style: "display:flex;flex-direction:column;gap:8px;" });
     if (s.bestHero) {
-      var bb = el("div", { style: "display:flex;align-items:center;gap:10px;padding:10px;background:var(--green-bg);border:1px solid var(--green);border-radius:10px;" });
-      bb.appendChild(heroImgEl({ id: s.bestHero.heroId, name: "" }, 40));
-      var bbI = el("div", { style: "min-width:0;flex:1;" });
-      bbI.appendChild(el("div", { style: "font-size:9px;font-weight:800;letter-spacing:0.08em;color:var(--green);text-transform:uppercase;" }, "Лучший"));
-      bbI.appendChild(el("div", { style: "font-size:15px;font-weight:900;color:var(--green);font-family:'JetBrains Mono',monospace;line-height:1.1;" }, s.bestHero.winrate + "%"));
-      bbI.appendChild(el("div", { class: "dim", style: "font-size:10px;" }, s.bestHero.games + " игр"));
-      bb.appendChild(bbI);
-      bwRow.appendChild(bb);
+      bwCol.appendChild(this.heroCard(s.bestHero.heroId, s.bestHero.games, s.bestHero.winrate, "Лучший", "var(--green)", "var(--green-bg)"));
     }
     if (s.worstHero) {
-      var wb = el("div", { style: "display:flex;align-items:center;gap:10px;padding:10px;background:var(--red-bg);border:1px solid var(--red);border-radius:10px;" });
-      wb.appendChild(heroImgEl({ id: s.worstHero.heroId, name: "" }, 40));
-      var wbI = el("div", { style: "min-width:0;flex:1;" });
-      wbI.appendChild(el("div", { style: "font-size:9px;font-weight:800;letter-spacing:0.08em;color:var(--red);text-transform:uppercase;" }, "Слабый"));
-      wbI.appendChild(el("div", { style: "font-size:15px;font-weight:900;color:var(--red);font-family:'JetBrains Mono',monospace;line-height:1.1;" }, s.worstHero.winrate + "%"));
-      wbI.appendChild(el("div", { class: "dim", style: "font-size:10px;" }, s.worstHero.games + " игр"));
-      wb.appendChild(wbI);
-      bwRow.appendChild(wb);
-    } else {
-      bwRow.appendChild(el("div", { class: "dim", style: "grid-column:span 2;text-align:center;font-size:11px;padding:12px 0;" }, "Мало данных"));
+      bwCol.appendChild(this.heroCard(s.worstHero.heroId, s.worstHero.games, s.worstHero.winrate, "Слабый", "var(--red)", "var(--red-bg)"));
     }
-    bwCard.appendChild(bwRow);
+    if (!s.bestHero && !s.worstHero) {
+      bwCol.appendChild(el("div", { class: "dim", style: "text-align:center;font-size:11.5px;padding:16px 0;" }, "Мало данных — сыграй больше игр на одном герое"));
+    }
+    bwCard.appendChild(bwCol);
     twoCol.appendChild(bwCard);
 
-    /* Топ героев */
     var topCard = UI.card("🏆 Топ-5 по винрейту");
     topCard.style.cssText += "padding:12px 14px;margin-bottom:0;";
     if (s.topHeroes && s.topHeroes.length) {
       var topList = el("div", { style: "display:flex;flex-direction:column;gap:5px;" });
       for (var hi = 0; hi < s.topHeroes.length; hi++) {
         (function (h, idx) {
-          var r = el("div", { style: "display:flex;align-items:center;gap:10px;padding:6px 8px;background:var(--bg-elev);border:1px solid var(--border);border-radius:8px;" });
+          var r = el("div", { style: "display:flex;align-items:center;gap:9px;padding:5px 7px;background:var(--bg-elev);border:1px solid var(--border);border-radius:8px;" });
           var badgeColor = idx === 0 ? "linear-gradient(135deg,#fbbf24,#d97706)" : idx === 1 ? "linear-gradient(135deg,#d1d5db,#6b7280)" : idx === 2 ? "linear-gradient(135deg,#d97706,#7c2d12)" : "var(--bg-card)";
           var badgeText = idx < 3 ? "#0b0c10" : "var(--text-muted)";
-          var b = el("div", { style: "width:22px;height:22px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:900;font-family:'JetBrains Mono',monospace;flex-shrink:0;background:" + badgeColor + ";color:" + badgeText + (idx >= 3 ? ";border:1px solid var(--border);" : ";") }, String(idx + 1));
+          var b = el("div", { style: "width:20px;height:20px;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:900;font-family:'JetBrains Mono',monospace;flex-shrink:0;background:" + badgeColor + ";color:" + badgeText + (idx >= 3 ? ";border:1px solid var(--border);" : ";") }, String(idx + 1));
           r.appendChild(b);
-          r.appendChild(heroImgEl({ id: h.heroId, name: "" }, 28));
+          r.appendChild(heroImgEl({ id: h.heroId, name: "" }, 26));
           var info = el("div", { style: "flex:1;min-width:0;" });
-          info.appendChild(el("div", { style: "font-size:12px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" }, ProfileAnalyzer.heroNameById(h.heroId)));
-          info.appendChild(el("div", { class: "dim", style: "font-size:9.5px;" }, h.games + " игр"));
+          info.appendChild(el("div", { style: "font-size:11.5px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" }, ProfileAnalyzer.heroNameById(h.heroId)));
+          info.appendChild(el("div", { class: "dim", style: "font-size:9px;" }, h.games + " игр"));
           r.appendChild(info);
           var wrColor = h.winrate >= 55 ? "var(--green)" : h.winrate >= 45 ? "var(--yellow)" : "var(--red)";
-          r.appendChild(el("div", { style: "font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:900;color:" + wrColor + ";" }, h.winrate + "%"));
+          r.appendChild(el("div", { style: "font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:900;color:" + wrColor + ";" }, h.winrate + "%"));
           topList.appendChild(r);
         })(s.topHeroes[hi], hi);
       }
       topCard.appendChild(topList);
     } else {
-      topCard.appendChild(el("div", { class: "dim", style: "text-align:center;font-size:11px;padding:12px 0;" }, "Нет данных"));
+      topCard.appendChild(el("div", { class: "dim", style: "text-align:center;font-size:11.5px;padding:16px 0;" }, "Нет данных"));
     }
     twoCol.appendChild(topCard);
     frag.appendChild(twoCol);
 
-    /* ═══════ ФОРМА + РОЛИ ═══════ */
+    /* ═══════ ФОРМА + ПОЗИЦИИ ═══════ */
     var twoCol2 = el("div", { style: "display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;" });
     if (window.innerWidth < 700) twoCol2.style.gridTemplateColumns = "1fr";
 
@@ -637,14 +645,16 @@ var ProfileAnalyzer = {
       for (var fi = 0; fi < s.recentForm.length; fi++) {
         var isWin = s.recentForm[fi] === 1;
         formRow.appendChild(el("div", {
-          style: "width:18px;height:18px;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:900;font-family:'JetBrains Mono',monospace;" +
+          style: "width:16px;height:16px;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:900;font-family:'JetBrains Mono',monospace;" +
             (isWin ? "background:var(--green-bg);color:var(--green);border:1px solid var(--green);" : "background:var(--red-bg);color:var(--red);border:1px solid var(--red);")
         }, isWin ? "W" : "L"));
       }
       formCard.appendChild(formRow);
-      var ss = el("div", { style: "display:flex;gap:12px;font-size:11px;" });
-      ss.appendChild(el("span", { style: "color:var(--green);" }, "🔥 " + s.longestWinStreak + " W"));
-      ss.appendChild(el("span", { style: "color:var(--red);" }, "❄ " + s.longestLoseStreak + " L"));
+      var ss = el("div", { style: "display:flex;gap:14px;font-size:11px;" });
+      ss.appendChild(el("span", { style: "color:var(--green);font-weight:700;" }, "🔥 " + s.longestWinStreak + " W"));
+      ss.appendChild(el("span", { style: "color:var(--red);font-weight:700;" }, "❄ " + s.longestLoseStreak + " L"));
+      if (s.rankedCount > 0) ss.appendChild(el("span", { class: "dim" }, "🏅 Ranked: " + s.rankedCount));
+      if (s.turboCount > 0) ss.appendChild(el("span", { class: "dim" }, "⚡ Turbo: " + s.turboCount));
       formCard.appendChild(ss);
       twoCol2.appendChild(formCard);
     }
@@ -652,28 +662,27 @@ var ProfileAnalyzer = {
     if (s.favoriteRole) {
       var roleCard = UI.card("🎯 Позиции");
       roleCard.style.cssText += "padding:12px 14px;margin-bottom:0;";
-      var roleRow = el("div", { style: "display:flex;align-items:center;gap:10px;margin-bottom:8px;" });
-      roleRow.appendChild(el("div", { style: "width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,var(--accent),var(--cyan));display:flex;align-items:center;justify-content:center;font-size:18px;" }, this.roleIcon(s.favoriteRole)));
-      var ri = el("div", { style: "flex:1;" });
-      ri.appendChild(el("div", { style: "font-size:9px;font-weight:800;letter-spacing:0.08em;color:var(--text-muted);text-transform:uppercase;" }, "Избранная"));
-      ri.appendChild(el("div", { style: "font-size:15px;font-weight:900;color:var(--text);" }, this.roleName(s.favoriteRole)));
-      roleRow.appendChild(ri);
-      roleCard.appendChild(roleRow);
-
-      var bars = el("div", { style: "display:flex;flex-direction:column;gap:4px;" });
+      var bars = el("div", { style: "display:flex;flex-direction:column;gap:5px;" });
       var roleEntries = Object.keys(s.roleCounts).sort(function (a, b) { return s.roleCounts[b] - s.roleCounts[a]; });
       for (var rj = 0; rj < roleEntries.length; rj++) {
         var rk = parseInt(roleEntries[rj], 10);
         var cnt = s.roleCounts[roleEntries[rj]];
         var pct = Math.round((cnt / s.totalMatches) * 100);
+        var wr = s.roleWinrates[rk];
+        var isFav = rk === s.favoriteRole;
         var row = el("div", { style: "display:flex;align-items:center;gap:8px;font-size:11px;" });
-        row.appendChild(el("span", { style: "width:16px;" }, this.roleIcon(rk)));
-        row.appendChild(el("span", { style: "flex:1;color:var(--text-muted);" }, this.roleName(rk)));
-        var bg = el("div", { style: "width:60px;height:5px;background:var(--bg-elev);border-radius:3px;overflow:hidden;" });
+        row.appendChild(el("span", { style: "width:16px;font-size:13px;" }, this.roleIcon(rk)));
+        var nameEl = el("span", { style: "flex:1;font-weight:" + (isFav ? "800" : "500") + ";color:" + (isFav ? "var(--text)" : "var(--text-muted)") + ";" }, this.roleName(rk));
+        row.appendChild(nameEl);
+        var bg = el("div", { style: "width:56px;height:5px;background:var(--bg-elev);border-radius:3px;overflow:hidden;" });
         var fl = el("div", { style: "height:100%;width:" + pct + "%;background:linear-gradient(90deg,var(--accent),var(--cyan));" });
         bg.appendChild(fl);
         row.appendChild(bg);
-        row.appendChild(el("span", { style: "font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;color:var(--text);width:32px;text-align:right;" }, pct + "%"));
+        row.appendChild(el("span", { style: "font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;color:var(--text);width:30px;text-align:right;" }, pct + "%"));
+        if (wr !== undefined) {
+          var wrColor = wr >= 55 ? "var(--green)" : wr >= 45 ? "var(--yellow)" : "var(--red)";
+          row.appendChild(el("span", { style: "font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;color:" + wrColor + ";width:32px;text-align:right;" }, "WR " + wr + "%"));
+        }
         bars.appendChild(row);
       }
       roleCard.appendChild(bars);
@@ -698,19 +707,19 @@ var ProfileAnalyzer = {
           mRow.addEventListener("mouseenter", function () { mRow.style.borderColor = "var(--accent)"; });
           mRow.addEventListener("mouseleave", function () { mRow.style.borderColor = "var(--border)"; });
 
-          mRow.appendChild(el("div", { style: "width:3px;height:28px;border-radius:2px;flex-shrink:0;background:" + (won ? "var(--green)" : "var(--red)") + ";" }));
-          mRow.appendChild(heroImgEl({ id: m.hero_id, name: "" }, 28));
+          mRow.appendChild(el("div", { style: "width:3px;height:26px;border-radius:2px;flex-shrink:0;background:" + (won ? "var(--green)" : "var(--red)") + ";" }));
+          mRow.appendChild(heroImgEl({ id: m.hero_id, name: "" }, 26));
 
           var info = el("div", { style: "flex:1;min-width:0;display:flex;flex-direction:column;gap:1px;" });
-          info.appendChild(el("div", { style: "font-size:11.5px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" }, ProfileAnalyzer.heroNameById(m.hero_id)));
-          info.appendChild(el("div", { class: "dim", style: "font-size:9.5px;" }, durMin + "м · " + (m.position ? "Поз. " + m.position : "—")));
+          info.appendChild(el("div", { style: "font-size:11px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" }, ProfileAnalyzer.heroNameById(m.hero_id)));
+          info.appendChild(el("div", { class: "dim", style: "font-size:9px;" }, durMin + "м · " + (m.position ? "Поз. " + m.position : "—")));
           mRow.appendChild(info);
 
           var kdaColor = won ? "var(--green)" : "var(--red)";
-          mRow.appendChild(el("div", { style: "font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:800;color:" + kdaColor + ";text-align:right;min-width:52px;" }, m.kills + "/" + m.deaths + "/" + m.assists));
+          mRow.appendChild(el("div", { style: "font-family:'JetBrains Mono',monospace;font-size:10.5px;font-weight:800;color:" + kdaColor + ";text-align:right;min-width:50px;" }, m.kills + "/" + m.deaths + "/" + m.assists));
 
           var aBtn = el("button", { type: "button" });
-          aBtn.style.cssText = "padding:5px 10px;border-radius:6px;font-size:10.5px;font-weight:700;font-family:inherit;cursor:pointer;border:1px solid var(--accent);background:rgba(139,92,246,0.10);color:var(--accent-light);white-space:nowrap;";
+          aBtn.style.cssText = "padding:4px 9px;border-radius:6px;font-size:10px;font-weight:700;font-family:inherit;cursor:pointer;border:1px solid var(--accent);background:rgba(139,92,246,0.10);color:var(--accent-light);white-space:nowrap;";
           aBtn.textContent = "Анализ";
           aBtn.addEventListener("mouseenter", function () { aBtn.style.background = "var(--accent)"; aBtn.style.color = "#fff"; });
           aBtn.addEventListener("mouseleave", function () { aBtn.style.background = "rgba(139,92,246,0.10)"; aBtn.style.color = "var(--accent-light)"; });
@@ -743,4 +752,4 @@ var ProfileAnalyzer = {
 
 ProfileAnalyzer.init();
 
-console.log("profile-analyzer v18.0 ready (winrate heroes, rank removed)");
+console.log("profile-analyzer v19.0 ready");
