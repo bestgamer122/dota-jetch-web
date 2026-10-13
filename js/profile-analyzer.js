@@ -1,4 +1,4 @@
-/* DOTA JETCH — PROFILE ANALYZER v19.0 (smart best/worst + more data) */
+/* DOTA JETCH — PROFILE ANALYZER v20.0 (with visual animations) */
 
 var ProfileAnalyzer = {
   cache: null,
@@ -262,7 +262,7 @@ var ProfileAnalyzer = {
       recentForm: [], longestWinStreak: 0, longestLoseStreak: 0,
       totalLifetime: 0, lifetimeWinrate: 0, lifetimeGames: 0,
       rankedCount: 0, turboCount: 0,
-      avgNetWorth: 0
+      bestWorstThreshold: 10
     };
 
     if (wl.win !== undefined && wl.lose !== undefined) {
@@ -361,7 +361,6 @@ var ProfileAnalyzer = {
     stats.rankedCount = ranked;
     stats.turboCount = turbo;
 
-    /* Winrate по ролям */
     for (var rk in roles) {
       if (roles[rk] >= 2) {
         stats.roleWinrates[rk] = Math.round((roleWins[rk] || 0) / roles[rk] * 100);
@@ -500,8 +499,9 @@ var ProfileAnalyzer = {
       container.innerHTML = "";
 
       if (!data.ok) {
-        if (data.reason === "hidden") container.appendChild(ProfileAnalyzer.renderHiddenCard());
-        else {
+        if (data.reason === "hidden") {
+          container.appendChild(ProfileAnalyzer.renderHiddenCard());
+        } else {
           var errCard = UI.card("Ошибка");
           errCard.appendChild(el("div", { style: "color:var(--red);font-size:12.5px;line-height:1.6;" },
             "Не удалось загрузить: " + (data.msg || "неизвестная ошибка")));
@@ -515,9 +515,22 @@ var ProfileAnalyzer = {
           errCard.appendChild(retryBtn);
           container.appendChild(errCard);
         }
+        /* Запускаем анимации для карточки */
+        if (typeof window.processNode === "function") {
+          setTimeout(function () { window.processNode(container); }, 20);
+        }
         return;
       }
-      container.appendChild(ProfileAnalyzer.renderDashboard(data));
+
+      var dash = ProfileAnalyzer.renderDashboard(data);
+      container.appendChild(dash);
+
+      /* Запускаем анимации появления карточек */
+      if (typeof window.processNode === "function") {
+        setTimeout(function () { window.processNode(container); }, 20);
+      } else {
+        console.warn("[PA] window.processNode не найден — visual.js не подключён?");
+      }
     }, 30);
 
     return frag;
@@ -574,7 +587,7 @@ var ProfileAnalyzer = {
     head.appendChild(actions);
     frag.appendChild(head);
 
-    /* ═══════ МЕТРИКИ (3 в ряд) ═══════ */
+    /* ═══════ МЕТРИКИ ═══════ */
     var metricsGrid = el("div", { style: "display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-bottom:12px;" });
     if (s.totalMatches > 0) {
       metricsGrid.appendChild(this.metric("🏆", "Винрейт", s.winrate + "%", s.wins + "W / " + s.losses + "L",
@@ -752,4 +765,4 @@ var ProfileAnalyzer = {
 
 ProfileAnalyzer.init();
 
-console.log("profile-analyzer v19.0 ready");
+console.log("profile-analyzer v20.0 ready (animations)");

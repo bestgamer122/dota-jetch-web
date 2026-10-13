@@ -105,14 +105,19 @@
     values.forEach(animateNumber);
   }
 
+  /* Экспортируем в window, чтобы другие скрипты могли вызвать вручную */
+  window.processNode = processNode;
+
   function initObs() {
     var t = document.getElementById("pageContent");
     if (!t) return;
+
     processNode(t);
-    var mo = new MutationObserver(function (ms) {
+
+    var mo = new MutationObserver(function (mutations) {
       if (isLite()) return;
       var fresh = new Set();
-      ms.forEach(function (m) {
+      mutations.forEach(function (m) {
         for (var i = 0; i < m.addedNodes.length; i++) {
           var n = m.addedNodes[i];
           if (n instanceof HTMLElement) fresh.add(n);
@@ -120,6 +125,7 @@
       });
       if (fresh.size) requestAnimationFrame(function () { fresh.forEach(processNode); });
     });
+    /* Следим и за добавлением, и за поддеревом — работает для async-страниц */
     mo.observe(t, { childList: true, subtree: true });
   }
 
@@ -148,5 +154,5 @@
   tryHook();
   var iv = setInterval(tryHook, 100);
   setTimeout(function () { clearInterval(iv); }, 3000);
-  console.log("visual loaded");
+  console.log("visual v2 loaded (async-safe)");
 })();
