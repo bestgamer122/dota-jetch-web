@@ -1,4 +1,4 @@
-/* DOTA JETCH — PROFILE ANALYZER v8.0 (STRATZ GraphQL) */
+/* DOTA JETCH — PROFILE ANALYZER v9.0 (STRATZ GraphQL, fix: опечатка в имени метода) */
 
 var ProfileAnalyzer = {
   cache: null,
@@ -79,7 +79,7 @@ var ProfileAnalyzer = {
   },
 
   /* ═══════════════ STRATZ GRAPHQL ═══════════════ */
-  stratзQuery: async function (query, variables) {
+  stratzQuery: async function (query, variables) {
     var res = await fetch(this.STRATZ_ENDPOINT, {
       method: "POST",
       headers: {
@@ -143,7 +143,6 @@ var ProfileAnalyzer = {
             durationSeconds
             didRadiantWin
             gameMode
-            lobbyType
             players(steamAccountId: $id) {
               heroId
               isRadiant
@@ -178,12 +177,12 @@ var ProfileAnalyzer = {
     var p = data.player;
     var steamAccount = p.steamAccount || {};
 
-    /* Скрытые данные — если имени нет и матчей нет */
     if (steamAccount.isAnonymous || (!steamAccount.name && !p.matchCount)) {
       return { ok: false, reason: "hidden", accountId: accountId, player: { profile: { personaname: steamAccount.name } } };
     }
 
-    /* Формируем единый объект, похожий на старый формат OpenDota */
+    var self = this;
+
     var result = {
       ok: true,
       accountId: accountId,
@@ -194,7 +193,7 @@ var ProfileAnalyzer = {
           profileurl: steamAccount.profileUri || ("https://steamcommunity.com/profiles/" + (BigInt(accountId) + BigInt("76561197960265728")).toString()),
           loccountrycode: steamAccount.countryCode || null
         },
-        rank_tier: this._rankToTier(p.rank)
+        rank_tier: p.rank || 0
       },
       behavior: p.behaviorScore || 0,
       leaderboardRank: p.leaderboardRank || 0,
@@ -217,7 +216,7 @@ var ProfileAnalyzer = {
           match_id: m.id,
           duration: m.durationSeconds || 0,
           radiant_win: !!m.didRadiantWin,
-          game_mode: this._stratzModeToDota(m.gameMode),
+          game_mode: self._stratzModeToDota(m.gameMode),
           player_slot: me ? (me.isRadiant ? 0 : 128) : 0,
           hero_id: me ? me.heroId : 0,
           kills: me ? me.kills : 0,
@@ -229,10 +228,9 @@ var ProfileAnalyzer = {
           position: me ? me.position : null,
           start_time: m.startDateTime || 0
         };
-      }.bind(this))
+      })
     };
 
-    /* Общее количество матчей / побед из player */
     result.wl = { win: p.winCount || 0, lose: (p.matchCount || 0) - (p.winCount || 0) };
     result.totals = [];
 
@@ -244,7 +242,6 @@ var ProfileAnalyzer = {
   },
 
   _stratzModeToDota: function (stratzMode) {
-    /* STRATZ использует строки, Dota числа. Упрощаем: */
     if (!stratzMode) return 22;
     var m = String(stratzMode).toUpperCase();
     if (m.indexOf("RANKED") >= 0) return 22;
@@ -255,16 +252,9 @@ var ProfileAnalyzer = {
     return 22;
   },
 
-  _rankToTier: function (rank) {
-    /* STRATZ отдаёт rank как число: 1-80 (Herald 1-5 = 11-15, ... Immortal = 80) */
-    /* Просто прокидываем как есть — в дашборде отобразим по значению */
-    return rank || 0;
-  },
-
   _rankName: function (rank) {
     if (!rank) return null;
     var names = ["", "Herald", "Guardian", "Crusader", "Archon", "Legend", "Ancient", "Divine", "Immortal"];
-    /* STRATZ rank: 1..8 * 10 + star (1-5). Пример 25 = Guardian 5. */
     var tier = Math.floor(rank / 10);
     if (tier < 1) tier = 1;
     if (tier > 8) tier = 8;
@@ -288,7 +278,6 @@ var ProfileAnalyzer = {
       lifetimeGames: 0
     };
 
-    /* Общее за всю жизнь из STRATZ */
     if (wl.win !== undefined && wl.lose !== undefined) {
       stats.lifetimeWins = wl.win;
       stats.totalLifetime = wl.win + wl.lose;
@@ -296,7 +285,6 @@ var ProfileAnalyzer = {
       stats.lifetimeGames = stats.totalLifetime;
     }
 
-    /* Считаем метрики из heroes (STRATZ даёт avgGPM/avgXPM/avgLH) */
     var sumG = 0, sumX = 0, sumL = 0, sumK = 0, sumD = 0, sumA = 0, tot = 0;
     for (var hg = 0; hg < heroes.length; hg++) {
       var hero = heroes[hg];
@@ -321,7 +309,6 @@ var ProfileAnalyzer = {
     }
 
     if (!matches.length) {
-      /* Без матчей всё равно возвращаем heroes-статистику */
       stats.topHeroes = heroes.slice().sort(function (a, b) { return b.games - a.games; }).slice(0, 8).map(function (h) {
         return { heroId: h.hero_id, games: h.games, winrate: h.games ? Math.round((h.win / h.games) * 100) : 0 };
       });
@@ -372,7 +359,6 @@ var ProfileAnalyzer = {
     stats.longestWinStreak = longestW;
     stats.longestLoseStreak = longestL;
 
-    /* Избранная роль: роли 4 и 5 объединяем в "support", 1 и 5 отдельно */
     var merged = {};
     for (var r in roles) {
       var k = r;
@@ -384,7 +370,6 @@ var ProfileAnalyzer = {
     for (var r2 in merged) if (merged[r2] > bestCount) { bestCount = merged[r2]; bestRole = r2; }
     stats.favoriteRole = bestRole;
 
-    /* Герои — best/worst/top */
     var bestHero = null, bestWR = 0;
     var worstHero = null, worstWR = 1;
     for (var h = 0; h < heroes.length; h++) {
@@ -563,7 +548,6 @@ var ProfileAnalyzer = {
     var prof = p.profile || {};
     var rank = p.rank_tier || 0;
 
-    /* ─── Шапка ─── */
     var head = el("div", { style: "position:relative;border-radius:20px;overflow:hidden;background:linear-gradient(135deg,rgba(139,92,246,0.35),rgba(34,211,238,0.15),var(--bg-card));border:1px solid var(--accent);padding:28px;margin-bottom:18px;" });
     var headRow = el("div", { style: "position:relative;display:flex;align-items:center;gap:22px;flex-wrap:wrap;" });
 
@@ -624,7 +608,6 @@ var ProfileAnalyzer = {
     head.appendChild(headRow);
     frag.appendChild(head);
 
-    /* ─── Метрики ─── */
     var grid = el("div", { style: "display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-bottom:18px;" });
     if (s.totalMatches > 0) {
       grid.appendChild(this.metricTile("🏆", "Винрейт (30 матчей)", s.winrate + "%", s.wins + "W · " + s.losses + "L",
@@ -639,7 +622,6 @@ var ProfileAnalyzer = {
     if (s.avgDuration > 0) grid.appendChild(this.metricTile("⏱️", "Длительность", s.avgDuration + " мин", "средняя за матч", "var(--text-muted)"));
     frag.appendChild(grid);
 
-    /* ─── Плашка если матчей нет ─── */
     if (s.totalMatches === 0) {
       var noMatchesCard = UI.card("📜 Последние матчи");
       noMatchesCard.appendChild(el("div", { class: "dim", style: "font-size:12.5px;line-height:1.6;padding:10px 0;" },
@@ -647,7 +629,6 @@ var ProfileAnalyzer = {
       frag.appendChild(noMatchesCard);
     }
 
-    /* ─── Форма ─── */
     if (s.recentForm && s.recentForm.length) {
       var formCard = UI.card("📈 Форма и серии");
       formCard.appendChild(el("div", { class: "dim", style: "font-size:11px;margin-bottom:10px;" }, "Последние " + s.recentForm.length + " матчей (свежие слева):"));
@@ -676,7 +657,6 @@ var ProfileAnalyzer = {
       frag.appendChild(formCard);
     }
 
-    /* ─── Роли ─── */
     if (s.favoriteRole && s.totalMatches > 0) {
       var roleCard = UI.card("🎯 Роли");
       var roleRow = el("div", { style: "display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:18px;" });
@@ -710,7 +690,6 @@ var ProfileAnalyzer = {
       frag.appendChild(roleCard);
     }
 
-    /* ─── Best/worst ─── */
     if (s.bestHero || s.worstHero) {
       var hlCard = UI.card("⚔️ Сильные и слабые герои");
       var hlRow = el("div", { style: "display:grid;grid-template-columns:1fr 1fr;gap:14px;" });
@@ -745,7 +724,6 @@ var ProfileAnalyzer = {
       frag.appendChild(hlCard);
     }
 
-    /* ─── Топ героев ─── */
     if (s.topHeroes && s.topHeroes.length) {
       var heroesCard = UI.card("🎮 Топ-" + s.topHeroes.length + " героев по количеству игр");
       var heroesList = el("div", { style: "display:flex;flex-direction:column;gap:10px;" });
@@ -779,7 +757,6 @@ var ProfileAnalyzer = {
       frag.appendChild(heroesCard);
     }
 
-    /* ─── Последние матчи ─── */
     if (data.matches && data.matches.length) {
       var matchesCard = UI.card("📜 Последние " + data.matches.length + " матчей");
       var list = el("div", { style: "display:flex;flex-direction:column;gap:6px;" });
@@ -835,4 +812,4 @@ var ProfileAnalyzer = {
 
 ProfileAnalyzer.init();
 
-console.log("profile-analyzer v8.0 ready (STRATZ)");
+console.log("profile-analyzer v9.0 ready (STRATZ fixed)");
