@@ -1,4 +1,4 @@
-/* DOTA JETCH — PROFILE ANALYZER v4.0 (fix: пустые матчи = замочек, больше данных) */
+/* DOTA JETCH — PROFILE ANALYZER v5.0 (strict hidden check + debug logs) */
 
 var ProfileAnalyzer = {
   cache: null,
@@ -80,29 +80,45 @@ var ProfileAnalyzer = {
   loadProfile: async function (accountId) {
     try {
       var player = await apiGet("/players/" + accountId);
+      console.log("[ProfileAnalyzer] /players/" + accountId + " →", player);
       return player || null;
-    } catch (e) { return null; }
+    } catch (e) {
+      console.warn("[ProfileAnalyzer] /players error:", e);
+      return null;
+    }
   },
 
   loadRecentMatches: async function (accountId, limit) {
     try {
       var matches = await apiGet("/players/" + accountId + "/matches", { limit: limit || 30 });
+      console.log("[ProfileAnalyzer] /matches → count=" + (Array.isArray(matches) ? matches.length : "?"));
       return Array.isArray(matches) ? matches : [];
-    } catch (e) { return []; }
+    } catch (e) {
+      console.warn("[ProfileAnalyzer] /matches error:", e);
+      return [];
+    }
   },
 
   loadHeroes: async function (accountId) {
     try {
       var heroes = await apiGet("/players/" + accountId + "/heroes");
+      console.log("[ProfileAnalyzer] /heroes → count=" + (Array.isArray(heroes) ? heroes.length : "?"));
       return Array.isArray(heroes) ? heroes : [];
-    } catch (e) { return []; }
+    } catch (e) {
+      console.warn("[ProfileAnalyzer] /heroes error:", e);
+      return [];
+    }
   },
 
   loadTotals: async function (accountId) {
     try {
       var totals = await apiGet("/players/" + accountId + "/totals");
+      console.log("[ProfileAnalyzer] /totals → count=" + (Array.isArray(totals) ? totals.length : "?"));
       return Array.isArray(totals) ? totals : [];
-    } catch (e) { return []; }
+    } catch (e) {
+      console.warn("[ProfileAnalyzer] /totals error:", e);
+      return [];
+    }
   },
 
   loadCounts: async function (accountId) {
@@ -115,26 +131,39 @@ var ProfileAnalyzer = {
   loadWinLoss: async function (accountId) {
     try {
       var wl = await apiGet("/players/" + accountId + "/wl");
+      console.log("[ProfileAnalyzer] /wl →", wl);
       return wl || {};
-    } catch (e) { return {}; }
+    } catch (e) {
+      console.warn("[ProfileAnalyzer] /wl error:", e);
+      return {};
+    }
   },
 
   loadAll: async function (accountId) {
     if (this.cache && this.cache.accountId === accountId && (Date.now() - this.cacheTime) < this.CACHE_TTL) {
+      console.log("[ProfileAnalyzer] использую кэш");
       return this.cache;
     }
 
     this.loading = true;
+    console.log("[ProfileAnalyzer] ЗАГРУЗКА для account_id=" + accountId);
 
     var player = await this.loadProfile(accountId);
 
-    /* Защита: если profile пуст — значит скрыт */
-    if (!player || !player.profile || !player.profile.personaname) {
+    /* Профиль вообще не вернулся */
+    if (!player) {
       this.loading = false;
       return { ok: false, reason: "hidden", accountId: accountId };
     }
 
-    /* Параллельная загрузка всего */
+    /* Профиль есть, но пустой (personaname отсутствует) */
+    if (!player.profile || !player.profile.personaname) {
+      console.log("[ProfileAnalyzer] profile пустой → hidden");
+      this.loading = false;
+      return { ok: false, reason: "hidden", accountId: accountId, player: player };
+    }
+
+    /* Параллельная загрузка */
     var results = await Promise.all([
       this.loadRecentMatches(accountId, 30),
       this.loadHeroes(accountId),
@@ -151,10 +180,14 @@ var ProfileAnalyzer = {
 
     this.loading = false;
 
-    /* ⚠️ ФИКС: если матчей 0 — значит публичные данные ВЫКЛЮЧЕНЫ */
-    if (matches.length === 0 && heroes.length === 0 && (!wl.win || wl.win === 0)) {
+    /* 🔥 СТРОГАЯ ПРОВЕРКА: если матчи пусты — данные скрыты.
+       Не важно, что там в heroes/wl — если нет matches, значит публичные данные off. */
+    if (matches.length === 0) {
+      console.log("[ProfileAnalyzer] matches.length = 0 → HIDDEN. heroes=" + heroes.length + " wl.win=" + wl.win);
       return { ok: false, reason: "hidden", accountId: accountId, player: player };
     }
+
+    console.log("[ProfileAnalyzer] ✅ Данные загружены. matches=" + matches.length + " heroes=" + heroes.length);
 
     var data = {
       ok: true,
@@ -191,7 +224,6 @@ var ProfileAnalyzer = {
       totalLifetime: 0, lifetimeWins: 0, lifetimeWinrate: 0
     };
 
-    /* Общий WL за все время */
     if (wl.win !== undefined && wl.lose !== undefined) {
       stats.lifetimeWins = wl.win;
       stats.totalLifetime = wl.win + wl.lose;
@@ -227,7 +259,6 @@ var ProfileAnalyzer = {
       roles[roleKey] = (roles[roleKey] || 0) + 1;
     }
 
-    /* Средние метрики из totals (за всю жизнь) */
     var gpmTotal = 0, xpmTotal = 0, lhTotal = 0, durationTotal = 0;
     for (var t = 0; t < totals.length; t++) {
       if (totals[t].field === "gold_per_min") gpmTotal = totals[t].sum / Math.max(totals[t].n, 1);
@@ -240,7 +271,7 @@ var ProfileAnalyzer = {
     stats.totalMatches = n;
     stats.wins = wins;
     stats.losses = losses;
-    stats.winrate = Math.round((wins / n) * 100);
+    stats.winrate = n > 0 ? Math.round((wins / n) * 100) : 0;
     stats.avgKills = (sumK / n).toFixed(1);
     stats.avgDeaths = (sumD / n).toFixed(1);
     stats.avgAssists = (sumA / n).toFixed(1);
@@ -254,12 +285,10 @@ var ProfileAnalyzer = {
     stats.longestWinStreak = longestW;
     stats.longestLoseStreak = longestL;
 
-    /* Избранная роль */
     var bestRole = null, bestCount = 0;
     for (var r in roles) if (roles[r] > bestCount) { bestCount = roles[r]; bestRole = r; }
     stats.favoriteRole = bestRole;
 
-    /* Лучший и худший герой (минимум 3 игры) */
     var bestHero = null, bestWR = 0;
     var worstHero = null, worstWR = 1;
     for (var h = 0; h < heroes.length; h++) {
@@ -272,7 +301,6 @@ var ProfileAnalyzer = {
     stats.bestHero = bestHero ? { heroId: bestHero.hero_id, games: bestHero.games, winrate: Math.round(bestWR * 100) } : null;
     stats.worstHero = worstHero ? { heroId: worstHero.hero_id, games: worstHero.games, winrate: Math.round(worstWR * 100) } : null;
 
-    /* Топ-5 героев по количеству игр */
     var sortedHeroes = heroes.slice().sort(function (a, b) { return b.games - a.games; });
     stats.topHeroes = sortedHeroes.slice(0, 5).map(function (h) {
       return { heroId: h.hero_id, games: h.games, winrate: h.games ? Math.round((h.win / h.games) * 100) : 0 };
@@ -321,7 +349,7 @@ var ProfileAnalyzer = {
     card.appendChild(el("div", { style: "font-size:80px;line-height:1;margin-bottom:20px;" }, "🔒"));
     card.appendChild(el("div", { style: "font-size:22px;font-weight:900;color:var(--gold);margin-bottom:10px;" }, "Публичные матчи выключены"));
     card.appendChild(el("div", { class: "dim", style: "font-size:13.5px;line-height:1.7;max-width:460px;margin:0 auto 24px;" },
-      "OpenDota не видит твои матчи — потому что в Dota 2 отключена опция показа публичных данных."));
+      "OpenDota не видит твои матчи, потому что в Dota 2 отключена опция показа публичных данных."));
 
     var steps = el("div", { style: "max-width:420px;margin:0 auto 24px;text-align:left;background:var(--bg-elev);border:1px solid var(--border);border-radius:14px;padding:18px 22px;" });
     var stepsList = [
@@ -339,7 +367,6 @@ var ProfileAnalyzer = {
     }
     card.appendChild(steps);
 
-    /* Если профиль загрузился — показываем ник для проверки */
     if (data && data.player && data.player.profile) {
       var info = el("div", { style: "max-width:420px;margin:0 auto 20px;padding:12px 16px;background:var(--bg-elev);border:1px solid var(--border);border-radius:12px;font-size:12px;color:var(--text-muted);text-align:left;" });
       info.appendChild(el("div", { style: "font-weight:700;color:var(--text);margin-bottom:4px;" }, "Аккаунт:"));
@@ -370,27 +397,19 @@ var ProfileAnalyzer = {
   },
 
   roleName: function (key) {
-    return {
-      safelane: "Керри",
-      mid: "Мид",
-      offlane: "Оффлейн",
-      roam: "Роум",
-      jungle: "Лес",
-      unknown: "Другое"
-    }[key] || key;
+    return { safelane: "Керри", mid: "Мид", offlane: "Оффлейн", roam: "Роум", jungle: "Лес", unknown: "Другое" }[key] || key;
   },
 
   roleIcon: function (key) {
     return { safelane: "🗡️", mid: "🔮", offlane: "🛡️", roam: "🏃", jungle: "🌲", unknown: "🎮" }[key] || "🎮";
   },
 
-  /* Красивая метрика — карточка */
   metricTile: function (icon, label, value, sub, color) {
     var tile = el("div", { style: "background:linear-gradient(160deg,rgba(22,24,31,0.95),rgba(18,20,26,0.95));border:1px solid var(--border);border-radius:16px;padding:18px 20px;position:relative;overflow:hidden;transition:transform 0.25s ease, border-color 0.25s ease;" });
     tile.appendChild(el("div", { style: "position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg," + color + ",transparent);" }));
 
     var topRow = el("div", { style: "display:flex;align-items:center;gap:10px;margin-bottom:14px;" });
-    var icoBox = el("div", { style: "width:38px;height:38px;border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:18px;background:" + color.replace("var(", "rgba(").replace(")", ", 0.12)") + ";border:1px solid " + color + ";" }, icon);
+    var icoBox = el("div", { style: "width:38px;height:38px;border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:18px;background:rgba(139,92,246,0.12);border:1px solid " + color + ";" }, icon);
     topRow.appendChild(icoBox);
     topRow.appendChild(el("div", { style: "font-size:10px;font-weight:800;letter-spacing:0.14em;color:var(--text-muted);text-transform:uppercase;" }, label));
     tile.appendChild(topRow);
@@ -404,7 +423,6 @@ var ProfileAnalyzer = {
     return tile;
   },
 
-  /* ═══════════════ ГЛАВНЫЙ РЕНДЕР ═══════════════ */
   render: function () {
     var frag = document.createDocumentFragment();
 
@@ -458,15 +476,13 @@ var ProfileAnalyzer = {
     var prof = p.profile || {};
     var rank = p.rank_tier || 0;
 
-    /* ─── Красивая шапка ─── */
+    /* ─── Шапка ─── */
     var head = el("div", { style: "position:relative;border-radius:20px;overflow:hidden;background:linear-gradient(135deg,rgba(139,92,246,0.35),rgba(34,211,238,0.15),var(--bg-card));border:1px solid var(--accent);padding:28px;margin-bottom:18px;" });
     var headRow = el("div", { style: "position:relative;display:flex;align-items:center;gap:22px;flex-wrap:wrap;" });
 
-    var avWrap = el("div", { style: "position:relative;flex-shrink:0;" });
-    var av = el("div", { style: "width:110px;height:110px;border-radius:24px;background:linear-gradient(135deg,var(--accent),var(--cyan));background-size:cover;background-position:center;border:3px solid rgba(167,139,250,0.7);box-shadow:0 10px 40px -10px rgba(139,92,246,0.7);" });
+    var av = el("div", { style: "width:110px;height:110px;border-radius:24px;background:linear-gradient(135deg,var(--accent),var(--cyan));background-size:cover;background-position:center;border:3px solid rgba(167,139,250,0.7);box-shadow:0 10px 40px -10px rgba(139,92,246,0.7);flex-shrink:0;" });
     if (prof.avatarfull) av.style.backgroundImage = "url(" + prof.avatarfull + ")";
-    avWrap.appendChild(av);
-    headRow.appendChild(avWrap);
+    headRow.appendChild(av);
 
     var info = el("div", { style: "flex:1;min-width:220px;" });
     var nameRow = el("div", { style: "display:flex;align-items:center;gap:12px;flex-wrap:wrap;" });
@@ -488,7 +504,7 @@ var ProfileAnalyzer = {
 
     if (s.totalLifetime > 0) {
       var lifetime = el("div", { style: "margin-top:14px;font-size:13px;color:var(--text-muted);" });
-      lifetime.innerHTML = "Всего матчей за всё время: <b style='color:var(--text);'>" + s.totalLifetime + "</b> · Винрейт: <b style='color:" + (s.lifetimeWinrate >= 55 ? "var(--green)" : s.lifetimeWinrate >= 45 ? "var(--yellow)" : "var(--red)") + ";'>" + s.lifetimeWinrate + "%</b>";
+      lifetime.innerHTML = "Всего матчей: <b style='color:var(--text);'>" + s.totalLifetime + "</b> · Винрейт: <b style='color:" + (s.lifetimeWinrate >= 55 ? "var(--green)" : s.lifetimeWinrate >= 45 ? "var(--yellow)" : "var(--red)") + ";'>" + s.lifetimeWinrate + "%</b>";
       info.appendChild(lifetime);
     }
 
@@ -517,9 +533,9 @@ var ProfileAnalyzer = {
     head.appendChild(headRow);
     frag.appendChild(head);
 
-    /* ─── 6 ключевых метрик ─── */
+    /* ─── 6 метрик ─── */
     var grid = el("div", { style: "display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-bottom:18px;" });
-    grid.appendChild(this.metricTile("🏆", "Винрейт", s.winrate + "%", s.wins + "W · " + s.losses + "L за 30 матчей",
+    grid.appendChild(this.metricTile("🏆", "Винрейт", s.winrate + "%", s.wins + "W · " + s.losses + "L за " + s.totalMatches + " матчей",
       s.winrate >= 55 ? "var(--green)" : s.winrate >= 45 ? "var(--yellow)" : "var(--red)"));
     grid.appendChild(this.metricTile("⚔️", "KDA", s.avgKDA, s.avgKills + " / " + s.avgDeaths + " / " + s.avgAssists, "var(--cyan)"));
     grid.appendChild(this.metricTile("💰", "GPM", s.avgGPM, "средний за всё время", "var(--gold)"));
@@ -528,7 +544,7 @@ var ProfileAnalyzer = {
     grid.appendChild(this.metricTile("⏱️", "Длительность", s.avgDuration + " мин", "средняя за матч", "var(--text-muted)"));
     frag.appendChild(grid);
 
-    /* ─── Форма + серии ─── */
+    /* ─── Форма ─── */
     if (s.recentForm && s.recentForm.length) {
       var formCard = UI.card("📈 Форма и серии");
       formCard.appendChild(el("div", { class: "dim", style: "font-size:11px;margin-bottom:10px;" }, "Последние " + s.recentForm.length + " матчей (свежие слева):"));
@@ -559,10 +575,9 @@ var ProfileAnalyzer = {
 
     /* ─── Роли ─── */
     if (s.favoriteRole) {
-      var roleCard = UI.card("🎯 Роли за последние 30 матчей");
+      var roleCard = UI.card("🎯 Роли");
       var roleRow = el("div", { style: "display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:18px;" });
-      var roleIconBig = el("div", { style: "width:70px;height:70px;border-radius:18px;background:linear-gradient(135deg,var(--accent),var(--cyan));display:flex;align-items:center;justify-content:center;font-size:32px;flex-shrink:0;" }, this.roleIcon(s.favoriteRole));
-      roleRow.appendChild(roleIconBig);
+      roleRow.appendChild(el("div", { style: "width:70px;height:70px;border-radius:18px;background:linear-gradient(135deg,var(--accent),var(--cyan));display:flex;align-items:center;justify-content:center;font-size:32px;flex-shrink:0;" }, this.roleIcon(s.favoriteRole)));
 
       var roleInfo = el("div", { style: "flex:1;min-width:200px;" });
       roleInfo.appendChild(el("div", { style: "font-size:10px;font-weight:800;letter-spacing:0.14em;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;" }, "Избранная роль"));
@@ -592,7 +607,7 @@ var ProfileAnalyzer = {
       frag.appendChild(roleCard);
     }
 
-    /* ─── Лучший / худший герой ─── */
+    /* ─── Лучший / худший ─── */
     if (s.bestHero || s.worstHero) {
       var hlCard = UI.card("⚔️ Сильные и слабые герои");
       var hlRow = el("div", { style: "display:grid;grid-template-columns:1fr 1fr;gap:14px;" });
@@ -600,7 +615,7 @@ var ProfileAnalyzer = {
       if (s.bestHero) {
         var bestBox = el("div", { style: "padding:16px;background:var(--green-bg);border:1px solid var(--green);border-radius:14px;" });
         bestBox.appendChild(el("div", { style: "font-size:10px;font-weight:800;letter-spacing:0.12em;color:var(--green);text-transform:uppercase;margin-bottom:10px;" }, "🔥 Лучший герой"));
-        var bHeroImg = el("div", { style: "display:flex;align-items:center;gap:12px;margin-bottom:8px;" });
+        var bHeroImg = el("div", { style: "display:flex;align-items:center;gap:12px;" });
         bHeroImg.appendChild(heroImgEl({ id: s.bestHero.heroId, name: "" }, 48));
         var bInfo = el("div", { style: "flex:1;" });
         bInfo.appendChild(el("div", { style: "font-size:16px;font-weight:900;color:var(--green);font-family:'JetBrains Mono',monospace;" }, s.bestHero.winrate + "%"));
@@ -613,7 +628,7 @@ var ProfileAnalyzer = {
       if (s.worstHero) {
         var worstBox = el("div", { style: "padding:16px;background:var(--red-bg);border:1px solid var(--red);border-radius:14px;" });
         worstBox.appendChild(el("div", { style: "font-size:10px;font-weight:800;letter-spacing:0.12em;color:var(--red);text-transform:uppercase;margin-bottom:10px;" }, "❌ Слабый герой"));
-        var wHeroImg = el("div", { style: "display:flex;align-items:center;gap:12px;margin-bottom:8px;" });
+        var wHeroImg = el("div", { style: "display:flex;align-items:center;gap:12px;" });
         wHeroImg.appendChild(heroImgEl({ id: s.worstHero.heroId, name: "" }, 48));
         var wInfo = el("div", { style: "flex:1;" });
         wInfo.appendChild(el("div", { style: "font-size:16px;font-weight:900;color:var(--red);font-family:'JetBrains Mono',monospace;" }, s.worstHero.winrate + "%"));
@@ -627,7 +642,7 @@ var ProfileAnalyzer = {
       frag.appendChild(hlCard);
     }
 
-    /* ─── Топ-5 героев ─── */
+    /* ─── Топ-5 ─── */
     if (s.topHeroes && s.topHeroes.length) {
       var heroesCard = UI.card("🎮 Топ-5 героев по количеству игр");
       var heroesList = el("div", { style: "display:flex;flex-direction:column;gap:10px;" });
@@ -704,7 +719,6 @@ var ProfileAnalyzer = {
     return frag;
   },
 
-  /* ═══════════════ ИНИЦИАЛИЗАЦИЯ ═══════════════ */
   init: function () {
     var callback = this.checkSteamCallback();
     if (callback && callback.accountId) {
@@ -718,4 +732,4 @@ var ProfileAnalyzer = {
 
 ProfileAnalyzer.init();
 
-console.log("profile-analyzer v4.0 ready (hidden-match fix + more data)");
+console.log("profile-analyzer v5.0 ready");
