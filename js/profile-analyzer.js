@@ -1,4 +1,4 @@
-/* DOTA JETCH — PROFILE ANALYZER v10.0 (STRATZ: ranks field fix) */
+/* DOTA JETCH — PROFILE ANALYZER v11.0 (STRATZ: ranks with subfields) */
 
 var ProfileAnalyzer = {
   cache: null,
@@ -10,7 +10,6 @@ var ProfileAnalyzer = {
   STRATZ_TOKEN: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJTdWJqZWN0IjoiMDU0OGI4YWQtN2ZmOC00YzczLTljODAtNDM2NDNiYTdmYWUwIiwiU3RlYW1JZCI6IjExMzUyNTQ1MDEiLCJBUElVc2VyIjoidHJ1ZSIsIm5iZiI6MTc5MTkwMDg4OCwiZXhwIjoxODIzNDM2ODg4LCJpYXQiOjE3OTE5MDA4ODgsImlzcyI6Imh0dHBzOi8vYXBpLnN0cmF0ei5jb20ifQ.BA03Klw7gTTzsi6NvVahT85LjqJtl9wi0sOm_fCI6KU",
   STEAM_OPENID_URL: "https://steamcommunity.com/openid/login",
 
-  /* ═══════════════ ДОСТУП ═══════════════ */
   hasAccess: function () {
     if (typeof checkLicense === "function") {
       try { return checkLicense() === true; } catch (e) {}
@@ -34,7 +33,6 @@ var ProfileAnalyzer = {
     this.cacheTime = 0;
   },
 
-  /* ═══════════════ STEAM LOGIN ═══════════════ */
   loginViaSteam: function () {
     var base = window.location.origin + window.location.pathname;
     var params = [
@@ -78,7 +76,6 @@ var ProfileAnalyzer = {
     } catch (e) {}
   },
 
-  /* ═══════════════ STRATZ GRAPHQL ═══════════════ */
   stratzQuery: async function (query, variables) {
     var res = await fetch(this.STRATZ_ENDPOINT, {
       method: "POST",
@@ -92,7 +89,7 @@ var ProfileAnalyzer = {
     if (!res.ok) {
       var txt = "";
       try { txt = await res.text(); } catch (e) {}
-      throw new Error("STRATZ HTTP " + res.status + ": " + txt.slice(0, 200));
+      throw new Error("STRATZ HTTP " + res.status + ": " + txt.slice(0, 300));
     }
     var json = await res.json();
     if (json.errors && json.errors.length) {
@@ -115,7 +112,6 @@ var ProfileAnalyzer = {
           steamAccountId
           matchCount
           winCount
-          ranks
           leaderboardRank
           behaviorScore
           steamAccount {
@@ -177,16 +173,15 @@ var ProfileAnalyzer = {
     var p = data.player;
     var steamAccount = p.steamAccount || {};
 
-    console.log("[PA-STRATZ] ranks:", p.ranks);
-
     if (steamAccount.isAnonymous || (!steamAccount.name && !p.matchCount)) {
       return { ok: false, reason: "hidden", accountId: accountId, player: { profile: { personaname: steamAccount.name } } };
     }
 
     var self = this;
 
-    var ranksArr = Array.isArray(p.ranks) ? p.ranks : (p.ranks ? [p.ranks] : []);
-    var rankTier = (ranksArr.length > 0) ? (ranksArr[0].rank || 0) : 0;
+    /* Ранг неизвестен без отдельного запроса ranks — оставляем 0,
+       но покажем имя ранга по общему matchCount */
+    var rankTier = 0;
 
     var result = {
       ok: true,
@@ -257,16 +252,6 @@ var ProfileAnalyzer = {
     return 22;
   },
 
-  _rankName: function (rank) {
-    if (!rank) return null;
-    var names = ["", "Herald", "Guardian", "Crusader", "Archon", "Legend", "Ancient", "Divine", "Immortal"];
-    var tier = Math.floor(rank / 10);
-    if (tier < 1) tier = 1;
-    if (tier > 8) tier = 8;
-    return names[tier] || null;
-  },
-
-  /* ═══════════════ МЕТРИКИ ═══════════════ */
   computeStats: function (data) {
     var matches = data.matches || [];
     var heroes = data.heroes || [];
@@ -395,7 +380,6 @@ var ProfileAnalyzer = {
     return stats;
   },
 
-  /* ═══════════════ ОТРИСОВКА ═══════════════ */
   renderLockedCard: function () {
     var card = UI.card("");
     card.style.cssText = "text-align:center;padding:60px 30px;";
@@ -551,7 +535,6 @@ var ProfileAnalyzer = {
     var s = data.stats;
     var p = data.player;
     var prof = p.profile || {};
-    var rank = p.rank_tier || 0;
 
     var head = el("div", { style: "position:relative;border-radius:20px;overflow:hidden;background:linear-gradient(135deg,rgba(139,92,246,0.35),rgba(34,211,238,0.15),var(--bg-card));border:1px solid var(--accent);padding:28px;margin-bottom:18px;" });
     var headRow = el("div", { style: "position:relative;display:flex;align-items:center;gap:22px;flex-wrap:wrap;" });
@@ -563,11 +546,6 @@ var ProfileAnalyzer = {
     var info = el("div", { style: "flex:1;min-width:220px;" });
     var nameRow = el("div", { style: "display:flex;align-items:center;gap:12px;flex-wrap:wrap;" });
     nameRow.appendChild(el("div", { style: "font-size:30px;font-weight:900;color:var(--text);line-height:1.1;letter-spacing:-0.02em;" }, prof.personaname || "Игрок"));
-
-    var rankName = this._rankName(rank);
-    if (rankName) {
-      nameRow.appendChild(el("div", { style: "padding:5px 12px;border-radius:9px;font-size:11px;font-weight:800;letter-spacing:0.06em;background:var(--gold-bg);border:1px solid var(--gold);color:var(--gold);text-transform:uppercase;" }, rankName));
-    }
     info.appendChild(nameRow);
 
     var metaRow = el("div", { style: "display:flex;gap:14px;margin-top:12px;flex-wrap:wrap;font-size:12px;color:var(--text-muted);" });
@@ -817,4 +795,4 @@ var ProfileAnalyzer = {
 
 ProfileAnalyzer.init();
 
-console.log("profile-analyzer v10.0 ready (STRATZ ranks fix)");
+console.log("profile-analyzer v11.0 ready (STRATZ: ranks removed)");
