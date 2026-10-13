@@ -1,4 +1,4 @@
-/* DOTA JETCH — PROFILE ANALYZER v17.0 (winrate-based heroes + rank display) */
+/* DOTA JETCH — PROFILE ANALYZER v18.0 (winrate heroes, rank removed) */
 
 var ProfileAnalyzer = {
   cache: null,
@@ -125,7 +125,6 @@ var ProfileAnalyzer = {
           steamAccountId
           matchCount
           winCount
-          rank
           behaviorScore
           steamAccount {
             name
@@ -197,7 +196,6 @@ var ProfileAnalyzer = {
       };
     });
 
-    /* Строим статистику по героям из matches */
     var heroMap = {};
     for (var i = 0; i < matches.length; i++) {
       var m = matches[i];
@@ -221,7 +219,7 @@ var ProfileAnalyzer = {
           profileurl: steamAccount.profileUri || null,
           loccountrycode: steamAccount.countryCode || null
         },
-        rank_tier: p.rank || 0
+        rank_tier: 0
       },
       behavior: p.behaviorScore || 0,
       heroes: heroes,
@@ -287,10 +285,9 @@ var ProfileAnalyzer = {
       stats.lifetimeGames = stats.totalLifetime;
     }
 
-    /* Best/worst — по винрейту, минимум 10 игр */
+    /* Best/worst — по винрейту, минимум 10 игр (или 5 если не нашлось) */
     var minGames = 10;
     var heroesForPick = heroes.filter(function (h) { return h.games >= minGames; });
-    /* Если меньше 2 героев с 10+ играми — снижаем порог до 5 */
     if (heroesForPick.length < 2) {
       minGames = 5;
       heroesForPick = heroes.filter(function (h) { return h.games >= minGames; });
@@ -306,7 +303,7 @@ var ProfileAnalyzer = {
     stats.bestHero = bestHero ? { heroId: bestHero.hero_id, games: bestHero.games, winrate: Math.round(bestWR * 100) } : null;
     stats.worstHero = worstHero && worstHero !== bestHero ? { heroId: worstHero.hero_id, games: worstHero.games, winrate: Math.round(worstWR * 100) } : null;
 
-    /* Топ-5 героев — по винрейту (минимум 5 игр) */
+    /* Топ-5 по винрейту, минимум 5 игр */
     var heroesForTop = heroes.filter(function (h) { return h.games >= 5; });
     var sortedByWinrate = heroesForTop.slice().sort(function (a, b) {
       return (b.win / b.games) - (a.win / a.games);
@@ -509,7 +506,7 @@ var ProfileAnalyzer = {
     var p = data.player;
     var prof = p.profile || {};
 
-    /* ═══════ КОМПАКТНАЯ ШАПКА ═══════ */
+    /* ═══════ ШАПКА ═══════ */
     var head = el("div", { style: "position:relative;display:flex;align-items:center;gap:16px;flex-wrap:wrap;background:linear-gradient(135deg,rgba(139,92,246,0.25),rgba(34,211,238,0.10),var(--bg-card));border:1px solid var(--accent);border-radius:16px;padding:16px 20px;margin-bottom:14px;" });
 
     var av = el("div", { style: "width:72px;height:72px;border-radius:18px;flex-shrink:0;background:linear-gradient(135deg,var(--accent),var(--cyan));background-size:cover;background-position:center;border:2px solid rgba(167,139,250,0.7);box-shadow:0 6px 20px -6px rgba(139,92,246,0.7);" });
@@ -517,13 +514,7 @@ var ProfileAnalyzer = {
     head.appendChild(av);
 
     var info = el("div", { style: "flex:1;min-width:180px;" });
-    var nameRow = el("div", { style: "display:flex;align-items:center;gap:10px;flex-wrap:wrap;" });
-    nameRow.appendChild(el("div", { style: "font-size:20px;font-weight:900;color:var(--text);line-height:1.15;letter-spacing:-0.01em;" }, prof.personaname || "Игрок"));
-    var rankName = this.rankName(p.rank_tier);
-    if (rankName) {
-      nameRow.appendChild(el("div", { style: "padding:3px 9px;border-radius:7px;font-size:10px;font-weight:800;letter-spacing:0.06em;background:var(--gold-bg);border:1px solid var(--gold);color:var(--gold);text-transform:uppercase;" }, rankName));
-    }
-    info.appendChild(nameRow);
+    info.appendChild(el("div", { style: "font-size:20px;font-weight:900;color:var(--text);line-height:1.15;letter-spacing:-0.01em;" }, prof.personaname || "Игрок"));
 
     var metaRow = el("div", { style: "display:flex;gap:10px;margin-top:6px;flex-wrap:wrap;font-size:11px;color:var(--text-muted);" });
     metaRow.appendChild(el("span", {}, "🆔 " + data.accountId));
@@ -560,7 +551,7 @@ var ProfileAnalyzer = {
     head.appendChild(actions);
     frag.appendChild(head);
 
-    /* ═══════ СЕТКА МЕТРИК ═══════ */
+    /* ═══════ МЕТРИКИ ═══════ */
     var metricsGrid = el("div", { style: "display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-bottom:12px;" });
     if (s.totalMatches > 0) {
       metricsGrid.appendChild(this.metric("🏆", "Винрейт", s.winrate + "%", s.wins + "W / " + s.losses + "L",
@@ -573,15 +564,14 @@ var ProfileAnalyzer = {
     if (s.avgDuration > 0) metricsGrid.appendChild(this.metric("⏱️", "Длит.", s.avgDuration + "м", "средн.", "var(--text-muted)"));
     frag.appendChild(metricsGrid);
 
-    /* ═══════ 2 КОЛОНКИ: СИЛЬНЫЕ/СЛАБЫЕ + ТОП ГЕРОЕВ ═══════ */
+    /* ═══════ 2 КОЛОНКИ ═══════ */
     var twoCol = el("div", { style: "display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;" });
     if (window.innerWidth < 700) twoCol.style.gridTemplateColumns = "1fr";
 
-    /* Сильные / слабые */
-    var bwCard = UI.card("⚔️ Лучший / Худший герой (10+ игр)");
+    /* Best/worst */
+    var bwCard = UI.card("⚔️ Лучший / Худший (10+ игр)");
     bwCard.style.cssText += "padding:12px 14px;margin-bottom:0;";
     var bwRow = el("div", { style: "display:grid;grid-template-columns:1fr 1fr;gap:8px;" });
-
     if (s.bestHero) {
       var bb = el("div", { style: "display:flex;align-items:center;gap:10px;padding:10px;background:var(--green-bg);border:1px solid var(--green);border-radius:10px;" });
       bb.appendChild(heroImgEl({ id: s.bestHero.heroId, name: "" }, 40));
@@ -602,13 +592,13 @@ var ProfileAnalyzer = {
       wb.appendChild(wbI);
       bwRow.appendChild(wb);
     } else {
-      bwRow.appendChild(el("div", { class: "dim", style: "grid-column:span 2;text-align:center;font-size:11px;padding:12px 0;" }, "Слабых героев не найдено"));
+      bwRow.appendChild(el("div", { class: "dim", style: "grid-column:span 2;text-align:center;font-size:11px;padding:12px 0;" }, "Мало данных"));
     }
     bwCard.appendChild(bwRow);
     twoCol.appendChild(bwCard);
 
-    /* Топ героев — по винрейту */
-    var topCard = UI.card("🏆 Топ-5 героев по винрейту");
+    /* Топ героев */
+    var topCard = UI.card("🏆 Топ-5 по винрейту");
     topCard.style.cssText += "padding:12px 14px;margin-bottom:0;";
     if (s.topHeroes && s.topHeroes.length) {
       var topList = el("div", { style: "display:flex;flex-direction:column;gap:5px;" });
@@ -653,8 +643,8 @@ var ProfileAnalyzer = {
       }
       formCard.appendChild(formRow);
       var ss = el("div", { style: "display:flex;gap:12px;font-size:11px;" });
-      ss.appendChild(el("span", { style: "color:var(--green);" }, "🔥 Серия побед: " + s.longestWinStreak));
-      ss.appendChild(el("span", { style: "color:var(--red);" }, "❄ Серия лузов: " + s.longestLoseStreak));
+      ss.appendChild(el("span", { style: "color:var(--green);" }, "🔥 " + s.longestWinStreak + " W"));
+      ss.appendChild(el("span", { style: "color:var(--red);" }, "❄ " + s.longestLoseStreak + " L"));
       formCard.appendChild(ss);
       twoCol2.appendChild(formCard);
     }
@@ -691,11 +681,11 @@ var ProfileAnalyzer = {
     }
     frag.appendChild(twoCol2);
 
-    /* ═══════ ПОСЛЕДНИЕ 50 МАТЧЕЙ ═══════ */
+    /* ═══════ МАТЧИ ═══════ */
     if (data.matches && data.matches.length) {
       var matchesCard = UI.card("📜 Последние " + data.matches.length + " матчей");
       matchesCard.style.cssText += "padding:12px 14px;";
-      matchesCard.appendChild(el("div", { class: "dim", style: "font-size:10.5px;margin-bottom:8px;" }, "Кликни «Анализировать» — сразу откроется разбор матча."));
+      matchesCard.appendChild(el("div", { class: "dim", style: "font-size:10.5px;margin-bottom:8px;" }, "Кликни «Анализ» — откроется разбор матча."));
 
       var list = el("div", { style: "display:flex;flex-direction:column;gap:4px;" });
       for (var mi = 0; mi < data.matches.length; mi++) {
@@ -753,4 +743,4 @@ var ProfileAnalyzer = {
 
 ProfileAnalyzer.init();
 
-console.log("profile-analyzer v17.0 ready (winrate heroes + rank)");
+console.log("profile-analyzer v18.0 ready (winrate heroes, rank removed)");
