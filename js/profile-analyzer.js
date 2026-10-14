@@ -407,9 +407,9 @@ var ProfileAnalyzer = {
     var card = UI.card("");
     card.style.cssText = "text-align:center;padding:44px 26px;";
     card.appendChild(el("div", { style: "font-size:72px;line-height:1;margin-bottom:16px;" }, "🔒"));
-    card.appendChild(el("div", { style: "font-size:20px;font-weight:900;color:var(--gold);margin-bottom:8px;" }, "Публичные матчи выключены"));
+    card.appendChild(el("div", { style: "font-size:20px;font-weight:900;color:var(--gold);margin-bottom:8px;" }, "Общедоступная история матчей выключена"));
     card.appendChild(el("div", { class: "dim", style: "font-size:13px;line-height:1.6;max-width:420px;margin:0 auto 20px;" },
-      "Включи в Dota 2 → Настройки → Соц. → «Публичные данные о матчах», сыграй 1 матч, подожди 10 мин."));
+      "Зайди в доту → Настройки → Сообщество → Включи «Общедоступная история матчей», подожди пару минут, обновляй"));
     var btnRow = el("div", { style: "display:flex;gap:8px;justify-content:center;flex-wrap:wrap;" });
     var refreshBtn = UI.btn("🔄 Обновить");
     refreshBtn.addEventListener("click", function () {
