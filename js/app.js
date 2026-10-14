@@ -1,6 +1,6 @@
-/* DOTA JETCH — APP v19.0 (event-based admin nav) */
+/* DOTA JETCH — APP v18.0 (fix admin nav) */
 
-var APP_VERSION = "19.0";
+var APP_VERSION = "18.0";
 
 var PAGES = {
   dashboard:    { title: "Главная",           render: renderDashboard },
@@ -42,7 +42,9 @@ function buildNav() {
   var list = NAV.slice();
   var isAdmin = window.AdminPanel && window.AdminPanel.isAdmin === true;
   console.log("[NAV] buildNav: isAdmin =", isAdmin);
-  if (isAdmin) list.push(ADMIN_NAV_ITEM);
+  if (isAdmin) {
+    list.push(ADMIN_NAV_ITEM);
+  }
   for (var i = 0; i < list.length; i++) {
     (function (item) {
       var btn = el("button", { class: "nav-btn" + (item.page === currentPage ? " active" : ""), "data-page": item.page });
@@ -521,26 +523,23 @@ async function init() {
   try { if (typeof applyTheme === "function") applyTheme(loadTheme()); } catch (e) {}
   try { if (typeof applyLiteMode === "function") applyLiteMode(isLiteMode()); } catch (e) {}
 
-  if (window.__fbAuth && window.__fbAuth.currentUser) {
-    console.log("[INIT] user already logged in");
-    if (window.AdminPanel && typeof window.AdminPanel.checkAdmin === "function") {
+  /* Проверка прав администратора ДО построения навигации */
+  if (window.AdminPanel && typeof window.AdminPanel.checkAdmin === "function") {
+    try {
       await window.AdminPanel.checkAdmin();
-      console.log("[INIT] checkAdmin (pre) completed, isAdmin =", window.AdminPanel.isAdmin);
-    }
-    buildNav();
-  } else {
-    console.log("[INIT] waiting for userLoggedIn event...");
-    buildNav();
+      console.log("[INIT] checkAdmin completed, isAdmin =", window.AdminPanel.isAdmin);
+    } catch (e) { console.warn("[INIT] checkAdmin error:", e); }
   }
 
-  window.addEventListener('userLoggedIn', async function (e) {
-    console.log("[INIT] userLoggedIn event received");
-    if (window.AdminPanel && typeof window.AdminPanel.checkAdmin === "function") {
-      await window.AdminPanel.checkAdmin();
-      console.log("[INIT] checkAdmin (event) completed, isAdmin =", window.AdminPanel.isAdmin);
+  buildNav();
+
+  /* Дополнительно: если isAdmin стал true позже, перестроим навигацию */
+  setTimeout(function () {
+    if (window.AdminPanel && window.AdminPanel.isAdmin === true) {
+      console.log("[INIT] isAdmin true in timeout, rebuilding nav");
+      buildNav();
     }
-    buildNav();
-  });
+  }, 1500);
 
   document.addEventListener("click", function () { if (typeof closeAllDropdowns === "function") closeAllDropdowns(); });
   bindProfileModal();
@@ -560,4 +559,4 @@ window.addEventListener("hashchange", function () {
   if (h !== currentPage && PAGES[h]) switchPage(h);
 });
 
-console.log("app v19.0 ready (event-based admin nav)");
+console.log("app v18.0 ready (fix admin nav)");
