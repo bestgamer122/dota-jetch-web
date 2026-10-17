@@ -1,4 +1,4 @@
-/* DOTA JETCH — PROFILE ANALYZER v20.0 (with visual animations) */
+/* DOTA JETCH — PROFILE ANALYZER v21.0 (Role Detector + DNA + Impact) */
 
 var ProfileAnalyzer = {
   cache: null,
@@ -144,6 +144,8 @@ var ProfileAnalyzer = {
               experiencePerMinute
               numLastHits
               position
+              heroDamage
+              towerDamage
             }
           }
         }
@@ -186,7 +188,9 @@ var ProfileAnalyzer = {
         xp_per_min: me ? me.experiencePerMinute : 0,
         last_hits: me ? me.numLastHits : 0,
         position: me ? self._parsePosition(me.position) : 0,
-        start_time: m.startDateTime || 0
+        start_time: m.startDateTime || 0,
+        hero_damage: me ? me.heroDamage : 0,
+        tower_damage: me ? me.towerDamage : 0
       };
     });
 
@@ -246,6 +250,38 @@ var ProfileAnalyzer = {
     if (m.indexOf("RANDOM") >= 0) return 3;
     if (m.indexOf("CAPTAINS") >= 0) return 2;
     return 22;
+  },
+
+  // Role Detector v6 — умная классификация на основе относительного фарма
+  classifyRole: function (match, allMatches) {
+    var lane = match.position || 0;
+
+    var teamGPM = allMatches.map(function (x) { return x.gold_per_min || 0; });
+    var teamXPM = allMatches.map(function (x) { return x.xp_per_min || 0; });
+    var teamLH = allMatches.map(function (x) { return x.last_hits || 0; });
+
+    function rank(val, arr) {
+      if (!arr.length) return 0.5;
+      var sorted = arr.slice().sort(function (a, b) { return a - b; });
+      var idx = sorted.indexOf(val);
+      return idx < 0 ? 0.5 : idx / (sorted.length - 1 || 1);
+    }
+
+    var g = rank(match.gold_per_min, teamGPM);
+    var x = rank(match.xp_per_min, teamXPM);
+    var lh = rank(match.last_hits, teamLH);
+
+    var coreRank = g * 0.45 + x * 0.25 + lh * 0.30;
+
+    if (lane === 2) return (coreRank < 0.35) ? 4 : 2;
+    if (lane === 1) return coreRank >= 0.56 ? 1 : 5;
+    if (lane === 3) return coreRank >= 0.52 ? 3 : 4;
+    if (lane === 4 || lane === 0) {
+      if (coreRank >= 0.70) return 1;
+      if (coreRank >= 0.52) return 3;
+      return 5;
+    }
+    return lane;
   },
 
   computeStats: function (data) {
@@ -334,10 +370,10 @@ var ProfileAnalyzer = {
       if (m.game_mode === 22) ranked++;
       else if (m.game_mode === 23) turbo++;
 
-      var p = m.position || 0;
-      if (p >= 1 && p <= 5) {
-        roles[p] = (roles[p] || 0) + 1;
-        if (won) roleWins[p] = (roleWins[p] || 0) + 1;
+      var detectedRole = this.classifyRole(m, matches);
+      if (detectedRole >= 1 && detectedRole <= 5) {
+        roles[detectedRole] = (roles[detectedRole] || 0) + 1;
+        if (won) roleWins[detectedRole] = (roleWins[detectedRole] || 0) + 1;
       }
     }
 
@@ -374,6 +410,59 @@ var ProfileAnalyzer = {
     return stats;
   },
 
+  // Player DNA — определение игрового стиля
+  computePlayerDNA: function (stats) {
+    var gpm = parseFloat(stats.avgGPM) || 0;
+    var xpm = parseFloat(stats.avgXPM) || 0;
+    var lh = parseFloat(stats.avgLH) || 0;
+    var deaths = parseFloat(stats.avgDeaths) || 0;
+    var kda = parseFloat(stats.avgKDA) || 0;
+
+    function score(value, low, high) {
+      if (!isFinite(value)) return null;
+      return Math.max(0, Math.min(100, ((value - low) / (high - low)) * 100));
+    }
+
+    var farm = (score(gpm, 300, 700) + score(lh, 2, 8) + score(xpm, 300, 700)) / 3;
+    var fight = (score(kda, 2, 12) + score(stats.avgAssists || 0, 3, 15)) / 2;
+    var survival = score(deaths, 10, 2);
+
+    var role = stats.favoriteRole || 1;
+    var dna = [];
+
+    if (role === 1) {
+      if (farm >= 70 && survival >= 60) dna.push({ label: "RESOURCE CARRY", desc: "Ты раскрываешься через фарм и поздние тайминги." });
+      else if (fight >= 65) dna.push({ label: "FIGHTING CARRY", desc: "Ты не ждёшь лейта, а конвертируешь фарм в драки." });
+      else dna.push({ label: "BALANCED CARRY", desc: "Смешанный керри-профиль." });
+    } else if (role === 2) {
+      if (farm >= 70 && fight >= 65) dna.push({ label: "TEMPO MID", desc: "Ты создаёшь преимущество через темп и драки." });
+      else dna.push({ label: "FLEX MID", desc: "Мид-профиль смешанный." });
+    } else if (role === 3) {
+      if (fight >= 70 && survival >= 60) dna.push({ label: "FRONTLINE INITIATOR", desc: "Твой стиль — начинать драки." });
+      else dna.push({ label: "UTILITY OFFLANER", desc: "Ты играешь от пользы для команды." });
+    } else if (role === 4 || role === 5) {
+      if (fight >= 65) dna.push({ label: "TEMPO SUPPORT", desc: "Раннее давление через ганги и драки." });
+      else dna.push({ label: "UTILITY SUPPORT", desc: "Стабильная помощь команде и карте." });
+    }
+
+    return dna;
+  },
+
+  // Impact Score — оценка влияния на игру
+  computeImpactScore: function (match) {
+    var kda = (match.kills + match.assists) / Math.max(match.deaths, 1);
+    var dur = Math.max(match.duration / 60, 1);
+    var hd = (match.hero_damage || 0) / dur;
+    var td = (match.tower_damage || 0) / dur;
+
+    function score(v, lo, hi) {
+      return Math.max(0, Math.min(100, ((v - lo) / (hi - lo)) * 100));
+    }
+
+    var impact = (score(kda, 1, 6) * 0.35 + score(hd, 150, 650) * 0.40 + score(td, 0, 180) * 0.25);
+    return Math.round(impact);
+  },
+
   renderLockedCard: function () {
     var card = UI.card("");
     card.style.cssText = "text-align:center;padding:60px 30px;";
@@ -407,9 +496,9 @@ var ProfileAnalyzer = {
     var card = UI.card("");
     card.style.cssText = "text-align:center;padding:44px 26px;";
     card.appendChild(el("div", { style: "font-size:72px;line-height:1;margin-bottom:16px;" }, "🔒"));
-    card.appendChild(el("div", { style: "font-size:20px;font-weight:900;color:var(--gold);margin-bottom:8px;" }, "Общедоступная история матчей выключена"));
+    card.appendChild(el("div", { style: "font-size:20px;font-weight:900;color:var(--gold);margin-bottom:8px;" }, "Публичные матчи выключены"));
     card.appendChild(el("div", { class: "dim", style: "font-size:13px;line-height:1.6;max-width:420px;margin:0 auto 20px;" },
-      "Зайди в доту → Настройки → Сообщество → Включи «Общедоступная история матчей», подожди пару минут, обновляй"));
+      "Включи в Dota 2 → Настройки → Соц. → «Публичные данные о матчах», сыграй 1 матч, подожди 10 мин."));
     var btnRow = el("div", { style: "display:flex;gap:8px;justify-content:center;flex-wrap:wrap;" });
     var refreshBtn = UI.btn("🔄 Обновить");
     refreshBtn.addEventListener("click", function () {
@@ -457,7 +546,7 @@ var ProfileAnalyzer = {
 
   heroCard: function (heroId, games, winrate, label, color, bg) {
     var box = el("div", { style: "display:flex;align-items:center;gap:10px;padding:10px 12px;background:" + bg + ";border:1px solid " + color + ";border-radius:10px;position:relative;overflow:hidden;" });
-    box.appendChild(heroImgEl({ id: heroId, name: "" }, 42));
+    box.appendChild(heroImgEl({ id: heroId, name: ProfileAnalyzer.heroNameById(heroId) }, 42));
     var info = el("div", { style: "min-width:0;flex:1;" });
     info.appendChild(el("div", { style: "font-size:9px;font-weight:800;letter-spacing:0.08em;color:" + color + ";text-transform:uppercase;" }, label));
     info.appendChild(el("div", { style: "font-size:14px;font-weight:800;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.15;" }, ProfileAnalyzer.heroNameById(heroId)));
@@ -515,7 +604,6 @@ var ProfileAnalyzer = {
           errCard.appendChild(retryBtn);
           container.appendChild(errCard);
         }
-        /* Запускаем анимации для карточки */
         if (typeof window.processNode === "function") {
           setTimeout(function () { window.processNode(container); }, 20);
         }
@@ -525,11 +613,8 @@ var ProfileAnalyzer = {
       var dash = ProfileAnalyzer.renderDashboard(data);
       container.appendChild(dash);
 
-      /* Запускаем анимации появления карточек */
       if (typeof window.processNode === "function") {
         setTimeout(function () { window.processNode(container); }, 20);
-      } else {
-        console.warn("[PA] window.processNode не найден — visual.js не подключён?");
       }
     }, 30);
 
@@ -600,6 +685,22 @@ var ProfileAnalyzer = {
     }
     frag.appendChild(metricsGrid);
 
+    /* ═══════ PLAYER DNA ═══════ */
+    if (s.totalMatches > 0) {
+      var dna = this.computePlayerDNA(s);
+      if (dna.length) {
+        var dnaCard = UI.card("🧬 Твой игровой стиль");
+        dnaCard.style.cssText += "padding:14px 16px;margin-bottom:12px;";
+        dna.forEach(function (item) {
+          var row = el("div", { style: "display:flex;align-items:flex-start;gap:10px;margin-bottom:8px;" });
+          row.appendChild(el("div", { style: "padding:4px 10px;background:var(--accent-bg);border:1px solid var(--accent);border-radius:8px;font-size:11px;font-weight:900;color:var(--accent-light);white-space:nowrap;" }, item.label));
+          row.appendChild(el("div", { style: "font-size:12px;color:var(--text-muted);line-height:1.5;" }, item.desc));
+          dnaCard.appendChild(row);
+        });
+        frag.appendChild(dnaCard);
+      }
+    }
+
     /* ═══════ BEST/WORST + ТОП-5 ═══════ */
     var twoCol = el("div", { style: "display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;" });
     if (window.innerWidth < 700) twoCol.style.gridTemplateColumns = "1fr";
@@ -630,7 +731,7 @@ var ProfileAnalyzer = {
           var badgeText = idx < 3 ? "#0b0c10" : "var(--text-muted)";
           var b = el("div", { style: "width:20px;height:20px;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:900;font-family:'JetBrains Mono',monospace;flex-shrink:0;background:" + badgeColor + ";color:" + badgeText + (idx >= 3 ? ";border:1px solid var(--border);" : ";") }, String(idx + 1));
           r.appendChild(b);
-          r.appendChild(heroImgEl({ id: h.heroId, name: "" }, 26));
+          r.appendChild(heroImgEl({ id: h.heroId, name: ProfileAnalyzer.heroNameById(h.heroId) }, 26));
           var info = el("div", { style: "flex:1;min-width:0;" });
           info.appendChild(el("div", { style: "font-size:11.5px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" }, ProfileAnalyzer.heroNameById(h.heroId)));
           info.appendChild(el("div", { class: "dim", style: "font-size:9px;" }, h.games + " игр"));
@@ -721,7 +822,7 @@ var ProfileAnalyzer = {
           mRow.addEventListener("mouseleave", function () { mRow.style.borderColor = "var(--border)"; });
 
           mRow.appendChild(el("div", { style: "width:3px;height:26px;border-radius:2px;flex-shrink:0;background:" + (won ? "var(--green)" : "var(--red)") + ";" }));
-          mRow.appendChild(heroImgEl({ id: m.hero_id, name: "" }, 26));
+          mRow.appendChild(heroImgEl({ id: m.hero_id, name: ProfileAnalyzer.heroNameById(m.hero_id) }, 26));
 
           var info = el("div", { style: "flex:1;min-width:0;display:flex;flex-direction:column;gap:1px;" });
           info.appendChild(el("div", { style: "font-size:11px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" }, ProfileAnalyzer.heroNameById(m.hero_id)));
@@ -730,6 +831,10 @@ var ProfileAnalyzer = {
 
           var kdaColor = won ? "var(--green)" : "var(--red)";
           mRow.appendChild(el("div", { style: "font-family:'JetBrains Mono',monospace;font-size:10.5px;font-weight:800;color:" + kdaColor + ";text-align:right;min-width:50px;" }, m.kills + "/" + m.deaths + "/" + m.assists));
+
+          var impact = ProfileAnalyzer.computeImpactScore(m);
+          var impactColor = impact >= 70 ? "var(--green)" : impact >= 40 ? "var(--yellow)" : "var(--red)";
+          mRow.appendChild(el("div", { style: "font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:800;color:" + impactColor + ";min-width:36px;text-align:center;", title: "Impact Score" }, String(impact)));
 
           var aBtn = el("button", { type: "button" });
           aBtn.style.cssText = "padding:4px 9px;border-radius:6px;font-size:10px;font-weight:700;font-family:inherit;cursor:pointer;border:1px solid var(--accent);background:rgba(139,92,246,0.10);color:var(--accent-light);white-space:nowrap;";
@@ -765,4 +870,4 @@ var ProfileAnalyzer = {
 
 ProfileAnalyzer.init();
 
-console.log("profile-analyzer v20.0 ready (animations)");
+console.log("profile-analyzer v21.0 ready (Role Detector + DNA + Impact)");
