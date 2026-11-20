@@ -23,10 +23,16 @@ var Store = {
 
   set: function (key, val) {
     try {
+      if (val === null || val === undefined) {
+        sessionStorage.removeItem(this.prefix + key);
+        localStorage.removeItem(this.prefix + key);
+        return;
+      }
       var str = JSON.stringify(val);
       sessionStorage.setItem(this.prefix + key, str);
-      /* Критичные ключи дублируем в localStorage — не теряются при краше */
+      /* Не оставляем устаревшую локальную копию, которая перекрывает облако. */
       if (this._isCritical(key)) localStorage.setItem(this.prefix + key, str);
+      else localStorage.removeItem(this.prefix + key);
     } catch (e) {}
   },
 
@@ -68,10 +74,16 @@ async function apiGet(path, params) {
   }
   try {
     var res = await fetch(url);
-    if (!res.ok) throw new Error("HTTP " + res.status);
+    if (!res.ok) {
+      var httpError = new Error("HTTP " + res.status);
+      httpError.status = res.status;
+      httpError.retryable = res.status === 429 || res.status >= 500;
+      throw httpError;
+    }
     return await res.json();
   } catch (e) {
-    /* Fallback через CORS-прокси */
+    if (e && e.retryable === false) throw e;
+    /* Fallback только для сети/CORS и временных ошибок сервера. */
     try {
       var proxyUrl = API_PROXY + encodeURIComponent(url);
       var res2 = await fetch(proxyUrl);

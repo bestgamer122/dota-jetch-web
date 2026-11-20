@@ -1,7 +1,5 @@
 /* DOTA JETCH — ADMIN PANEL v5.0 (fully working toggles + live config) */
 
-var ADMIN_NICKNAMES = ["owner"];
-
 (function injectAdminStyles() {
   if (document.getElementById("adminPanelStyles")) return;
   var s = document.createElement("style");
@@ -519,9 +517,6 @@ var AdminPanel = {
 
   checkAdmin: async function () {
     try {
-      var nick = "";
-      try { if (window.Store) nick = String(Store.get("nickname", "") || "").toLowerCase(); } catch (e) {}
-      if (nick && ADMIN_NICKNAMES.indexOf(nick) >= 0) { this.isAdmin = true; return true; }
       var auth = window.__fbAuth;
       var dbHelpers = window.__fbDB;
       if (!auth || !auth.currentUser || !dbHelpers) { this.isAdmin = false; return false; }
@@ -911,15 +906,20 @@ function renderAdminTabs() {
   return wrap;
 }
 
+var adminTabRequestId = 0;
 async function renderAdminTab(tab) {
   var c = qs("#adminContent");
   if (!c) return;
+  var requestId = ++adminTabRequestId;
   c.innerHTML = "";
-  if (tab === "dashboard") c.appendChild(await renderAdminDashboard());
-  else if (tab === "users") c.appendChild(await renderAdminUsers());
-  else if (tab === "config") c.appendChild(await renderAdminConfig());
-  else if (tab === "logs") c.appendChild(await renderAdminLogs());
-  else if (tab === "admins") c.appendChild(await renderAdminAdmins());
+  var content = null;
+  if (tab === "dashboard") content = await renderAdminDashboard();
+  else if (tab === "users") content = await renderAdminUsers();
+  else if (tab === "config") content = await renderAdminConfig();
+  else if (tab === "logs") content = await renderAdminLogs();
+  else if (tab === "admins") content = await renderAdminAdmins();
+  if (requestId !== adminTabRequestId || AdminPanel.cache.activeTab !== tab || !c.isConnected) return;
+  if (content) c.appendChild(content);
 }
 
 async function renderAdminDashboard() {
@@ -1154,7 +1154,9 @@ function openUserDetailModal(user) {
     return b;
   }
 
+  var tabRequestId = 0;
   async function renderTabContent(tabId) {
+    var requestId = ++tabRequestId;
     contentWrap.innerHTML = "";
 
     if (tabId === "actions") {
@@ -1162,21 +1164,21 @@ function openUserDetailModal(user) {
       if (user.license.forever || user.license.active) {
         contentWrap.appendChild(makeActionBtn("❌ Снять JETCH+", "#ef4444", "rgba(239,68,68,0.08)", async function () {
           if (!confirm("Снять подписку с " + user.nickname + "?")) return;
-          await AdminPanel.updateUser(user.uid, { "license__DOT__active": false, "license__DOT__forever": false, "license__DOT__expires": null });
+          if (!await AdminPanel.updateUser(user.uid, { "license__DOT__active": false, "license__DOT__forever": false, "license__DOT__expires": null })) { alert("Не удалось сохранить."); return; }
           await AdminPanel.log("remove_jetch", user.nickname);
           ov.remove(); renderAdminTab("users");
         }));
       } else {
         contentWrap.appendChild(makeActionBtn("⭐ Выдать JETCH+ бессрочно", "#fbbf24", "rgba(251,191,36,0.08)", async function () {
           if (!confirm("Выдать бессрочный JETCH+?")) return;
-          await AdminPanel.updateUser(user.uid, { "license__DOT__active": true, "license__DOT__forever": true, "license__DOT__expires": null });
+          if (!await AdminPanel.updateUser(user.uid, { "license__DOT__active": true, "license__DOT__forever": true, "license__DOT__expires": null })) { alert("Не удалось сохранить."); return; }
           await AdminPanel.log("give_jetch_forever", user.nickname);
           ov.remove(); renderAdminTab("users");
         }));
         contentWrap.appendChild(makeActionBtn("📅 Выдать JETCH+ на 30 дней", "#fbbf24", "rgba(251,191,36,0.08)", async function () {
           if (!confirm("Выдать JETCH+ на 30 дней?")) return;
           var d = new Date(); d.setDate(d.getDate() + 30);
-          await AdminPanel.updateUser(user.uid, { "license__DOT__active": true, "license__DOT__forever": false, "license__DOT__expires": d.toISOString() });
+          if (!await AdminPanel.updateUser(user.uid, { "license__DOT__active": true, "license__DOT__forever": false, "license__DOT__expires": d.toISOString() })) { alert("Не удалось сохранить."); return; }
           await AdminPanel.log("give_jetch_30d", user.nickname);
           ov.remove(); renderAdminTab("users");
         }));
@@ -1186,14 +1188,14 @@ function openUserDetailModal(user) {
       if (user.blocked) {
         contentWrap.appendChild(makeActionBtn("✅ Разблокировать", "#22c55e", "rgba(34,197,94,0.08)", async function () {
           if (!confirm("Разблокировать " + user.nickname + "?")) return;
-          await AdminPanel.updateUser(user.uid, { blocked: false });
+          if (!await AdminPanel.updateUser(user.uid, { blocked: false })) { alert("Не удалось сохранить."); return; }
           await AdminPanel.log("unblock", user.nickname);
           ov.remove(); renderAdminTab("users");
         }));
       } else {
         contentWrap.appendChild(makeActionBtn("🚫 Заблокировать", "#ef4444", "rgba(239,68,68,0.08)", async function () {
           if (!confirm("Заблокировать " + user.nickname + "?")) return;
-          await AdminPanel.updateUser(user.uid, { blocked: true });
+          if (!await AdminPanel.updateUser(user.uid, { blocked: true })) { alert("Не удалось сохранить."); return; }
           await AdminPanel.log("block", user.nickname);
           ov.remove(); renderAdminTab("users");
         }));
@@ -1201,34 +1203,36 @@ function openUserDetailModal(user) {
 
       contentWrap.appendChild(el("div", { class: "adm-section-title" }, "Права"));
       var isAdm = await AdminPanel.isAdminUid(user.uid);
+      if (requestId !== tabRequestId || currentTab !== tabId || !contentWrap.isConnected) return;
       if (isAdm) {
         contentWrap.appendChild(makeActionBtn("🛡 Снять с админов", "#f97316", "rgba(249,115,22,0.08)", async function () {
           if (!confirm("Снять админ-права?")) return;
-          await AdminPanel.removeAdmin(user.uid);
+          if (!await AdminPanel.removeAdmin(user.uid)) { alert("Не удалось сохранить."); return; }
           await AdminPanel.log("remove_admin", user.nickname);
           ov.remove(); renderAdminTab("users");
         }));
       } else {
         contentWrap.appendChild(makeActionBtn("🛡 Сделать админом", "#fbbf24", "rgba(251,191,36,0.08)", async function () {
           if (!confirm("Дать админ-права " + user.nickname + "?")) return;
-          await AdminPanel.addAdmin(user.uid);
+          if (!await AdminPanel.addAdmin(user.uid)) { alert("Не удалось сохранить."); return; }
           await AdminPanel.log("add_admin", user.nickname);
           ov.remove(); renderAdminTab("users");
         }));
       }
 
       contentWrap.appendChild(el("div", { class: "adm-section-title" }, "Опасное"));
-      contentWrap.appendChild(makeActionBtn("🗑️ Удалить аккаунт", "#ef4444", "rgba(239,68,68,0.08)", async function () {
-        if (!confirm("УДАЛИТЬ " + user.nickname + "? Необратимо.")) return;
-        if (!confirm("Точно удалить?")) return;
-        await AdminPanel.deleteUser(user.uid);
-        await AdminPanel.log("delete_user", user.nickname);
+      contentWrap.appendChild(makeActionBtn("🗑️ Удалить данные", "#ef4444", "rgba(239,68,68,0.08)", async function () {
+        if (!confirm("Удалить данные " + user.nickname + " из базы? Аккаунт входа останется.")) return;
+        if (!confirm("Точно удалить данные?")) return;
+        if (!await AdminPanel.deleteUser(user.uid)) { alert("Не удалось удалить данные. Проверь права Firebase."); return; }
+        await AdminPanel.log("delete_user_data", user.nickname);
         ov.remove(); renderAdminTab("users");
       }));
     }
 
     if (tabId === "edit") {
       var raw = await AdminPanel.getUserRaw(user.uid);
+      if (requestId !== tabRequestId || currentTab !== tabId || !contentWrap.isConnected) return;
 
       contentWrap.appendChild(el("div", { class: "adm-section-title", style: "margin-top:0;" }, "Ник"));
       var nickWrap = el("div", { class: "adm-field" });
@@ -1289,7 +1293,7 @@ function openUserDetailModal(user) {
             if (isNaN(val) || val < 0) { alert("Введи число ≥ 0"); return; }
             var patch = {};
             patch[f.key] = val;
-            await AdminPanel.updateUser(user.uid, patch);
+            if (!await AdminPanel.updateUser(user.uid, patch)) { alert("Не удалось сохранить."); return; }
             await AdminPanel.log("edit_field", user.nickname + " · " + f.key + " = " + val);
             saveBtn.textContent = "✓";
             saveBtn.style.borderColor = "#22c55e";
@@ -1311,6 +1315,7 @@ function openUserDetailModal(user) {
 
     if (tabId === "data") {
       var rawData = await AdminPanel.getUserRaw(user.uid);
+      if (requestId !== tabRequestId || currentTab !== tabId || !contentWrap.isConnected) return;
       contentWrap.appendChild(el("div", { class: "adm-section-title", style: "margin-top:0;" }, "Сырые данные"));
       var jsonBox = el("div");
       jsonBox.style.cssText = "background:rgba(8,10,14,0.9);border:1px solid var(--border);border-radius:10px;padding:12px;font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--text-muted);line-height:1.6;max-height:400px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;";
@@ -1320,9 +1325,9 @@ function openUserDetailModal(user) {
       contentWrap.appendChild(jsonBox);
 
       var copyBtn = el("button", { type: "button", style: "margin-top:10px;padding:10px 16px;border-radius:10px;font-size:12.5px;font-weight:700;font-family:inherit;cursor:pointer;border:1px solid var(--accent);background:rgba(139,92,246,0.10);color:var(--accent-light);width:100%;" }, "📋 Скопировать JSON");
-      copyBtn.addEventListener("click", function () {
+      copyBtn.addEventListener("click", async function () {
         try {
-          navigator.clipboard.writeText(JSON.stringify(rawData, null, 2));
+          await navigator.clipboard.writeText(JSON.stringify(rawData, null, 2));
           copyBtn.textContent = "✓ Скопировано";
           setTimeout(function () { copyBtn.textContent = "📋 Скопировать JSON"; }, 1500);
         } catch (e) { alert("Не удалось скопировать"); }
@@ -1358,7 +1363,12 @@ async function renderAdminConfig() {
   mntToggle.addEventListener("click", async function () {
     mntEnabled = !mntEnabled;
     mntToggle.className = "adm-toggle" + (mntEnabled ? " on" : " off");
-    await AdminPanel.updateConfig({ "maintenance/enabled": mntEnabled });
+    if (!await AdminPanel.updateConfig({ "maintenance/enabled": mntEnabled })) {
+      mntEnabled = !mntEnabled;
+      mntToggle.className = "adm-toggle" + (mntEnabled ? " on" : " off");
+      alert("Не удалось сохранить. Проверь права Firebase.");
+      return;
+    }
     await AdminPanel.log("maintenance", mntEnabled ? "включены" : "выключены");
   });
   mntRow.appendChild(mntToggle);
@@ -1389,11 +1399,11 @@ async function renderAdminConfig() {
     if (untilVal) {
       var d = new Date(untilVal.replace(" ", "T"));
       if (!isNaN(d.getTime())) patch["maintenance/until"] = d.toISOString();
-      else alert("Не понял дату. Используй формат 2026-10-13 18:00");
+      else { alert("Не понял дату. Используй формат 2026-10-13 18:00"); return; }
     } else {
       patch["maintenance/until"] = null;
     }
-    await AdminPanel.updateConfig(patch);
+    if (!await AdminPanel.updateConfig(patch)) { alert("Не удалось сохранить. Проверь права Firebase."); return; }
     mntSaveBtn.textContent = "✓ Сохранено";
     setTimeout(function () { mntSaveBtn.textContent = "💾 Сохранить"; }, 1500);
   });
@@ -1414,7 +1424,12 @@ async function renderAdminConfig() {
   notifToggle.addEventListener("click", async function () {
     notifEnabled = !notifEnabled;
     notifToggle.className = "adm-toggle" + (notifEnabled ? " on" : " off");
-    await AdminPanel.updateConfig({ "notification/enabled": notifEnabled });
+    if (!await AdminPanel.updateConfig({ "notification/enabled": notifEnabled })) {
+      notifEnabled = !notifEnabled;
+      notifToggle.className = "adm-toggle" + (notifEnabled ? " on" : " off");
+      alert("Не удалось сохранить. Проверь права Firebase.");
+      return;
+    }
     await AdminPanel.log("notification", notifEnabled ? "включено" : "выключено");
   });
   notifRow.appendChild(notifToggle);
@@ -1429,7 +1444,7 @@ async function renderAdminConfig() {
   var notifSaveBtn = UI.btn("💾 Сохранить", { variant: "ghost" });
   notifSaveBtn.style.width = "100%";
   notifSaveBtn.addEventListener("click", async function () {
-    await AdminPanel.updateConfig({ "notification/text": notifTextInp.value });
+    if (!await AdminPanel.updateConfig({ "notification/text": notifTextInp.value })) { alert("Не удалось сохранить. Проверь права Firebase."); return; }
     notifSaveBtn.textContent = "✓ Сохранено";
     setTimeout(function () { notifSaveBtn.textContent = "💾 Сохранить"; }, 1500);
   });
@@ -1454,7 +1469,12 @@ async function renderAdminConfig() {
         isOn = !isOn;
         toggle.className = "adm-toggle" + (isOn ? " on" : " off");
         var patch = {}; patch["minigames/" + game.id] = isOn;
-        await AdminPanel.updateConfig(patch);
+        if (!await AdminPanel.updateConfig(patch)) {
+          isOn = !isOn;
+          toggle.className = "adm-toggle" + (isOn ? " on" : " off");
+          alert("Не удалось сохранить. Проверь права Firebase.");
+          return;
+        }
         await AdminPanel.log("minigame_toggle", game.id + " -> " + isOn);
       });
       row.appendChild(toggle);
@@ -1475,7 +1495,7 @@ function buildLogRow(log) {
     block:              { icon: "🚫", label: "Заблокирован", color: "#ef4444" },
     unblock:            { icon: "✅", label: "Разблокирован", color: "#22c55e" },
     reset_stats:        { icon: "🔄", label: "Сброс статистики", color: "#f97316" },
-    delete_user:        { icon: "🗑️", label: "Удалён аккаунт", color: "#ef4444" },
+    delete_user_data:   { icon: "🗑️", label: "Удалены данные", color: "#ef4444" },
     add_admin:          { icon: "🛡️", label: "Добавлен админ", color: "#fbbf24" },
     remove_admin:       { icon: "🛡️", label: "Удалён админ", color: "#ef4444" },
     maintenance:        { icon: "🛠️", label: "Тех работы", color: "#8b5cf6" },
@@ -1529,21 +1549,7 @@ async function renderAdminAdmins() {
   var frag = document.createDocumentFragment();
   var section = el("div", { class: "adm-section" });
 
-  section.appendChild(el("div", { class: "adm-section-title" }, "⭐ Постоянные"));
-  var hcCard = el("div", { class: "adm-card" });
-  hcCard.appendChild(el("div", { class: "dim", style: "font-size:11.5px;margin-bottom:12px;line-height:1.55;" }, "Хардкод-админы. Не могут быть убраны через интерфейс."));
-  for (var h = 0; h < ADMIN_NICKNAMES.length; h++) {
-    var hRow = el("div", { class: "adm-adm-card hardcoded" });
-    hRow.appendChild(el("div", { class: "adm-adm-crown" }, "👑"));
-    var hInfo = el("div", { style: "flex:1;min-width:0;" });
-    hInfo.appendChild(el("div", { style: "font-size:14px;font-weight:800;color:var(--text);" }, ADMIN_NICKNAMES[h]));
-    hInfo.appendChild(el("div", { class: "dim", style: "font-size:10px;margin-top:3px;letter-spacing:0.05em;" }, "ЗАЩИЩЁН · ХАРДКОД"));
-    hRow.appendChild(hInfo);
-    hcCard.appendChild(hRow);
-  }
-  section.appendChild(hcCard);
-
-  section.appendChild(el("div", { class: "adm-section-title" }, "🛡️ Дополнительные"));
+  section.appendChild(el("div", { class: "adm-section-title" }, "🛡️ Администраторы"));
   var admins = await AdminPanel.loadAdmins();
   var uids = Object.keys(admins).filter(function (k) { return admins[k] === true; });
   var nickMap = {};

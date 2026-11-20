@@ -87,7 +87,7 @@ function _blockGamesPage() {
     if (_isAdmin()) {
       window.__minigamesSettings = settings || {};
       _unblockGamesPage();
-      if (location.hash === "#games") {
+      if (currentPage === "games") {
         setTimeout(function () {
           if (typeof switchPage === "function") switchPage("games");
         }, 100);
@@ -105,7 +105,7 @@ function _blockGamesPage() {
     if (allOff) _blockGamesPage();
     else _unblockGamesPage();
 
-    if (location.hash === "#games") {
+    if (currentPage === "games") {
       setTimeout(function () {
         if (typeof switchPage === "function") switchPage("games");
       }, 100);
@@ -206,6 +206,16 @@ function renderGames() {
   stats.appendChild(UI.statCard("🧠", "var(--green)", "var(--green-bg)", "Викторина", q ? q + "/10" : "—", "лучший"));
   frag.appendChild(stats);
 
+  if (!isGameEnabled(CURRENT_GAME)) {
+    for (var gi = 0; gi < gamesList.length; gi++) {
+      if (isGameEnabled(gamesList[gi])) { CURRENT_GAME = gamesList[gi]; break; }
+    }
+    qsa("#gameTab_lockpick, #gameTab_automaton, #gameTab_direjumper, #gameTab_quiz").forEach(function (btn) {
+      var active = btn.id === "gameTab_" + CURRENT_GAME;
+      btn.classList.toggle("active", active);
+      btn.classList.toggle("btn-ghost", !active);
+    });
+  }
   var area = el("div", { id: "gameArea" });
   frag.appendChild(area);
   setTimeout(function () { showIntro(CURRENT_GAME); }, 50);
@@ -221,6 +231,7 @@ function stopActiveGames() {
 
 function showIntro(kind) {
   stopActiveGames();
+  CURRENT_GAME = kind;
   var area = qs("#gameArea");
   if (!area) return;
   area.innerHTML = "";
@@ -239,6 +250,11 @@ function showIntro(kind) {
   else if (kind === "automaton") area.appendChild(buildAutomatonIntro());
   else if (kind === "direjumper") area.appendChild(buildDireJumperIntro());
   else if (kind === "quiz") area.appendChild(buildQuizIntro());
+  qsa("#gameTab_lockpick, #gameTab_automaton, #gameTab_direjumper, #gameTab_quiz").forEach(function (btn) {
+    var active = btn.id === "gameTab_" + kind;
+    btn.classList.toggle("active", active);
+    btn.classList.toggle("btn-ghost", !active);
+  });
 }
 
 function startGame(kind) {
@@ -368,10 +384,10 @@ function renderLockpick() {
   card.appendChild(hud);
   var statusEl = el("div", { style: "text-align:center;margin-top:12px;font-size:12px;font-weight:600;color:var(--text-muted);min-height:20px;" }, "ЛКМ — удар. ПКМ — ускорение.");
   card.appendChild(statusEl);
-  var state = { score: 0, timeLeft: 20, running: false, angle: -Math.PI / 2, direction: 1, baseSpeed: 1.6, speedMultiplier: 1, lastFrame: 0, zones: [], flash: null, missCount: 0, hitCount: 0, missLockUntil: 0, boosting: false };
-  var rafId = null;
+  var state = { score: 0, timeLeft: 20, elapsed: 0, running: false, angle: -Math.PI / 2, direction: 1, baseSpeed: 1.6, speedMultiplier: 1, lastFrame: 0, zones: [], flash: null, missCount: 0, hitCount: 0, missLockUntil: 0, boosting: false };
+  var rafId = null, startTimer = null;
   var cx = canvas.width / 2, cy = canvas.height / 2, r = 138, ringWidth = 32;
-  function stop() { state.running = false; if (rafId) { cancelAnimationFrame(rafId); rafId = null; } }
+  function stop() { state.running = false; if (startTimer) { clearTimeout(startTimer); startTimer = null; } if (rafId) { cancelAnimationFrame(rafId); rafId = null; } }
   _activeLockpick = { stop: stop };
   function stopLockpick() { stop(); _activeLockpick = null; }
   window._stopLockpick = stopLockpick;
@@ -439,11 +455,11 @@ function renderLockpick() {
     if (!hit) { state.timeLeft -= 0.6; state.missLockUntil = now + 600; state.missCount++; state.flash = { color: "rgba(239,68,68,0.20)", alpha: 0.5 }; statusEl.textContent = "✕ Промах! −0.6 сек"; statusEl.style.color = "var(--red)"; _snd("miss"); }
     updateHUD();
   }
-  function updateSpeed() { var elapsed = 20 - state.timeLeft; var progress = Math.max(0, Math.min(1, elapsed / 20)); var timeMultiplier = 1.0 + progress * 1.2; var hitBonus = Math.min(0.5, state.hitCount * 0.03); state.speedMultiplier = timeMultiplier + hitBonus; state.baseSpeed = 1.6 * state.speedMultiplier; dirVal.textContent = state.speedMultiplier.toFixed(1) + "x"; }
+  function updateSpeed() { var progress = Math.max(0, Math.min(1, state.elapsed / 20)); var timeMultiplier = 1.0 + progress * 1.2; var hitBonus = Math.min(0.5, state.hitCount * 0.03); state.speedMultiplier = timeMultiplier + hitBonus; state.baseSpeed = 1.6 * state.speedMultiplier; dirVal.textContent = state.speedMultiplier.toFixed(1) + "x"; }
   function updateHUD() { scoreVal.textContent = state.score.toLocaleString(); timeVal.textContent = Math.max(0, state.timeLeft).toFixed(1); var pct = Math.min(100, (state.score / 6000) * 100); progressFill.style.width = pct + "%"; if (state.timeLeft <= 5) timeVal.style.color = "var(--red)"; else timeVal.style.color = "var(--cyan)"; }
   function loop(ts) {
     if (!state.running) return;
-    var dt = Math.min((ts - state.lastFrame) / 1000, 0.1); state.lastFrame = ts; updateSpeed();
+    var dt = Math.min((ts - state.lastFrame) / 1000, 0.1); state.lastFrame = ts; state.elapsed += dt; updateSpeed();
     var curSpeed = state.baseSpeed + (state.boosting ? 2.0 : 0);
     state.angle += curSpeed * state.direction * dt; state.timeLeft -= dt;
     if (state.flash) { state.flash.alpha -= dt * 1.5; if (state.flash.alpha <= 0) state.flash = null; }
@@ -452,15 +468,18 @@ function renderLockpick() {
     rafId = requestAnimationFrame(loop);
   }
   function start() {
-    state = { score: 0, timeLeft: 20, running: true, angle: -Math.PI / 2, direction: 1, baseSpeed: 1.6, speedMultiplier: 1, lastFrame: performance.now(), zones: [], flash: null, missCount: 0, hitCount: 0, missLockUntil: 0, boosting: false };
+    if (!card.isConnected) return;
+    startTimer = null;
+    stop();
+    state = { score: 0, timeLeft: 20, elapsed: 0, running: true, angle: -Math.PI / 2, direction: 1, baseSpeed: 1.6, speedMultiplier: 1, lastFrame: performance.now(), zones: [], flash: null, missCount: 0, hitCount: 0, missLockUntil: 0, boosting: false };
     spawnZones(); statusEl.textContent = "ЛКМ — удар. ПКМ — ускорение."; statusEl.style.color = "var(--text-muted)"; dirVal.textContent = "1.0x"; updateHUD(); draw(); rafId = requestAnimationFrame(loop);
   }
   function endGame() {
     stopLockpick();
     var best = Store.get("lockpickbest", 0) || 0; var isRecord = state.score > best;
     if (isRecord) Store.set("lockpickbest", state.score);
-    if (typeof window.submitGameScore === "function") { try { window.submitGameScore("lockpick", state.score); } catch (e) {} }
     var passed = state.score >= 6000;
+    if (typeof window.submitGameScore === "function") { try { window.submitGameScore("lockpick", state.score, passed); } catch (e) {} }
     if (passed) _snd("win"); else _snd("fail");
     var overlay = el("div", { style: "position:absolute;inset:0;background:rgba(2,3,8,0.92);display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:16px;padding:20px;text-align:center;" });
     overlay.appendChild(el("div", { style: "font-size:46px;margin-bottom:6px;" }, passed ? "🔓" : "🔒"));
@@ -479,7 +498,7 @@ function renderLockpick() {
   canvas.addEventListener("mouseup", function (e) { if (e.button === 2) { state.boosting = false; } });
   canvas.addEventListener("mouseleave", function () { state.boosting = false; });
   canvas.addEventListener("contextmenu", function (e) { e.preventDefault(); });
-  setTimeout(function () { start(); }, 50);
+  startTimer = setTimeout(function () { start(); }, 50);
   return card;
 }
 
@@ -522,8 +541,8 @@ function renderAutomaton() {
   var statusEl = el("div", { style: "text-align:center;margin-top:12px;font-size:13px;font-weight:600;color:var(--text-muted);min-height:20px;" }, "");
   card.appendChild(statusEl);
   var st = { score: 0, timeLeft: 60, multiplier: 1, hits: 0, running: false, words: [], lastFrame: 0, spawnTimer: 0, misses: 0, difficulty: 1.0 };
-  var rafId = null;
-  function stop() { st.running = false; if (rafId) { cancelAnimationFrame(rafId); rafId = null; } for (var i = 0; i < st.words.length; i++) { if (st.words[i].el && st.words[i].el.parentNode) st.words[i].el.parentNode.removeChild(st.words[i].el); } st.words = []; }
+  var rafId = null, startTimer = null;
+  function stop() { st.running = false; if (startTimer) { clearTimeout(startTimer); startTimer = null; } if (rafId) { cancelAnimationFrame(rafId); rafId = null; } for (var i = 0; i < st.words.length; i++) { if (st.words[i].el && st.words[i].el.parentNode) st.words[i].el.parentNode.removeChild(st.words[i].el); } st.words = []; }
   _activeAutomaton = { stop: stop };
   function stopAutomaton() { stop(); _activeAutomaton = null; }
   window._stopAutomaton = stopAutomaton;
@@ -588,6 +607,8 @@ function renderAutomaton() {
     rafId = requestAnimationFrame(loop);
   }
   function start() {
+    if (!card.isConnected) return;
+    startTimer = null;
     stopAutomaton();
     st.score = 0; st.timeLeft = 60; st.multiplier = 1; st.hits = 0; st.misses = 0; st.difficulty = 1.0;
     st.running = true; st.words = []; st.spawnTimer = 1.2; st.lastFrame = performance.now();
@@ -602,7 +623,7 @@ function renderAutomaton() {
     inp.disabled = true; startBtn.disabled = false; startBtn.textContent = "Ещё раз";
     var best = Store.get("automatonbest", 0) || 0; var isRecord = st.score > best;
     if (isRecord) Store.set("automatonbest", st.score);
-    if (typeof window.submitGameScore === "function") { try { window.submitGameScore("automaton", st.score); } catch (e) {} }
+    if (typeof window.submitGameScore === "function") { try { window.submitGameScore("automaton", st.score, false); } catch (e) {} }
     if (isRecord) _snd("win"); else _snd("fail");
     var overlay = el("div", { style: "position:absolute;inset:0;background:rgba(2,3,8,0.92);display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:16px;padding:20px;text-align:center;z-index:20;" });
     overlay.appendChild(el("div", { style: "font-size:46px;margin-bottom:6px;" }, isRecord ? "🏆" : "⏱"));
@@ -617,7 +638,7 @@ function renderAutomaton() {
   inp.addEventListener("input", function () { checkInput(inp.value); });
   inp.addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); checkInput(inp.value); } });
   startBtn.addEventListener("click", function () { start(); });
-  setTimeout(function () { start(); }, 50);
+  startTimer = setTimeout(function () { start(); }, 50);
   return card;
 }
 
@@ -627,11 +648,13 @@ function renderQuiz() {
   topRow.appendChild(el("div", { class: "dim", style: "font-size:11px;text-transform:uppercase;letter-spacing:0.08em;" }, "Викторина"));
   var menuBtn = UI.btn("← В меню", { variant: "ghost" });
   menuBtn.style.cssText = "font-size:11px;padding:6px 12px;";
-  menuBtn.addEventListener("click", function () { showIntro("quiz"); });
+  menuBtn.addEventListener("click", function () { stopQuiz(); showIntro("quiz"); });
   topRow.appendChild(menuBtn);
   card.appendChild(topRow);
   var bank = shuffle(QUIZ).slice(0, 10);
-  var idx = 0, score = 0;
+  var idx = 0, score = 0, answerTimer = null, sessionId = 0;
+  function stopQuiz() { sessionId++; if (answerTimer) { clearTimeout(answerTimer); answerTimer = null; } }
+  _activeLockpick = { stop: stopQuiz };
   var progressWrap = el("div", { style: "height:6px;background:var(--bg-elev);border-radius:3px;overflow:hidden;margin-bottom:18px;" });
   var progressFill = el("div", { style: "height:100%;width:0%;background:linear-gradient(90deg,var(--accent),var(--cyan));border-radius:3px;transition:width 0.3s ease;" });
   progressWrap.appendChild(progressFill);
@@ -650,8 +673,8 @@ function renderQuiz() {
       rw.appendChild(el("div", { style: "font-size:16px;font-weight:700;color:var(--text);" }, "Результат"));
       rw.appendChild(el("div", { style: "font-size:44px;font-weight:900;font-family:'JetBrains Mono',monospace;color:var(--gold);margin:14px 0 6px;" }, score + " / " + bank.length));
       var btnRow = el("div", { style: "display:flex;gap:8px;justify-content:center;" });
-      var retry = UI.btn("🔄 Ещё раз"); retry.addEventListener("click", function () { idx = 0; score = 0; bank = shuffle(QUIZ).slice(0, 10); show(); }); btnRow.appendChild(retry);
-      var menu = UI.btn("← В меню", { variant: "ghost" }); menu.addEventListener("click", function () { showIntro("quiz"); }); btnRow.appendChild(menu);
+      var retry = UI.btn("🔄 Ещё раз"); retry.addEventListener("click", function () { stopQuiz(); idx = 0; score = 0; bank = shuffle(QUIZ).slice(0, 10); show(); }); btnRow.appendChild(retry);
+      var menu = UI.btn("← В меню", { variant: "ghost" }); menu.addEventListener("click", function () { stopQuiz(); showIntro("quiz"); }); btnRow.appendChild(menu);
       rw.appendChild(btnRow);
       content.appendChild(rw);
       var b = Store.get("quizbest", 0) || 0;
@@ -674,7 +697,12 @@ function renderQuiz() {
           if (ok) { score++; _snd("success"); } else { _snd("error"); }
           var all = content.querySelectorAll("button");
           for (var k = 0; k < all.length; k++) all[k].disabled = true;
-          setTimeout(function () { idx++; show(); }, 620);
+          var currentSession = sessionId;
+          answerTimer = setTimeout(function () {
+            answerTimer = null;
+            if (currentSession !== sessionId || !card.isConnected) return;
+            idx++; show();
+          }, 620);
         });
         content.appendChild(btn);
       })(opts[i]);
@@ -734,7 +762,7 @@ function renderDireJumper() {
     coyoteTimer: 0, jumpBufferTimer: 0,
     screenShake: 0, screenShakeDecay: 0.88
   };
-  var rafId = null; var listenersAttached = false;
+  var rafId = null, startTimer = null; var listenersAttached = false;
   function attachListeners() {
     if (listenersAttached) return;
     document.addEventListener("keydown", onKeyDown, true);
@@ -747,7 +775,7 @@ function renderDireJumper() {
     document.removeEventListener("keyup", onKeyUp, true);
     listenersAttached = false;
   }
-  function stop() { state.running = false; if (rafId) { cancelAnimationFrame(rafId); rafId = null; } detachListeners(); }
+  function stop() { state.running = false; if (startTimer) { clearTimeout(startTimer); startTimer = null; } if (rafId) { cancelAnimationFrame(rafId); rafId = null; } detachListeners(); }
   _activeDireJumper = { stop: stop };
   function stopDireJumper() { stop(); _activeDireJumper = null; }
   window._stopDireJumper = stopDireJumper;
@@ -1387,7 +1415,7 @@ function renderDireJumper() {
     addParticles(state.player.x + state.player.w / 2, state.player.y + state.player.h / 2, 20, "#ef4444", 8);
     var isRecord = state.score > state.best;
     if (isRecord) { state.best = state.score; Store.set("direjumperbest", state.score); }
-    if (typeof window.submitGameScore === "function") { try { window.submitGameScore("direjumper", state.score); } catch (e) {} }
+    if (typeof window.submitGameScore === "function") { try { window.submitGameScore("direjumper", state.score, isRecord); } catch (e) {} }
     if (isRecord) _snd("win"); else _snd("fail");
     if (typeof Achievements !== "undefined") Achievements.check();
     var overlay = el("div", { style: "position:absolute;inset:0;background:rgba(2,3,8,0.93);display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:16px;padding:20px;text-align:center;z-index:20;" });
@@ -1408,6 +1436,9 @@ function renderDireJumper() {
     canvasWrap.appendChild(overlay);
   }
   function start() {
+    if (!card.isConnected) return;
+    startTimer = null;
+    stop();
     var oldOverlay = canvasWrap.querySelector("div[style*='position:absolute'][style*='inset:0']");
     if (oldOverlay) oldOverlay.remove();
     reset();
@@ -1420,7 +1451,7 @@ function renderDireJumper() {
     state.lastFrame = performance.now();
     rafId = requestAnimationFrame(loop);
   }
-  setTimeout(function () { start(); }, 100);
+  startTimer = setTimeout(function () { start(); }, 100);
   return card;
 }
 
@@ -1431,7 +1462,9 @@ if (!window._gamesGlobalListeners) {
     if (page !== "games") stopActiveGames();
   });
   document.addEventListener("visibilitychange", function () {
-    if (document.hidden) stopActiveGames();
+    if (!document.hidden || currentPage !== "games") return;
+    stopActiveGames();
+    showIntro(CURRENT_GAME);
   });
   window.addEventListener("popstate", function () {
     var page = (location.hash || "").slice(1) || "dashboard";

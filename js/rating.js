@@ -408,7 +408,8 @@ function getMMRFromGame(game, rawScore) {
     direjumper: { base: 4, perPoint: 0.0005 }
   };
   var c = config[game];
-  if (!c) return 0;
+  if (!c || !Number.isFinite(rawScore) || rawScore < 0) return null;
+  if (rawScore === 0) return 0;
   return Math.round(c.base + rawScore * c.perPoint);
 }
 
@@ -428,11 +429,12 @@ window.getRatingData = function () {
   };
 };
 
-window.submitGameScore = function (game, rawScore) {
+window.submitGameScore = function (game, rawScore, won) {
   if (game === "quiz") return { gained: 0, newMMR: Store.get("minigames_mmr", 0) || 0 };
   var data = window.getRatingData();
   var oldRankIdx = getMedalForMMR(data.mmr).medal.rankIdx;
   var gained = getMMRFromGame(game, rawScore);
+  if (gained === null) return { gained: 0, newMMR: data.mmr, error: "unknown-game" };
   data.gamesPlayed++;
   data.mmr += gained;
   if (data.mmr < 0) data.mmr = 0;
@@ -446,7 +448,7 @@ window.submitGameScore = function (game, rawScore) {
       finalMedal = getMedalForMMR(data.mmr);
     }
   }
-  if (gained >= 10) data.wins++;
+  if (won === true) data.wins++;
   Store.set("minigames_mmr", data.mmr);
   Store.set("minigames_games", data.gamesPlayed);
   Store.set("minigames_calibrated", data.calibrated);

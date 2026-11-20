@@ -122,7 +122,8 @@ var HEROES_FALLBACK = [
 { id: 126, name: "Void Spirit", slug: "void_spirit" },
 { id: 128, name: "Snapfire", slug: "snapfire" },
 { id: 129, name: "Mars", slug: "mars" },
-{ id: 131, name: "Dawnbreaker", slug: "dawnbreaker" },
+{ id: 131, name: "Ringmaster", slug: "ringmaster" },
+{ id: 135, name: "Dawnbreaker", slug: "dawnbreaker" },
 { id: 136, name: "Marci", slug: "marci" },
 { id: 137, name: "Primal Beast", slug: "primal_beast" },
 { id: 138, name: "Muerta", slug: "muerta" },
@@ -288,9 +289,10 @@ return img;
 }
 
 var _heroCache = null;
+var _heroFallback = false;
 
 window.getHeroes = async function () {
-if (_heroCache) return _heroCache;
+if (_heroCache && !_heroFallback) return _heroCache;
 try {
 if (typeof apiGet === "function") {
 var data = await apiGet("/heroes");
@@ -303,6 +305,7 @@ return _heroCache;
 }
 }
 } catch (e) { console.warn("API heroes unavailable, using fallback"); }
+_heroFallback = true;
 _heroCache = HEROES_FALLBACK.map(function (h) {
 return { id: h.id, name: h.name, slug: h.slug };
 });
@@ -391,9 +394,10 @@ return wrap;
 };
 
 var _itemCache = null;
+var _itemFallback = false;
 
 window.getItemCatalog = async function () {
-if (_itemCache) return _itemCache;
+if (_itemCache && !_itemFallback) return _itemCache;
 try {
 if (typeof apiGet === "function") {
 var data = await apiGet("/constants/items");
@@ -411,6 +415,7 @@ return map;
 }
 }
 } catch (e) { console.warn("API items unavailable, using fallback"); }
+_itemFallback = true;
 var fallback = {};
 for (var id in ITEMS_FALLBACK) {
 if (!ITEMS_FALLBACK.hasOwnProperty(id)) continue;

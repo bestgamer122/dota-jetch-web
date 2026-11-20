@@ -172,16 +172,21 @@ window.renderLeaderboard = async function (game) {
     container.appendChild(row);
   }
 
+  var loadRequestId = 0;
   async function loadTab(tab) {
+    var requestId = ++loadRequestId;
     contentWrap.innerHTML = "";
     contentWrap.appendChild(el("div", { class: "dim", style: "font-size:12px;padding:8px 0;" }, "Загрузка..."));
+    if (currentTab !== tab.id) return;
     if (tab.type === "game") {
       var list = await window.fetchLeaderboard(tab.id, 20);
+      if (requestId !== loadRequestId || !contentWrap.isConnected) return;
       contentWrap.innerHTML = "";
       if (list.length === 0) { contentWrap.appendChild(el("div", { class: "dim", style: "font-size:12px;padding:8px 0;" }, "Пока пусто. Будь первым!")); return; }
       for (var i = 0; i < list.length; i++) addRow(contentWrap, i, list[i], false);
     } else {
       var topList = await window.fetchTopByMMR(30);
+      if (requestId !== loadRequestId || !contentWrap.isConnected) return;
       contentWrap.innerHTML = "";
       if (topList.length === 0) { contentWrap.appendChild(el("div", { class: "dim", style: "font-size:12px;padding:8px 0;" }, "Пока никого нет.")); return; }
       for (var j = 0; j < topList.length; j++) addRow(contentWrap, j, topList[j], true);

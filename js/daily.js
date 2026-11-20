@@ -39,6 +39,7 @@ var Daily = {
     return true;
   },
   claim: function () {
+    if (Store.get("dailydate", "") !== this.todayKey()) return false;
     if (!this.allDone()) return false;
     if (Store.get("dailystreakclaimed", false)) return false;
     Store.set("dailystreakclaimed", true);

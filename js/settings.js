@@ -1,7 +1,5 @@
 /* DOTA JETCH — SETTINGS v8.0 */
 
-var FOREVER_KEY = "DANYA8228PRO";
-
 function isLiteMode() {
   return Store.get("litemode", false) === true;
 }
@@ -9,45 +7,10 @@ function isLiteMode() {
 function applyLiteMode(on) {
   if (on) document.body.classList.add("lite-mode");
   else document.body.classList.remove("lite-mode");
+  var finePointer = false;
+  try { finePointer = window.matchMedia("(hover: hover) and (pointer: fine)").matches; } catch (e) {}
+  document.body.classList.toggle("cursor-ready", !on && finePointer);
   Store.set("litemode", !!on);
-}
-
-function loadKeys() {
-  var raw = Store.get("jetch_keys", {});
-  return (raw && typeof raw === "object") ? raw : {};
-}
-
-function saveKeys(keys) {
-  Store.set("jetch_keys", keys);
-}
-
-function activateKey(key) {
-  key = (key || "").trim().toUpperCase();
-  if (!key) return { ok: false, msg: "Введи ключ." };
-
-  if (key === FOREVER_KEY) {
-    Store.set("license.active", true);
-    Store.set("license.forever", true);
-    Store.set("license.expires", null);
-    return { ok: true, msg: "Бессрочный JETCH+ активирован!" };
-  }
-
-  if (!/^JETCH-[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(key)) {
-    return { ok: false, msg: "Неверный формат ключа." };
-  }
-
-  var keys = loadKeys();
-  if (keys[key]) return { ok: false, msg: "Этот ключ уже использован." };
-
-  var expires = new Date();
-  expires.setDate(expires.getDate() + 7);
-  keys[key] = expires.toISOString();
-  saveKeys(keys);
-
-  Store.set("license.active", true);
-  Store.set("license.forever", false);
-  Store.set("license.expires", expires.toISOString());
-  return { ok: true, msg: "JETCH+ активирован на 7 дней" };
 }
 
 function checkLicense() {
@@ -150,25 +113,8 @@ function renderPlanCard(frag) {
     feats.appendChild(el("div", {}, "+ Ранний доступ к новым функциям"));
     plan.appendChild(feats);
 
-    plan.appendChild(el("div", { style: "font-size:11px;color:var(--text-muted);margin-bottom:8px;" }, "КЛЮЧ АКТИВАЦИИ:"));
-
-    var keyInp = UI.input("");
-    keyInp.id = "licenseKeyInput";
-    keyInp.style.marginBottom = "10px";
-    plan.appendChild(keyInp);
-
-    var btnWrap = el("div", { style: "display:flex;justify-content:flex-start;" });
-    var actBtn = UI.btn("Активировать");
-    actBtn.style.width = "auto";
-    actBtn.style.minWidth = "160px";
-    actBtn.addEventListener("click", function () {
-      var inp = qs("#licenseKeyInput");
-      var res = activateKey(inp.value);
-      if (res.ok) { alert(res.msg); location.reload(); }
-      else { alert("Ошибка: " + res.msg); }
-    });
-    btnWrap.appendChild(actBtn);
-    plan.appendChild(btnWrap);
+    plan.appendChild(el("div", { class: "dim", style: "font-size:11px;line-height:1.5;" },
+      "Подписка выдаётся администратором и активируется автоматически после подтверждения."));
   }
   frag.appendChild(plan);
 }

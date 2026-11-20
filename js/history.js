@@ -7,11 +7,11 @@ var History = {
     if (!r || !r.match || !r.hero || !r.player) return;
     var list = Store.get("recentmatches", []) || [];
     var entry = {
-      matchId: r.match.match_id, heroId: r.hero.id, heroName: r.hero.name,
+      matchId: r.match.match_id, heroId: r.hero.id, heroName: r.hero.name, heroSlug: r.hero.slug,
       kills: r.player.kills, deaths: r.player.deaths, assists: r.player.assists,
       won: !!r.won, durMin: r.durMin, ts: Date.now()
     };
-    var filtered = list.filter(function (x) { return x.matchId !== entry.matchId; });
+    var filtered = list.filter(function (x) { return String(x.matchId) !== String(entry.matchId); });
     filtered.unshift(entry);
     Store.set("recentmatches", filtered.slice(0, 50));
   },
@@ -41,7 +41,7 @@ function renderHistory() {
   for (var i = 0; i < list.length; i++) {
     (function (m) {
       var item = el("div", { style: "display:flex;align-items:center;gap:14px;padding:10px;border-bottom:1px solid var(--border);" });
-      var heroRef = { id: m.heroId, name: m.heroName };
+      var heroRef = { id: m.heroId, name: m.heroName, slug: m.heroSlug };
       item.appendChild(heroImgEl(heroRef, 48));
       var info = el("div", { style: "flex:1;" });
       info.appendChild(el("div", { style: "font-size:14px;font-weight:bold;" }, m.heroName));

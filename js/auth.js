@@ -4,10 +4,10 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.8.0/firebas
 import {
   getAuth, onAuthStateChanged, createUserWithEmailAndPassword,
   signInWithEmailAndPassword, signOut, sendEmailVerification,
-  sendPasswordResetEmail, setPersistence, browserLocalPersistence
+  sendPasswordResetEmail, setPersistence, browserLocalPersistence, deleteUser
 } from "https://www.gstatic.com/firebasejs/11.8.0/firebase-auth.js";
 import {
-  getDatabase, ref, get, update, remove, set, onValue
+  getDatabase, ref, get, update, remove, set, onValue, runTransaction
 } from "https://www.gstatic.com/firebasejs/11.8.0/firebase-database.js";
 
 const app = initializeApp(window.FIREBASE_CONFIG);
@@ -15,7 +15,7 @@ const auth = getAuth(app);
 const db = getDatabase(app);
 
 window.__fbAuth = auth;
-window.__fbDB = { db: db, ref: ref, get: get, update: update, remove: remove, set: set, onValue: onValue };
+window.__fbDB = { db: db, ref: ref, get: get, update: update, remove: remove, set: set, onValue: onValue, runTransaction: runTransaction };
 
 window.__fbSignOut = async function () {
   if (currentUser) { try { await saveUserData(currentUser.uid); } catch (e) {} }
@@ -27,6 +27,8 @@ setPersistence(auth, browserLocalPersistence).catch(e => console.warn("persisten
 let currentUser = null;
 let autoSaveInterval = null;
 let pollInterval = null;
+let pollTimeout = null;
+let storeSyncUid = null;
 
 const STORE_PREFIX = "dota.";
 const NICK_REGEX = /^[A-Za-z0-9_]{3,20}$/;
@@ -98,6 +100,14 @@ function startPollingAdminChanges(uid) {
         blocked: data.blocked === true
       };
 
+      if (state.blocked) {
+        stopAutoSave();
+        stopPollingAdminChanges();
+        alert("🚫 Твой аккаунт заблокирован администратором.");
+        try { await signOut(auth); } catch (e) {}
+        showAuthScreen();
+        return;
+      }
       if (lastState === null) {
         lastState = state;
         return;
@@ -131,13 +141,13 @@ function startPollingAdminChanges(uid) {
     }
   }
 
-  /* Первая проверка — через 5 сек (baseline), потом каждые 20 */
-  setTimeout(check, 5000);
+  pollTimeout = setTimeout(function () { pollTimeout = null; check(); }, 5000);
   pollInterval = setInterval(check, POLL_INTERVAL_MS);
 }
 
 function stopPollingAdminChanges() {
   if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
+  if (pollTimeout) { clearTimeout(pollTimeout); pollTimeout = null; }
 }
 
 async function syncPublicProfile() {
@@ -156,6 +166,8 @@ async function syncPublicProfile() {
   } catch (e) { console.warn("syncPublicProfile:", e); }
 }
 
+window.syncPublicProfile = syncPublicProfile;
+
 window.syncPublicProfileMMR = function (mmr) {
   if (!currentUser) return;
   var calibrated = Store.get("minigames_calibrated", false) === true;
@@ -164,23 +176,27 @@ window.syncPublicProfileMMR = function (mmr) {
 
 async function isNicknameTaken(nick) {
   const lower = String(nick).toLowerCase();
-  try {
-    const snap = await get(ref(db, "nicknames/" + lower));
-    return snap.exists();
-  } catch (e) { return false; }
+  const snap = await get(ref(db, "nicknames/" + lower));
+  return snap.exists();
 }
 
 async function claimNickname(nick, uid) {
   const lower = String(nick).toLowerCase();
-  try {
-    await update(ref(db, "nicknames"), { [lower]: uid });
-    return true;
-  } catch (e) { return false; }
+  const result = await runTransaction(ref(db, "nicknames/" + lower), function (owner) {
+    if (owner === null || owner === uid) return uid;
+    return;
+  });
+  if (!result.committed) throw new Error("Этот ник уже занят.");
 }
 
-async function releaseNickname(nick) {
+async function releaseNickname(nick, uid) {
   const lower = String(nick).toLowerCase();
-  try { await remove(ref(db, "nicknames/" + lower)); } catch (e) {}
+  const ownerUid = uid || (currentUser && currentUser.uid);
+  const result = await runTransaction(ref(db, "nicknames/" + lower), function (owner) {
+    if (owner === ownerUid) return null;
+    return;
+  });
+  return result.committed;
 }
 
 function getCurrentNickname() {
@@ -205,17 +221,23 @@ window.changeNickname = async function (newNick) {
   if (daysLeft > 0) return { ok: false, msg: "Ник можно менять раз в 30 дней. Осталось: " + daysLeft + " дн." };
   const oldNick = getCurrentNickname() || "";
   if (oldNick && oldNick.toLowerCase() === newNick.toLowerCase()) return { ok: false, msg: "Это твой текущий ник." };
-  const taken = await isNicknameTaken(newNick);
-  if (taken) return { ok: false, msg: "Этот ник уже занят." };
+  let claimed = false;
   try {
-    if (oldNick) await releaseNickname(oldNick);
+    if (await isNicknameTaken(newNick)) return { ok: false, msg: "Этот ник уже занят." };
     await claimNickname(newNick, currentUser.uid);
+    claimed = true;
     Store.set("nickname", newNick);
     Store.set("nicknameChangedAt", Date.now());
+    if (oldNick) {
+      try { await releaseNickname(oldNick); } catch (releaseError) { console.warn("releaseNickname:", releaseError); }
+    }
     await syncPublicProfile();
     if (typeof window.refreshUserUI === "function") window.refreshUserUI();
     return { ok: true, msg: "Ник изменён на " + newNick + "." };
   } catch (e) {
+    if (claimed) {
+      try { await releaseNickname(newNick); } catch (rollbackError) {}
+    }
     return { ok: false, msg: "Ошибка: " + (e.message || e) };
   }
 };
@@ -276,6 +298,8 @@ function showVerificationScreen(email) {
   if (!el) return;
   el.style.display = "flex";
   el.innerHTML = buildVerificationScreen(email);
+  var emailEl = el.querySelector(".auth-sub strong");
+  if (emailEl) emailEl.textContent = email || "";
   bindVerificationHandlers();
   document.body.style.overflow = "hidden";
 }
@@ -337,7 +361,7 @@ function buildVerificationScreen(email) {
     '<div class="auth-logo">' +
       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v16H4z"/><path d="M4 6l8 6 8-6"/></svg>' +
       '<h1>Подтвердите email</h1>' +
-      '<div class="auth-sub">Мы отправили письмо на <strong>' + (email || "") + '</strong>.</div>' +
+      '<div class="auth-sub">Мы отправили письмо на <strong></strong>.</div>' +
       '<div class="auth-sub">Перейди по ссылке из письма.</div>' +
     '</div>' +
     '<div id="authError" class="auth-error"></div>' +
@@ -418,7 +442,15 @@ function bindRegisterHandlers() {
     setHint("Проверяю...", "base");
     if (nickLastChecked === nick.toLowerCase()) return;
     nickLastChecked = nick.toLowerCase();
-    const taken = await isNicknameTaken(nick);
+    let taken;
+    try { taken = await isNicknameTaken(nick); }
+    catch (e) {
+      if (nickLastChecked === nick.toLowerCase()) {
+        nInp.style.borderColor = "#ef4444";
+        setHint("Не удалось проверить ник. Попробуй ещё раз.", "bad");
+      }
+      return;
+    }
     if (nickLastChecked !== nick.toLowerCase()) return;
     if (taken) {
       nInp.style.borderColor = "#ef4444";
@@ -447,26 +479,29 @@ function bindRegisterHandlers() {
     if (password !== password2) { setAuthError("Пароли не совпадают."); return; }
     rBtn.disabled = true;
     rBtn.textContent = "Проверяю ник...";
-    const taken = await isNicknameTaken(nick);
-    if (taken) {
-      setAuthError("Этот ник уже занят.");
-      rBtn.disabled = false;
-      rBtn.textContent = "Зарегистрироваться";
-      return;
-    }
-    rBtn.textContent = "Создаю аккаунт...";
     try {
+      if (await isNicknameTaken(nick)) {
+        setAuthError("Этот ник уже занят.");
+        return;
+      }
+      rBtn.textContent = "Создаю аккаунт...";
       const cred = await createUserWithEmailAndPassword(auth, email, password);
       const uid = cred.user.uid;
-      await claimNickname(nick, uid);
-      Store.set("nickname", nick);
       try {
+        await claimNickname(nick, uid);
         await update(ref(db, "users/" + uid), { nickname: nick });
         await update(ref(db, "publicProfiles/" + uid), { nickname: nick, mmr: 0, calibrated: false, ts: Date.now() });
-      } catch (e) {}
-      await sendEmailVerification(cred.user);
+        Store.set("nickname", nick);
+      } catch (dbError) {
+        try { await releaseNickname(nick); } catch (releaseError) {}
+        try { await deleteUser(cred.user); } catch (deleteError) {}
+        throw dbError;
+      }
+      try { await sendEmailVerification(cred.user); }
+      catch (verificationError) { console.warn("sendEmailVerification:", verificationError); }
     } catch (e) {
-      setAuthError(translateAuthError(e.code));
+      setAuthError(translateAuthError(e.code) || e.message);
+    } finally {
       rBtn.disabled = false;
       rBtn.textContent = "Зарегистрироваться";
     }
@@ -521,22 +556,21 @@ function bindVerificationHandlers() {
 
 const SYNC_KEYS = [
   "nickname", "nicknameChangedAt", "avatar",
-  "chathistory", "brainprofile", "brainvariation", "braincontext", "brainfeedback",
-  "brainlongmemory", "license.active", "license.forever", "license.expires",
-  "aiquestions", "streak", "daily", "history", "achievements", "diary", "settings",
-  "sessions", "dailystreak", "recentmatches", "analyzequota", "brain_learning",
-  "brain_shared_memory", "brain_insights", "brain_autolearner", "brain_personality_v2",
-  "jetch_keys", "litemode", "achievementsunlocked", "analyzedcount", "dailydate",
-  "gamesplayed", "guessbeststreak", "quizbest", "reactionbest", "theme", "uniqueheroes",
-  "dailystreakclaimed", "themechanged", "brainmemory", "visitedabout",
+  "chathistory",
+  "license.active", "license.forever", "license.expires",
+  "aiquestions",
+  "sessions", "dailystreak", "recentmatches", "analyzequota",
+  "litemode", "achievementsunlocked", "analyzedcount", "dailydate",
+  "gamesplayed", "quizbest", "theme", "uniqueheroes",
+  "dailystreakclaimed", "themechanged", "visitedabout",
   "dailyprogress.analyze", "dailyprogress.chat", "dailyprogress.diary",
   "dailyprogress.game", "dailyprogress.chart", "dailyprogress.theme",
-  "dailylastclaimdate", "diarynotes",
+  "dailylastclaimdate", "diarynotes", "steam_account_id",
   "lockpickbest", "automatonbest", "minigames_mmr", "minigames_games",
   "minigames_calibrated", "minigames_calibration_games", "minigames_wins",
   "sound.volume",
   "direjumperbest", "direjumpergames",
-  "tracker_account_id", "smurf_account_id"
+  "chatselectedmatch"
 ];
 
 function collectLocalData() {
@@ -557,24 +591,20 @@ function collectLocalData() {
 
 async function loadUserData(uid) {
   console.log("📥 Загружаю данные из Firebase для " + uid);
-  try {
-    const snap = await get(ref(db, "users/" + uid));
-    const data = snap.val();
-    if (data && typeof data === "object") {
-      let loaded = 0;
-      for (const key in data) {
-        if (!Object.prototype.hasOwnProperty.call(data, key)) continue;
-        const realKey = decodeKey(key);
-        const val = data[key];
-        if (val === null || val === undefined) continue;
-        let strVal;
-        try { strVal = JSON.stringify(val); } catch (e) { continue; }
-        try { sessionStorage.setItem(STORE_PREFIX + realKey, strVal); loaded++; } catch (e) {}
-      }
-      console.log("✅ Загружено: " + loaded + " ключей");
+  const snap = await get(ref(db, "users/" + uid));
+  const data = snap.val();
+  if (data && typeof data === "object") {
+    let loaded = 0;
+    for (const key in data) {
+      if (!Object.prototype.hasOwnProperty.call(data, key)) continue;
+      const realKey = decodeKey(key);
+      const val = data[key];
+      if (val === null || val === undefined) continue;
+      let strVal;
+      try { strVal = JSON.stringify(val); } catch (e) { continue; }
+      try { sessionStorage.setItem(STORE_PREFIX + realKey, strVal); loaded++; } catch (e) {}
     }
-  } catch (e) {
-    console.error("❌ loadUserData:", e);
+    console.log("✅ Загружено: " + loaded + " ключей");
   }
 }
 
@@ -588,8 +618,10 @@ async function saveUserData(uid) {
 }
 
 function setupStoreSync(uid) {
-  if (window.Store && typeof window.Store.set === "function" && !window.Store.__fbSync) {
-    const origSet = window.Store.set.bind(window.Store);
+  if (storeSyncUid !== uid && window.Store && typeof window.Store.set === "function") {
+    const origSet = window.Store.__fbOriginalSet || window.Store.set.bind(window.Store);
+    window.Store.__fbOriginalSet = origSet;
+    storeSyncUid = uid;
     window.Store.set = function (key, value) {
       origSet(key, value);
       if (value === null || value === undefined) {
@@ -634,7 +666,7 @@ function translateAuthError(code) {
     "auth/too-many-requests": "Слишком много попыток.",
     "auth/network-request-failed": "Нет соединения."
   };
-  return map[code] || ("Ошибка: " + code);
+  return map[code] || (code ? "Ошибка: " + code : "");
 }
 
 function isPlusActive() {
@@ -706,8 +738,15 @@ onAuthStateChanged(auth, async function (user) {
     const currentInSession = sessionStorage.getItem(loadedFlag);
     if (currentInSession !== user.uid) {
       wipeLocalUserData();
+      try { await loadUserData(user.uid); }
+      catch (loadError) {
+        console.error("❌ loadUserData:", loadError);
+        showAuthScreen();
+        setAuthError("Не удалось загрузить данные аккаунта. Проверь соединение и войди ещё раз.");
+        try { await signOut(auth); } catch (e) {}
+        return;
+      }
       sessionStorage.setItem(loadedFlag, user.uid);
-      await loadUserData(user.uid);
       location.reload();
       return;
     }

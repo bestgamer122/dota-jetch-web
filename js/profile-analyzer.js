@@ -134,7 +134,8 @@ var ProfileAnalyzer = {
             durationSeconds
             didRadiantWin
             gameMode
-            players(steamAccountId: $id) {
+            players {
+              steamAccountId
               heroId
               isRadiant
               kills
@@ -172,9 +173,17 @@ var ProfileAnalyzer = {
     await this.loadHeroes();
     var self = this;
 
-    var matches = (p.matches || []).map(function (m) {
-      var me = (m.players && m.players.length) ? m.players[0] : null;
+    var matches = (Array.isArray(p.matches) ? p.matches : []).map(function (m) {
+      var teammates = (Array.isArray(m.players) ? m.players : []).filter(function (pl) {
+        return pl && typeof pl.steamAccountId === "number";
+      });
+      var me = null;
+      for (var pi = 0; pi < teammates.length; pi++) {
+        if (String(teammates[pi].steamAccountId) === String(accountId)) { me = teammates[pi]; break; }
+      }
+      if (!me) return null;
       return {
+        teammates: teammates,
         match_id: m.id,
         duration: m.durationSeconds || 0,
         radiant_win: !!m.didRadiantWin,
@@ -192,7 +201,7 @@ var ProfileAnalyzer = {
         hero_damage: me ? me.heroDamage : 0,
         tower_damage: me ? me.towerDamage : 0
       };
-    });
+    }).filter(Boolean);
 
     var heroMap = {};
     for (var i = 0; i < matches.length; i++) {
@@ -242,23 +251,29 @@ var ProfileAnalyzer = {
   },
 
   _stratzModeToDota: function (stratzMode) {
-    if (!stratzMode) return 22;
+    if (!stratzMode) return 0;
     var m = String(stratzMode).toUpperCase();
     if (m.indexOf("RANKED") >= 0) return 22;
     if (m.indexOf("TURBO") >= 0) return 23;
-    if (m.indexOf("SINGLE") >= 0) return 4;
-    if (m.indexOf("RANDOM") >= 0) return 3;
+    if (m.indexOf("ALL_PICK") >= 0) return 1;
+    if (m.indexOf("CAPTAINS_DRAFT") >= 0) return 16;
     if (m.indexOf("CAPTAINS") >= 0) return 2;
-    return 22;
+    if (m.indexOf("RANDOM_DRAFT") >= 0) return 3;
+    if (m.indexOf("SINGLE_DRAFT") >= 0) return 4;
+    if (m.indexOf("ALL_RANDOM") >= 0) return 5;
+    if (m.indexOf("ABILITY_DRAFT") >= 0) return 18;
+    return 0;
   },
 
   // Role Detector v6 — умная классификация на основе относительного фарма
   classifyRole: function (match, allMatches) {
     var lane = match.position || 0;
 
-    var teamGPM = allMatches.map(function (x) { return x.gold_per_min || 0; });
-    var teamXPM = allMatches.map(function (x) { return x.xp_per_min || 0; });
-    var teamLH = allMatches.map(function (x) { return x.last_hits || 0; });
+    var teammates = Array.isArray(match.teammates) ? match.teammates : [];
+    if (teammates.length < 2) return lane >= 1 && lane <= 5 ? lane : 0;
+    var teamGPM = teammates.map(function (x) { return x.goldPerMinute || 0; });
+    var teamXPM = teammates.map(function (x) { return x.experiencePerMinute || 0; });
+    var teamLH = teammates.map(function (x) { return x.numLastHits || 0; });
 
     function rank(val, arr) {
       if (!arr.length) return 0.5;
@@ -557,6 +572,7 @@ var ProfileAnalyzer = {
   },
 
   goToAnalyze: function (matchId, heroId) {
+    lastAnalysis = null;
     switchPage("analyze");
     setTimeout(function () {
       var idInp = qs("#matchIdInput");
@@ -582,9 +598,13 @@ var ProfileAnalyzer = {
     frag.appendChild(loadingCard);
 
     setTimeout(async function () {
-      var data = await ProfileAnalyzer.loadAll(accountId);
+      var data;
+      try { data = await ProfileAnalyzer.loadAll(accountId); }
+      catch (loadError) {
+        data = { ok: false, reason: "error", msg: loadError.message || String(loadError), accountId: accountId };
+      }
       var container = document.getElementById("pageContent");
-      if (!container) return;
+      if (!container || currentPage !== "profile" || !frag.isConnected) return;
       container.innerHTML = "";
 
       if (!data.ok) {

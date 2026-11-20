@@ -45,7 +45,10 @@ async function fetchRetry(path, params, retries) {
   retries = retries === undefined ? 2 : retries;
   for (var i = 0; i <= retries; i++) {
     try { return await apiGet(path, params); }
-    catch (e) { if (i === retries) throw e; await new Promise(function(r){ setTimeout(r, 800*(i+1)); }); }
+    catch (e) {
+      if (i === retries || (e && e.retryable === false)) throw e;
+      await new Promise(function(r){ setTimeout(r, 800*(i+1)); });
+    }
   }
 }
 

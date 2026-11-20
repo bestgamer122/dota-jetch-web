@@ -34,6 +34,7 @@ var NAV = [
 var ADMIN_NAV_ITEM = { page: "admin", label: "Админ-панель", icon: "M12 2 L4 6v6c0 5 3.5 9.5 8 11 4.5-1.5 8-6 8-11V6l-8-4z" };
 
 var currentPage = "dashboard";
+var notificationUnsubscribe = null;
 
 function buildNav() {
   var nav = qs("#sidebarNav");
@@ -86,13 +87,13 @@ function switchPage(name) {
   if (t) t.textContent = PAGES[name].title;
   var c = qs("#pageContent");
   if (!c) return;
+  stopActiveGames();
   c.innerHTML = "";
   try { c.appendChild(safeRender(name)); }
   catch (e) { c.appendChild(el("div", { style: "padding:30px;color:var(--red);" }, "Ошибка: " + (e.message || e))); }
   var s = qs(".page-scroll");
   if (s) s.scrollTop = 0;
   location.hash = name;
-  if (name === "charts" && typeof Daily !== "undefined") { try { Daily.bump("chart"); } catch (e) {} }
   if (name === "about") {
     try { Store.set("visitedabout", true); if (typeof Achievements !== "undefined") Achievements.check(); } catch (e) {}
   }
@@ -216,7 +217,9 @@ function renderDashboard() {
     try {
       var db = window.__fbDB;
       if (!db) return;
-      db.onValue(db.ref(db.db, "config/notification"), function (snap) {
+      if (typeof notificationUnsubscribe === "function") notificationUnsubscribe();
+      notificationUnsubscribe = db.onValue(db.ref(db.db, "config/notification"), function (snap) {
+        if (currentPage !== "dashboard") return;
         var n = snap.val();
         var existing = document.getElementById("globalNotifBox");
         if (n && n.enabled && n.text) {
@@ -246,7 +249,7 @@ function renderDashboard() {
   var left = typeof analyzeQuotaRemaining === "function" ? (plus ? "∞" : String(analyzeQuotaRemaining())) : "-";
   stats.appendChild(UI.statCard("S", "var(--cyan)", "var(--cyan-bg)", "Сессий", String(Store.get("sessions", 0)), "Всего"));
   stats.appendChild(UI.statCard("A", "var(--accent-light)", "var(--accent-bg)", "Анализов", left, plus ? "JETCH+" : "из 5"));
-  stats.appendChild(UI.statCard("T", "var(--yellow)", "var(--yellow-bg)", "Ачивки", (Store.get("achievementsunlocked", []) || []).length + " / 24", "Открыто"));
+  stats.appendChild(UI.statCard("T", "var(--yellow)", "var(--yellow-bg)", "Ачивки", (Store.get("achievementsunlocked", []) || []).length + " / " + ACHIEVEMENTS.length, "Открыто"));
   frag.appendChild(stats);
   var s2 = el("div", { class: "stat-grid" });
   s2.appendChild(UI.statCard("D", "var(--cyan)", "var(--cyan-bg)", "Дневник", String((Store.get("diarynotes", []) || []).length), "Записей"));
@@ -286,7 +289,7 @@ function renderAbout() {
     "Мини-игры: Взлом замка, Атака автоматонов, Дири-Джампер, Викторина",
     "Рейтинг и медали",
     "Лидерборд",
-    "Достижения (24)",
+    "Достижения (" + ACHIEVEMENTS.length + ")",
     "Ник + аватар + облачная синхронизация"
   ];
   for (var i = 0; i < list.length; i++) {
@@ -437,7 +440,7 @@ function updateProfileModal() {
     var mmr = Store.get("minigames_mmr", 0) || 0;
     var cells = [
       { v: String(analyzed), l: "Матчей" },
-      { v: achs + "/24", l: "Ачивок" },
+      { v: achs + "/" + ACHIEVEMENTS.length, l: "Ачивок" },
       { v: String(mmr), l: "MMR" }
     ];
     for (var i = 0; i < cells.length; i++) {
@@ -503,6 +506,7 @@ function bindProfileModal() {
       if (!hasAvatar()) return;
       if (!confirm("Убрать аватар?")) return;
       Store.set("avatar", null);
+      if (typeof window.syncPublicProfile === "function") window.syncPublicProfile();
       updateProfileModal();
       if (typeof window.refreshUserUI === "function") window.refreshUserUI();
     });
