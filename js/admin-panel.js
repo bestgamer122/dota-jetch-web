@@ -523,7 +523,11 @@ var AdminPanel = {
       var snap = await dbHelpers.get(dbHelpers.ref(dbHelpers.db, "admins/" + auth.currentUser.uid));
       this.isAdmin = snap.exists() && snap.val() === true;
       return this.isAdmin;
-    } catch (e) { this.isAdmin = false; return false; }
+    } catch (e) {
+      console.warn("[ADMIN] Не удалось проверить admins/" + (auth.currentUser && auth.currentUser.uid) + ":", e);
+      this.isAdmin = false;
+      return false;
+    }
   },
 
   log: async function (action, details) {

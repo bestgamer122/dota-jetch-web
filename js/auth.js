@@ -752,6 +752,10 @@ onAuthStateChanged(auth, async function (user) {
     }
 
     hideAuthScreen();
+    if (window.AdminPanel && typeof window.AdminPanel.checkAdmin === "function") {
+      const isAdmin = await window.AdminPanel.checkAdmin();
+      if (isAdmin && typeof buildNav === "function") buildNav();
+    }
     setupStoreSync(user.uid);
     startAutoSave(user.uid);
     startPollingAdminChanges(user.uid);   // ← вот здесь polling вместо onValue
