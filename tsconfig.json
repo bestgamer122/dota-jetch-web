@@ -1,0 +1,30 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["DOM", "DOM.Iterable", "ES2022"],
+    "module": "none",
+    "moduleResolution": "classic",
+    "allowJs": true,
+    "checkJs": false,
+    "noEmit": true,
+    "strict": false,
+    "noImplicitAny": false,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "types": []
+  },
+  "include": ["js/**/*.js", "types/**/*.d.ts"],
+  "exclude": [
+    "node_modules",
+    "tests",
+    "functions",
+    "tools",
+    "preview",
+    "js/brain.js",
+    "js/brain-*.js",
+    "js/assistant.js",
+    "js/external-ai.js",
+    "js/hero-codex.js",
+    "js/web-search.js"
+  ]
+}

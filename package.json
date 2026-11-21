@@ -1,0 +1,21 @@
+{
+  "name": "dota-jetch",
+  "version": "130.0.0",
+  "private": true,
+  "description": "DOTA JETCH — трекер и аналитика матчей Dota 2",
+  "scripts": {
+    "test": "node tests/run.mjs",
+    "test:runner": "node --test tests/unit",
+    "test:watch": "node --test --watch tests/unit",
+    "test:e2e": "node tests/e2e/run.mjs",
+    "serve": "node tools/serve.mjs",
+    "typecheck": "tsc -p tsconfig.json",
+    "typecheck:strict": "tsc -p tsconfig.strict.json"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
