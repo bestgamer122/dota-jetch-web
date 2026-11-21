@@ -6,6 +6,7 @@ var ProfileAnalyzer = {
   CACHE_TTL: 10 * 60 * 1000,
   loading: false,
   heroesById: null,
+  requestId: 0,
 
   STRATZ_ENDPOINT: "https://api.stratz.com/graphql",
   STRATZ_TOKEN: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJTdWJqZWN0IjoiMDU0OGI4YWQtN2ZmOC00YzczLTljODAtNDM2NDNiYTdmYWUwIiwiU3RlYW1JZCI6IjExMzUyNTQ1MDEiLCJBUElVc2VyIjoidHJ1ZSIsIm5iZiI6MTc5MTkwMDg4OCwiZXhwIjoxODIzNDM2ODg4LCJpYXQiOjE3OTE5MDA4ODgsImlzcyI6Imh0dHBzOi8vYXBpLnN0cmF0ei5jb20ifQ.BA03Klw7gTTzsi6NvVahT85LjqJtl9wi0sOm_fCI6KU",
@@ -27,6 +28,7 @@ var ProfileAnalyzer = {
   },
   saveId: function (id) { Store.set("steam_account_id", String(id)); },
   clearId: function () {
+    this.requestId++;
     Store.set("steam_account_id", null);
     this.cache = null;
     this.cacheTime = 0;
@@ -112,6 +114,7 @@ var ProfileAnalyzer = {
 
   loadAll: async function (accountId) {
     if (this.cache && this.cache.accountId === accountId && (Date.now() - this.cacheTime) < this.CACHE_TTL) return this.cache;
+    var reqId = ++this.requestId;
     this.loading = true;
 
     var query = `
@@ -204,6 +207,7 @@ var ProfileAnalyzer = {
     }).filter(Boolean);
 
     var heroMap = {};
+    if (reqId !== this.requestId) return { ok: false, reason: "stale", accountId: accountId };
     for (var i = 0; i < matches.length; i++) {
       var m = matches[i];
       if (!m.hero_id) continue;
@@ -234,6 +238,9 @@ var ProfileAnalyzer = {
     result.wl = { win: p.winCount || 0, lose: (p.matchCount || 0) - (p.winCount || 0) };
     result.stats = this.computeStats(result);
 
+    if (reqId !== this.requestId || this.getSavedId() !== String(accountId)) {
+      return { ok: false, reason: "stale", accountId: accountId };
+    }
     this.cache = result;
     this.cacheTime = Date.now();
     return result;
@@ -605,6 +612,7 @@ var ProfileAnalyzer = {
       }
       var container = document.getElementById("pageContent");
       if (!container || currentPage !== "profile" || !frag.isConnected) return;
+      if (!data || data.reason === "stale") return;
       container.innerHTML = "";
 
       if (!data.ok) {

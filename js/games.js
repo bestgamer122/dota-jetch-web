@@ -52,6 +52,23 @@ var CURRENT_GAME = "lockpick";
 var _activeLockpick = null;
 var _activeAutomaton = null;
 var _activeDireJumper = null;
+var _activeQuiz = null;
+var _settingsRenderTimer = null;
+
+function _hasActiveGame() {
+  return !!(_activeLockpick || _activeAutomaton || _activeDireJumper || _activeQuiz);
+}
+
+function _scheduleGamesRefresh() {
+  if (_settingsRenderTimer) clearTimeout(_settingsRenderTimer);
+  _settingsRenderTimer = setTimeout(function () {
+    _settingsRenderTimer = null;
+    if (currentPage !== "games") return;
+    /* Не пересоздаём страницу посреди игры — настройки применятся в меню. */
+    if (_hasActiveGame()) return;
+    if (typeof switchPage === "function") switchPage("games");
+  }, 250);
+}
 
 /* Админ ли пользователь? Проверяем динамически */
 function _isAdmin() {
@@ -87,11 +104,7 @@ function _blockGamesPage() {
     if (_isAdmin()) {
       window.__minigamesSettings = settings || {};
       _unblockGamesPage();
-      if (currentPage === "games") {
-        setTimeout(function () {
-          if (typeof switchPage === "function") switchPage("games");
-        }, 100);
-      }
+      if (currentPage === "games") _scheduleGamesRefresh();
       return;
     }
 
@@ -105,11 +118,7 @@ function _blockGamesPage() {
     if (allOff) _blockGamesPage();
     else _unblockGamesPage();
 
-    if (currentPage === "games") {
-      setTimeout(function () {
-        if (typeof switchPage === "function") switchPage("games");
-      }, 100);
-    }
+    if (currentPage === "games") _scheduleGamesRefresh();
   }
 
   function trySubscribe() {
@@ -226,7 +235,8 @@ function stopActiveGames() {
   if (_activeLockpick && typeof _activeLockpick.stop === "function") { try { _activeLockpick.stop(); } catch (e) {} }
   if (_activeAutomaton && typeof _activeAutomaton.stop === "function") { try { _activeAutomaton.stop(); } catch (e) {} }
   if (_activeDireJumper && typeof _activeDireJumper.stop === "function") { try { _activeDireJumper.stop(); } catch (e) {} }
-  _activeLockpick = null; _activeAutomaton = null; _activeDireJumper = null;
+  if (_activeQuiz && typeof _activeQuiz.stop === "function") { try { _activeQuiz.stop(); } catch (e) {} }
+  _activeLockpick = null; _activeAutomaton = null; _activeDireJumper = null; _activeQuiz = null;
 }
 
 function showIntro(kind) {
@@ -654,7 +664,7 @@ function renderQuiz() {
   var bank = shuffle(QUIZ).slice(0, 10);
   var idx = 0, score = 0, answerTimer = null, sessionId = 0;
   function stopQuiz() { sessionId++; if (answerTimer) { clearTimeout(answerTimer); answerTimer = null; } }
-  _activeLockpick = { stop: stopQuiz };
+  _activeQuiz = { stop: stopQuiz };
   var progressWrap = el("div", { style: "height:6px;background:var(--bg-elev);border-radius:3px;overflow:hidden;margin-bottom:18px;" });
   var progressFill = el("div", { style: "height:100%;width:0%;background:linear-gradient(90deg,var(--accent),var(--cyan));border-radius:3px;transition:width 0.3s ease;" });
   progressWrap.appendChild(progressFill);

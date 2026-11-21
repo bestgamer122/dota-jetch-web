@@ -114,3 +114,10 @@ body.lite-mode .dropdown-btn:hover {
   background: var(--bg-elev) !important;
   border-color: var(--border-hl) !important;
 }
+
+/* 11. Lite: без входных анимаций страниц и пульсации статуса */
+body.lite-mode .page-content.page-enter > * { animation: none !important; }
+body.lite-mode .sync-pill .sync-dot { animation: none !important; }
+body.lite-mode .card:hover,
+body.lite-mode .stat-card:hover { box-shadow: none !important; transform: none !important; }
+

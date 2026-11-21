@@ -54,9 +54,15 @@ window.fetchLeaderboard = async function (game, limit) {
     var data = snap.val() || {};
     var list = [];
     for (var uid in data) {
-      if (Object.prototype.hasOwnProperty.call(data, uid)) {
-        list.push({ uid: uid, nickname: data[uid].nickname, score: data[uid].score, mmr: data[uid].mmr });
-      }
+      if (!Object.prototype.hasOwnProperty.call(data, uid)) continue;
+      var row = data[uid];
+      if (!row || !Number.isFinite(row.score)) continue;
+      list.push({
+        uid: uid,
+        nickname: typeof row.nickname === "string" && row.nickname ? row.nickname : "Anon",
+        score: row.score,
+        mmr: Number.isFinite(row.mmr) ? row.mmr : 0
+      });
     }
     var profilesSnap = await get(ref(ctx.db, "publicProfiles"));
     var profiles = profilesSnap.val() || {};
@@ -64,8 +70,8 @@ window.fetchLeaderboard = async function (game, limit) {
       var pv = profiles[list[i].uid];
       if (pv) {
         if (pv.avatar && typeof pv.avatar === "string" && pv.avatar.indexOf("data:image") === 0) list[i].avatar = pv.avatar;
-        if (typeof pv.mmr === "number") list[i].mmr = pv.mmr;
-        if (pv.nickname) list[i].nickname = pv.nickname;
+        if (Number.isFinite(pv.mmr)) list[i].mmr = pv.mmr;
+        if (typeof pv.nickname === "string" && pv.nickname) list[i].nickname = pv.nickname;
         list[i].calibrated = pv.calibrated === true;
       }
     }
@@ -85,8 +91,8 @@ window.fetchTopByMMR = async function (limit) {
     for (var uid in data) {
       if (!Object.prototype.hasOwnProperty.call(data, uid)) continue;
       var p = data[uid] || {};
-      if (p.calibrated !== true || typeof p.mmr !== "number") continue;
-      list.push({ uid: uid, nickname: p.nickname || "Anon", mmr: p.mmr, avatar: p.avatar || null, calibrated: true });
+      if (p.calibrated !== true || !Number.isFinite(p.mmr)) continue;
+      list.push({ uid: uid, nickname: typeof p.nickname === "string" && p.nickname ? p.nickname : "Anon", mmr: p.mmr, avatar: p.avatar || null, calibrated: true });
     }
     list.sort(function (a, b) { return b.mmr - a.mmr; });
     return list.slice(0, limit);
@@ -167,7 +173,7 @@ window.renderLeaderboard = async function (game) {
       row.appendChild(medalBox);
     }
     var val = el("div", { style: "font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:900;color:var(--gold);flex-shrink:0;" });
-    val.textContent = isMMR ? data.mmr.toLocaleString() : (data.score || 0).toLocaleString();
+    val.textContent = isMMR ? Number(data.mmr || 0).toLocaleString() : Number(data.score || 0).toLocaleString();
     row.appendChild(val);
     container.appendChild(row);
   }

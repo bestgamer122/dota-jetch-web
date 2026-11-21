@@ -735,17 +735,17 @@ window.checkMaintenance = async function () {
         var existingOverlay = document.getElementById("maintenanceOverlay");
 
         if (!m || !m.enabled) {
-          if (existingOverlay) existingOverlay.remove();
+          if (existingOverlay) { existingOverlay.remove(); stopMaintenanceTimer(); }
           return;
         }
 
         var isAdmin = await AdminPanel.checkAdmin();
         if (isAdmin) {
-          if (existingOverlay) existingOverlay.remove();
+          if (existingOverlay) { existingOverlay.remove(); stopMaintenanceTimer(); }
           return;
         }
 
-        if (!existingOverlay) showMaintenanceScreen(m);
+        showMaintenanceScreen(m);
       } catch (e) { console.warn("maintenance onValue:", e); }
     });
 
@@ -753,9 +753,16 @@ window.checkMaintenance = async function () {
   } catch (e) { return false; }
 };
 
-function showMaintenanceScreen(m) {
-  if (document.getElementById("maintenanceOverlay")) return;
+var _maintenanceTimer = null;
 
+function stopMaintenanceTimer() {
+  if (_maintenanceTimer) { clearInterval(_maintenanceTimer); _maintenanceTimer = null; }
+}
+
+function showMaintenanceScreen(m) {
+  var previous = document.getElementById("maintenanceOverlay");
+  if (previous) previous.remove();
+  stopMaintenanceTimer();
   var ov = document.createElement("div");
   ov.id = "maintenanceOverlay";
   ov.className = "mnt-overlay-v2";
@@ -784,7 +791,7 @@ function showMaintenanceScreen(m) {
   card.appendChild(msg);
 
   var until = m.until ? new Date(m.until) : null;
-  if (until && until.getTime() > Date.now()) {
+  if (until && !isNaN(until.getTime()) && until.getTime() > Date.now()) {
     var timer = document.createElement("div");
     timer.className = "mnt-timer-v2";
     var dot = document.createElement("span");
@@ -804,20 +811,22 @@ function showMaintenanceScreen(m) {
     setTimeout(function () {
       function tick() {
         var el = document.getElementById("mntCountdownV2");
-        if (!el) return;
+        if (!el) { stopMaintenanceTimer(); return; }
         var diff = until.getTime() - Date.now();
         if (diff <= 0) {
           el.textContent = "Готово!";
+          stopMaintenanceTimer();
           setTimeout(function () { location.reload(); }, 1200);
           return;
         }
         var h = Math.floor(diff / 3600000);
-        var m = Math.floor((diff % 3600000) / 60000);
+        var mLeft = Math.floor((diff % 3600000) / 60000);
         var s = Math.floor((diff % 60000) / 1000);
-        el.textContent = (h > 0 ? h + " ч " : "") + String(m).padStart(2, "0") + " мин " + String(s).padStart(2, "0") + " сек";
-        setTimeout(tick, 1000);
+        el.textContent = (h > 0 ? h + " ч " : "") + String(mLeft).padStart(2, "0") + " мин " + String(s).padStart(2, "0") + " сек";
       }
       tick();
+      stopMaintenanceTimer();
+      _maintenanceTimer = setInterval(tick, 1000);
     }, 100);
   }
 

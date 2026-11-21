@@ -10,8 +10,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/style.css?v=100.0">
-<link rel="stylesheet" href="css/lite.css?v=100.0">
+<link rel="stylesheet" href="css/style.css?v=121.0">
+<link rel="stylesheet" href="css/lite.css?v=121.0">
 <style>
 #splashScreen { position:fixed!important;top:0!important;left:0!important;width:100vw!important;height:100vh!important;z-index:999999!important;background:radial-gradient(circle at 50% 40%,#1a1030 0%,#0b0c10 55%,#04050a 100%);display:flex;align-items:center;justify-content:center;font-family:'Inter',sans-serif;transition:opacity 0.7s cubic-bezier(0.4,0,0.2,1);overflow:hidden; }
 #splashScreen.splash-hide { opacity:0;pointer-events:none; }
@@ -132,8 +132,9 @@
     <span class="titlebar-icon"><svg viewBox="0 0 24 24" fill="none" width="14" height="14" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 L15 9 L22 12 L15 15 L12 22 L9 15 L2 12 L9 9 Z"/></svg></span>
     <span class="titlebar-title">DOTA JETCH</span>
     <span class="titlebar-spacer"></span>
-    <span class="titlebar-status">Готов</span>
-    <span class="status-dot"></span>
+    <span class="sync-pill" id="syncPill" data-state="offline" title="Статус синхронизации">
+      <span class="sync-dot"></span><span id="syncLabel">Офлайн</span>
+    </span>
   </header>
   <div class="body">
     <aside class="sidebar">
@@ -212,26 +213,27 @@
 })();
 </script>
 
-<script src="js/firebase-config.js?v=100.0"></script>
-<script src="js/config.js?v=100.0"></script>
-<script type="module" src="js/auth.js?v=101.0"></script>
-<script src="js/fallback.js?v=100.0"></script>
-<script src="js/ui.js?v=100.0"></script>
-<script src="js/knowledge.js?v=100.0"></script>
-<script src="js/admin-panel.js?v=101.0"></script>
-<script src="js/achievements.js?v=100.0"></script>
-<script src="js/history.js?v=100.0"></script>
-<script src="js/diary.js?v=100.0"></script>
-<script src="js/rating.js?v=100.0"></script>
-<script src="js/sound.js?v=100.0"></script>
-<script type="module" src="js/leaderboard.js?v=100.0"></script>
-<script src="js/games.js?v=100.0"></script>
-<script src="js/charts.js?v=100.0"></script>
-<script src="js/daily.js?v=100.0"></script>
-<script src="js/analyze.js?v=100.0"></script>
-<script src="js/settings.js?v=100.0"></script>
-<script src="js/profile-analyzer.js?v=100.0"></script>
-<script src="js/app.js?v=100.0"></script>
-<script src="js/visual.js?v=100.0"></script>
+<script src="js/firebase-config.js?v=120.0"></script>
+<script src="js/config.js?v=120.0"></script>
+<script src="js/sync.js?v=120.0"></script>
+<script type="module" src="js/auth.js?v=120.0"></script>
+<script src="js/fallback.js?v=120.0"></script>
+<script src="js/ui.js?v=120.0"></script>
+<script src="js/knowledge.js?v=120.0"></script>
+<script src="js/admin-panel.js?v=120.0"></script>
+<script src="js/achievements.js?v=120.0"></script>
+<script src="js/history.js?v=120.0"></script>
+<script src="js/diary.js?v=120.0"></script>
+<script src="js/rating.js?v=120.0"></script>
+<script src="js/sound.js?v=120.0"></script>
+<script type="module" src="js/leaderboard.js?v=120.0"></script>
+<script src="js/games.js?v=120.0"></script>
+<script src="js/charts.js?v=120.0"></script>
+<script src="js/daily.js?v=120.0"></script>
+<script src="js/analyze.js?v=120.0"></script>
+<script src="js/settings.js?v=120.0"></script>
+<script src="js/profile-analyzer.js?v=120.0"></script>
+<script src="js/app.js?v=120.0"></script>
+<script src="js/visual.js?v=120.0"></script>
 </body>
 </html>

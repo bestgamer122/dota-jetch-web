@@ -95,15 +95,8 @@ function renderPlanCard(frag) {
     plan.appendChild(el("div", { style: "color:var(--gold);font-size:14px;font-weight:700;margin-bottom:10px;" }, "✓ JETCH+ активен"));
     plan.appendChild(el("div", { class: "dim", style: "font-size:12px;margin-bottom:14px;" }, expText));
 
-    var offBtn = UI.btn("Отключить", { variant: "ghost" });
-    offBtn.addEventListener("click", function () {
-      if (!confirm("Отключить JETCH+?")) return;
-      Store.set("license.active", false);
-      Store.set("license.forever", false);
-      Store.set("license.expires", null);
-      location.reload();
-    });
-    plan.appendChild(offBtn);
+    plan.appendChild(el("div", { class: "dim", style: "font-size:11px;line-height:1.5;" },
+      "Срок и тип подписки контролируются администратором."));
   } else {
     plan.appendChild(el("div", { style: "color:var(--gold);font-size:14px;font-weight:700;margin-bottom:10px;" }, "Возможности:"));
 

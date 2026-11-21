@@ -1,65 +1,52 @@
-/* DOTA JETCH — CONFIG v7.1
-   - CORS-безопасный apiGet с fallback
-   - Store: sessionStorage + localStorage зеркало для критичных ключей
-   - APP_VERSION */
+/* DOTA JETCH — CONFIG v8.0
+   - Store поверх CloudSync (UID-изоляция, очередь записи)
+   - CORS-безопасный apiGet с fallback */
 
-var APP_VERSION = "7.1.0";
+var APP_VERSION = "8.0.0";
 
 var Store = {
   prefix: "dota.",
 
   get: function (key, def) {
     if (def === undefined) def = null;
+    if (window.CloudSync) return window.CloudSync.get(key, def);
     try {
       var v = sessionStorage.getItem(this.prefix + key);
-      if (v === null) {
-        v = localStorage.getItem(this.prefix + key);
-        if (v !== null) sessionStorage.setItem(this.prefix + key, v);
-      }
+      if (v === null) v = localStorage.getItem(this.prefix + key);
       if (v === null) return def;
-      return JSON.parse(v);
+      var parsed = JSON.parse(v);
+      return parsed === null || parsed === undefined ? def : parsed;
     } catch (e) { return def; }
   },
 
   set: function (key, val) {
+    if (window.CloudSync) { window.CloudSync.set(key, val); return; }
     try {
+      var full = this.prefix + key;
       if (val === null || val === undefined) {
-        sessionStorage.removeItem(this.prefix + key);
-        localStorage.removeItem(this.prefix + key);
+        sessionStorage.removeItem(full);
+        localStorage.removeItem(full);
         return;
       }
       var str = JSON.stringify(val);
-      sessionStorage.setItem(this.prefix + key, str);
-      /* Не оставляем устаревшую локальную копию, которая перекрывает облако. */
-      if (this._isCritical(key)) localStorage.setItem(this.prefix + key, str);
-      else localStorage.removeItem(this.prefix + key);
+      sessionStorage.setItem(full, str);
+      localStorage.setItem(full, str);
     } catch (e) {}
   },
 
-  remove: function (key) {
-    try {
-      sessionStorage.removeItem(this.prefix + key);
-      localStorage.removeItem(this.prefix + key);
-    } catch (e) {}
-  },
+  remove: function (key) { this.set(key, null); },
 
   clear: function () {
+    if (window.CloudSync) { window.CloudSync.clear(); return; }
     try {
       var p = this.prefix;
-      var keys = Object.keys(sessionStorage);
-      for (var i = 0; i < keys.length; i++) {
-        if (keys[i].indexOf(p) === 0) sessionStorage.removeItem(keys[i]);
-      }
+      Object.keys(sessionStorage).forEach(function (key) {
+        if (key.indexOf(p) === 0) sessionStorage.removeItem(key);
+      });
+      Object.keys(localStorage).forEach(function (key) {
+        if (key.indexOf(p) === 0) localStorage.removeItem(key);
+      });
     } catch (e) {}
-  },
-
-  _isCritical: function (key) {
-    return key.indexOf("minigames_") === 0 ||
-           key.indexOf("license") === 0 ||
-           key === "nickname" ||
-           key === "achievementsunlocked" ||
-           key === "analyzedcount" ||
-           key === "recentmatches";
   }
 };
 

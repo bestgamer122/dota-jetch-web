@@ -1,6 +1,6 @@
-/* DOTA JETCH — APP v18.0 (fix admin nav) */
+/* DOTA JETCH — APP v19.0 (sync status + page transitions) */
 
-var APP_VERSION = "18.0";
+var APP_VERSION = "19.0";
 
 var PAGES = {
   dashboard:    { title: "Главная",           render: renderDashboard },
@@ -35,6 +35,33 @@ var ADMIN_NAV_ITEM = { page: "admin", label: "Админ-панель", icon: "M
 
 var currentPage = "dashboard";
 var notificationUnsubscribe = null;
+var appInitialized = false;
+
+var SYNC_VIEW = {
+  saved:   { state: "saved",   label: "Сохранено" },
+  syncing: { state: "syncing", label: "Синхронизация" },
+  pending: { state: "pending", label: "Ожидает" },
+  error:   { state: "error",   label: "Нет связи" },
+  offline: { state: "offline", label: "Офлайн" }
+};
+
+function renderSyncStatus(status) {
+  var pill = qs("#syncPill");
+  var label = qs("#syncLabel");
+  if (!pill) return;
+  var view = SYNC_VIEW[status && status.status] || SYNC_VIEW.offline;
+  pill.setAttribute("data-state", view.state);
+  pill.setAttribute("aria-live", "polite");
+  if (label) label.textContent = view.label;
+  pill.title = (status && status.detail) || view.label;
+}
+
+function initSyncIndicator() {
+  renderSyncStatus(window.CloudSync ? window.CloudSync.getStatus() : null);
+  window.addEventListener("jetch:syncstatus", function (event) {
+    renderSyncStatus(event.detail);
+  });
+}
 
 function buildNav() {
   var nav = qs("#sidebarNav");
@@ -91,6 +118,9 @@ function switchPage(name) {
   c.innerHTML = "";
   try { c.appendChild(safeRender(name)); }
   catch (e) { c.appendChild(el("div", { style: "padding:30px;color:var(--red);" }, "Ошибка: " + (e.message || e))); }
+  c.classList.remove("page-enter");
+  void c.offsetWidth;
+  c.classList.add("page-enter");
   var s = qs(".page-scroll");
   if (s) s.scrollTop = 0;
   location.hash = name;
@@ -526,6 +556,7 @@ function bindProfileModal() {
 async function init() {
   try { if (typeof applyTheme === "function") applyTheme(loadTheme()); } catch (e) {}
   try { if (typeof applyLiteMode === "function") applyLiteMode(isLiteMode()); } catch (e) {}
+  initSyncIndicator();
 
   /* Проверка прав администратора ДО построения навигации */
   if (window.AdminPanel && typeof window.AdminPanel.checkAdmin === "function") {
@@ -552,8 +583,19 @@ async function init() {
   switchPage(PAGES[h] ? h : "dashboard");
   if (typeof updateSidebarPlan === "function") updateSidebarPlan();
   try { if (typeof Achievements !== "undefined") Achievements.check(); } catch (e) {}
+  appInitialized = true;
   console.log("DOTA JETCH v" + APP_VERSION + " init");
 }
+
+/* После загрузки облачных данных перерисовываем текущую страницу
+   без полной перезагрузки приложения. */
+window.addEventListener("jetch:syncready", function () {
+  if (!appInitialized) return;
+  if (typeof updateSidebarPlan === "function") { try { updateSidebarPlan(); } catch (e) {} }
+  if (PAGES[currentPage]) {
+    try { switchPage(currentPage); } catch (e) { console.warn("syncready rerender:", e); }
+  }
+});
 
 if (document.readyState === "loading") window.addEventListener("DOMContentLoaded", init);
 else setTimeout(init, 0);
@@ -563,4 +605,4 @@ window.addEventListener("hashchange", function () {
   if (h !== currentPage && PAGES[h]) switchPage(h);
 });
 
-console.log("app v18.0 ready (fix admin nav)");
+console.log("app v19.0 ready");

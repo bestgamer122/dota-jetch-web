@@ -1,4 +1,4 @@
-/* DOTA JETCH — FIREBASE AUTH v12.6 (polling instead of onValue, no loops) */
+/* DOTA JETCH — FIREBASE AUTH v13.0 (durable UID-scoped cloud sync) */
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.8.0/firebase-app.js";
 import {
@@ -18,26 +18,17 @@ window.__fbAuth = auth;
 window.__fbDB = { db: db, ref: ref, get: get, update: update, remove: remove, set: set, onValue: onValue, runTransaction: runTransaction };
 
 window.__fbSignOut = async function () {
-  if (currentUser) { try { await saveUserData(currentUser.uid); } catch (e) {} }
+  if (window.CloudSync) await window.CloudSync.deactivate();
   try { await signOut(auth); } catch (e) {}
 };
 
 setPersistence(auth, browserLocalPersistence).catch(e => console.warn("persistence:", e));
 
 let currentUser = null;
-let autoSaveInterval = null;
-let pollInterval = null;
-let pollTimeout = null;
-let storeSyncUid = null;
+let authGeneration = 0;
 
-const STORE_PREFIX = "dota.";
 const NICK_REGEX = /^[A-Za-z0-9_]{3,20}$/;
 const NICK_COOLDOWN_MS = 30 * 24 * 60 * 60 * 1000;
-
-/* Интервал опроса изменений от админа */
-const POLL_INTERVAL_MS = 20000;
-const RELOAD_COOLDOWN_MS = 15000;
-let lastReloadAt = 0;
 
 const HINT_BASE = "font-size:10px;font-weight:400;color:#666;margin:-4px 0 12px 4px;line-height:1.4;text-align:left;letter-spacing:0.02em;font-family:'Inter',sans-serif;";
 const HINT_OK = HINT_BASE + "color:#22c55e;";
@@ -53,101 +44,6 @@ function decodeKey(k) {
   return String(k).replace(/__DOT__/g, ".").replace(/__SLASH__/g, "/")
     .replace(/__HASH__/g, "#").replace(/__DOLLAR__/g, "$")
     .replace(/__LB__/g, "[").replace(/__RB__/g, "]");
-}
-
-function wipeLocalUserData() {
-  try {
-    let removed = 0;
-    const keys = Object.keys(sessionStorage);
-    for (let i = 0; i < keys.length; i++) {
-      const k = keys[i];
-      if (k.indexOf(STORE_PREFIX) === 0) { sessionStorage.removeItem(k); removed++; }
-    }
-    const lkeys = Object.keys(localStorage);
-    for (let j = 0; j < lkeys.length; j++) {
-      const lk = lkeys[j];
-      if (lk.indexOf(STORE_PREFIX) === 0) { localStorage.removeItem(lk); removed++; }
-    }
-    console.log("🧹 Очищено " + removed + " ключей");
-  } catch (e) {}
-}
-
-/* ─── Простой polling: читаем раз в 20 сек и сравниваем "админские" поля ─── */
-function startPollingAdminChanges(uid) {
-  stopPollingAdminChanges();
-
-  var lastState = null;
-
-  async function check() {
-    if (!currentUser || currentUser.uid !== uid) return;
-    try {
-      const snap = await get(ref(db, "users/" + uid));
-      const data = snap.val() || {};
-
-      /* Всегда обновляем sessionStorage */
-      for (const key in data) {
-        if (!Object.prototype.hasOwnProperty.call(data, key)) continue;
-        const val = data[key];
-        if (val === null || val === undefined) continue;
-        try { sessionStorage.setItem(STORE_PREFIX + decodeKey(key), JSON.stringify(val)); } catch (e) {}
-      }
-
-      var state = {
-        nick: data.nickname || null,
-        licActive: data["license__DOT__active"] === true,
-        licForever: data["license__DOT__forever"] === true,
-        licExpires: data["license__DOT__expires"] || null,
-        blocked: data.blocked === true
-      };
-
-      if (state.blocked) {
-        stopAutoSave();
-        stopPollingAdminChanges();
-        alert("🚫 Твой аккаунт заблокирован администратором.");
-        try { await signOut(auth); } catch (e) {}
-        showAuthScreen();
-        return;
-      }
-      if (lastState === null) {
-        lastState = state;
-        return;
-      }
-
-      var changed = false;
-      var what = [];
-
-      if (lastState.nick !== state.nick) { changed = true; what.push("ник"); }
-      if (lastState.licActive !== state.licActive) { changed = true; what.push("JETCH+ статус"); }
-      if (lastState.licForever !== state.licForever) { changed = true; what.push("JETCH+ бессрочный"); }
-      if (lastState.licExpires !== state.licExpires) { changed = true; what.push("JETCH+ срок"); }
-      if (lastState.blocked !== state.blocked) { changed = true; what.push(state.blocked ? "блокировка" : "разблокировка"); }
-
-      if (!changed) {
-        lastState = state;
-        return;
-      }
-
-      /* Защита от частых перезагрузок */
-      if (Date.now() - lastReloadAt < RELOAD_COOLDOWN_MS) {
-        console.log("⏸ Изменения есть (" + what.join(", ") + "), но кулдаун ещё идёт");
-        return;
-      }
-      lastReloadAt = Date.now();
-
-      console.log("🔄 Админ изменил: " + what.join(", ") + " → перезагрузка");
-      setTimeout(function () { location.reload(); }, 400);
-    } catch (e) {
-      /* Тихо игнорим сетевые ошибки */
-    }
-  }
-
-  pollTimeout = setTimeout(function () { pollTimeout = null; check(); }, 5000);
-  pollInterval = setInterval(check, POLL_INTERVAL_MS);
-}
-
-function stopPollingAdminChanges() {
-  if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
-  if (pollTimeout) { clearTimeout(pollTimeout); pollTimeout = null; }
 }
 
 async function syncPublicProfile() {
@@ -554,107 +450,6 @@ function bindVerificationHandlers() {
   });
 }
 
-const SYNC_KEYS = [
-  "nickname", "nicknameChangedAt", "avatar",
-  "chathistory",
-  "license.active", "license.forever", "license.expires",
-  "aiquestions",
-  "sessions", "dailystreak", "recentmatches", "analyzequota",
-  "litemode", "achievementsunlocked", "analyzedcount", "dailydate",
-  "gamesplayed", "quizbest", "theme", "uniqueheroes",
-  "dailystreakclaimed", "themechanged", "visitedabout",
-  "dailyprogress.analyze", "dailyprogress.chat", "dailyprogress.diary",
-  "dailyprogress.game", "dailyprogress.chart", "dailyprogress.theme",
-  "dailylastclaimdate", "diarynotes", "steam_account_id",
-  "lockpickbest", "automatonbest", "minigames_mmr", "minigames_games",
-  "minigames_calibrated", "minigames_calibration_games", "minigames_wins",
-  "sound.volume",
-  "direjumperbest", "direjumpergames",
-  "chatselectedmatch"
-];
-
-function collectLocalData() {
-  const data = {};
-  for (const key of SYNC_KEYS) {
-    const val = sessionStorage.getItem(STORE_PREFIX + key);
-    if (val === null || val === undefined || val === "null" || val === "undefined") continue;
-    try {
-      const parsed = JSON.parse(val);
-      if (parsed === null || parsed === undefined) continue;
-      data[encodeKey(key)] = parsed;
-    } catch (e) {
-      if (val !== "") data[encodeKey(key)] = val;
-    }
-  }
-  return data;
-}
-
-async function loadUserData(uid) {
-  console.log("📥 Загружаю данные из Firebase для " + uid);
-  const snap = await get(ref(db, "users/" + uid));
-  const data = snap.val();
-  if (data && typeof data === "object") {
-    let loaded = 0;
-    for (const key in data) {
-      if (!Object.prototype.hasOwnProperty.call(data, key)) continue;
-      const realKey = decodeKey(key);
-      const val = data[key];
-      if (val === null || val === undefined) continue;
-      let strVal;
-      try { strVal = JSON.stringify(val); } catch (e) { continue; }
-      try { sessionStorage.setItem(STORE_PREFIX + realKey, strVal); loaded++; } catch (e) {}
-    }
-    console.log("✅ Загружено: " + loaded + " ключей");
-  }
-}
-
-async function saveUserData(uid) {
-  try {
-    const data = collectLocalData();
-    const keys = Object.keys(data);
-    if (keys.length === 0) return;
-    await update(ref(db, "users/" + uid), data);
-  } catch (e) { console.warn("saveUserData:", e); }
-}
-
-function setupStoreSync(uid) {
-  if (storeSyncUid !== uid && window.Store && typeof window.Store.set === "function") {
-    const origSet = window.Store.__fbOriginalSet || window.Store.set.bind(window.Store);
-    window.Store.__fbOriginalSet = origSet;
-    storeSyncUid = uid;
-    window.Store.set = function (key, value) {
-      origSet(key, value);
-      if (value === null || value === undefined) {
-        remove(ref(db, "users/" + uid + "/" + encodeKey(key))).catch(() => {});
-        return;
-      }
-      const patch = {};
-      patch[encodeKey(key)] = value;
-      update(ref(db, "users/" + uid), patch).catch(() => {});
-    };
-    window.Store.__fbSync = true;
-  }
-}
-
-function startAutoSave(uid) {
-  if (autoSaveInterval) clearInterval(autoSaveInterval);
-  autoSaveInterval = setInterval(() => { if (currentUser) saveUserData(uid); }, 30000);
-}
-
-function stopAutoSave() {
-  if (autoSaveInterval) { clearInterval(autoSaveInterval); autoSaveInterval = null; }
-}
-
-window.addEventListener("beforeunload", function () {
-  if (currentUser) { try { saveUserData(currentUser.uid); } catch (e) {} }
-});
-
-document.addEventListener("visibilitychange", function () {
-  if (document.visibilityState === "hidden" && currentUser) {
-    try { saveUserData(currentUser.uid); } catch (e) {}
-  }
-});
-
 function translateAuthError(code) {
   const map = {
     "auth/invalid-email": "Некорректный email.",
@@ -714,12 +509,12 @@ window.refreshUserUI = function () {
 };
 
 onAuthStateChanged(auth, async function (user) {
+  const generation = ++authGeneration;
   console.log("🔐 onAuthStateChanged: " + (user ? user.uid : "null"));
   if (user) {
     currentUser = user;
     if (!user.emailVerified) {
-      stopAutoSave();
-      stopPollingAdminChanges();
+      if (window.CloudSync) await window.CloudSync.deactivate();
       showVerificationScreen(user.email);
       return;
     }
@@ -734,46 +529,54 @@ onAuthStateChanged(auth, async function (user) {
       }
     } catch (e) { console.warn("block check:", e); }
 
-    const loadedFlag = "dotaJetchLoadedUid_session";
-    const currentInSession = sessionStorage.getItem(loadedFlag);
-    if (currentInSession !== user.uid) {
-      wipeLocalUserData();
-      try { await loadUserData(user.uid); }
-      catch (loadError) {
-        console.error("❌ loadUserData:", loadError);
-        showAuthScreen();
-        setAuthError("Не удалось загрузить данные аккаунта. Проверь соединение и войди ещё раз.");
-        try { await signOut(auth); } catch (e) {}
-        return;
-      }
-      sessionStorage.setItem(loadedFlag, user.uid);
-      location.reload();
+    try {
+      await window.CloudSync.activate(user.uid);
+    } catch (syncError) {
+      console.error("❌ CloudSync:", syncError);
+      showAuthScreen();
+      setAuthError("Не удалось загрузить данные аккаунта. Проверь соединение и войди ещё раз.");
+      try { await signOut(auth); } catch (e) {}
       return;
     }
+    if (generation !== authGeneration) return;
 
     hideAuthScreen();
     if (window.AdminPanel && typeof window.AdminPanel.checkAdmin === "function") {
       const isAdmin = await window.AdminPanel.checkAdmin();
-      if (isAdmin && typeof buildNav === "function") buildNav();
+      if (generation === authGeneration && isAdmin && typeof buildNav === "function") buildNav();
     }
-    setupStoreSync(user.uid);
-    startAutoSave(user.uid);
-    startPollingAdminChanges(user.uid);   // ← вот здесь polling вместо onValue
+    if (generation !== authGeneration) return;
 
     window.refreshUserUI();
     syncPublicProfile();
+    if (typeof updateSidebarPlan === "function") { try { updateSidebarPlan(); } catch (e) {} }
 
     if (typeof window.checkMaintenance === "function") {
       setTimeout(function () { window.checkMaintenance(); }, 300);
     }
   } else {
     currentUser = null;
-    stopAutoSave();
-    stopPollingAdminChanges();
-    wipeLocalUserData();
-    sessionStorage.removeItem("dotaJetchLoadedUid_session");
+    if (window.CloudSync) await window.CloudSync.deactivate();
     showAuthScreen();
   }
+});
+
+window.addEventListener("jetch:blocked", async function () {
+  alert("🚫 Твой аккаунт заблокирован администратором.");
+  try { await signOut(auth); } catch (e) {}
+  showAuthScreen();
+});
+
+window.addEventListener("jetch:storechange", function (event) {
+  const key = event.detail && event.detail.key;
+  if (!key) return;
+  try {
+    if (key === "theme" && typeof applyTheme === "function") applyTheme(loadTheme());
+    if (key === "litemode" && typeof applyLiteMode === "function") applyLiteMode(isLiteMode());
+    if (key === "nickname" || key === "avatar" || key.indexOf("license.") === 0) {
+      if (typeof window.refreshUserUI === "function") window.refreshUserUI();
+    }
+  } catch (e) {}
 });
 
 document.addEventListener("DOMContentLoaded", function () {
