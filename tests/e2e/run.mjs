@@ -154,6 +154,8 @@ try {
   ` });
 
   await send("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false });
+  /* Явно просим анимации: иначе headless может отдать prefers-reduced-motion */
+  await send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "no-preference" }] });
   await send("Page.navigate", { url: BASE + "index.html" });
   await delay(2500);
 
@@ -206,9 +208,67 @@ try {
       document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }));
       await tick(60);
       document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
       await tick(60);
       test('палитра закрывается по Escape', document.querySelector('#paletteOverlay').hidden);
+
+      /* Тема должна переживать перезагрузку: сохранённое значение вне аккаунта
+         подхватывается до синхронизации, а после неё — переприменяется. */
+      applyTheme('ocean');
+      await tick(80);
+      test('тема запоминается вне аккаунта', localStorage.getItem('dota.theme.last') === 'ocean');
+      test('loadTheme отдаёт сохранённую тему', loadTheme() === 'ocean');
+      test('атрибут темы выставлен', document.documentElement.getAttribute('data-theme') === 'ocean');
+      applyThemeVars(loadTheme());
+      test('тема переприменяется без сброса', document.documentElement.getAttribute('data-theme') === 'ocean');
+      applyTheme('dark');
+      await tick(60);
+
+      switchPage('dashboard');
+      await tick(420);
+      test('появление блоков включается', document.querySelectorAll('#pageContent .reveal').length > 0);
+      test('блоки становятся видимыми', document.querySelectorAll('#pageContent .reveal.is-visible').length > 0);
+      /* Регрессия: у .card/.kpi свои transition, они перебивали transition
+         у .reveal — появление молча становилось мгновенным. */
+      test('появление реально анимируется', (function () {
+        var card = document.querySelector('#pageContent .card');
+        if (!card) return false;
+        var cs = getComputedStyle(card);
+        var kpi = document.querySelector('#pageContent .kpi');
+        var ks = kpi ? getComputedStyle(kpi) : null;
+        return cs.animationName === 'revealIn' && (!ks || ks.animationName === 'revealIn');
+      })());
+      test('hover-переходы карточки не сломаны', (function () {
+        var card = document.querySelector('#pageContent .card');
+        if (!card) return false;
+        return getComputedStyle(card).transitionDuration.indexOf('0.18s') >= 0;
+      })());
+
+      /* Регрессия: карточка мини-игр пересоздаётся после отрисовки, и появление
+         для неё не срабатывало — страница выглядела пустой. */
+      switchPage('games');
+      await tick(900);
+      test('мини-игры: ни один блок не остаётся скрытым', (function () {
+        var cards = [...document.querySelectorAll('#pageContent .reveal')];
+        return cards.length > 0 && cards.every(function (el) {
+          return getComputedStyle(el).opacity !== '0';
+        });
+      })());
+      test('мини-игры: карточка игры видна', (function () {
+        var card = document.querySelector('#pageContent .card');
+        return !!card && getComputedStyle(card).opacity === '1';
+      })());
+      test('мини-игры: содержимое отрисовано', (function () {
+        var text = document.querySelector('#pageContent').innerText || '';
+        return text.indexOf('ВЗЛОМ') >= 0 || text.length > 200;
+      })());
+      test('фон: сферы и пыль на месте',
+        document.querySelectorAll('.bg-fx .bg-orb').length === 3 &&
+        document.querySelectorAll('.bg-fx .bg-stars').length === 2 &&
+        !!document.querySelector('.bg-twinkle'));
+      test('фон движется сам',
+        getComputedStyle(document.querySelector('.bg-orb-1')).animationName === 'orbFloat1' &&
+        document.querySelectorAll('.bg-twinkle span').length > 0);
 
       return out;
     })()`),
