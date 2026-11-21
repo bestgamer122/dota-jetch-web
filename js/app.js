@@ -98,6 +98,72 @@ function motionEnabled() {
   return !prefersReducedMotion() && !document.body.classList.contains("lite-mode");
 }
 
+/* Плавное появление блоков: сразу при смене страницы и по мере прокрутки.
+   IntersectionObserver здесь ненадёжен — «Мини-игры» пересоздают карточку после
+   отрисовки, и наблюдатель для неё молча не срабатывает. Поэтому каждый проход
+   заново смотрит актуальный DOM: пересобранный блок тоже будет показан. */
+var revealSweepTimer = 0;
+
+function sweepReveals() {
+  var scope = document.getElementById("pageContent");
+  if (!scope) return;
+  var nodes = scope.querySelectorAll(".reveal:not(.is-visible)");
+  if (!nodes.length) return;
+  var scroller = qs(".page-scroll");
+  var viewTop = 0;
+  var viewBottom = window.innerHeight;
+  if (scroller) {
+    var box = scroller.getBoundingClientRect();
+    viewTop = box.top;
+    viewBottom = box.bottom;
+  }
+  for (var i = 0; i < nodes.length; i++) {
+    var rect = nodes[i].getBoundingClientRect();
+    if (!rect.height) continue;
+    if (rect.top < viewBottom && rect.bottom > viewTop) nodes[i].classList.add("is-visible");
+  }
+}
+
+function scheduleRevealSweep() {
+  if (revealSweepTimer) return;
+  revealSweepTimer = setTimeout(function () {
+    revealSweepTimer = 0;
+    sweepReveals();
+  }, 60);
+}
+
+function armReveals(container) {
+  if (!container || !motionEnabled()) return;
+  var nodes = container.querySelectorAll(".card, .kpi, .stat-card, .hero-banner, .dash-head, .section-head");
+  if (!nodes.length) return;
+  for (var i = 0; i < nodes.length; i++) {
+    var node = nodes[i];
+    if (node.classList.contains("reveal")) continue;
+    node.style.setProperty("--ri", String(Math.min(i, 10)));
+    node.classList.add("reveal");
+  }
+  scheduleRevealSweep();
+  /* Проходы с задержкой — на случай, когда блок пересобрали после отрисовки */
+  setTimeout(sweepReveals, 120);
+  setTimeout(sweepReveals, 450);
+  setTimeout(sweepReveals, 1000);
+}
+
+function initRevealOnScroll() {
+  var scroller = qs(".page-scroll");
+  if (scroller && !scroller.dataset.revealBound) {
+    scroller.dataset.revealBound = "1";
+    scroller.addEventListener("scroll", scheduleRevealSweep, { passive: true });
+  }
+  window.addEventListener("resize", scheduleRevealSweep, { passive: true });
+  /* Страницы вроде мини-игр меняют содержимое после отрисовки */
+  var host = document.getElementById("pageContent");
+  if (host && typeof MutationObserver !== "undefined" && !host.dataset.revealWatched) {
+    host.dataset.revealWatched = "1";
+    new MutationObserver(scheduleRevealSweep).observe(host, { childList: true, subtree: true });
+  }
+}
+
 /* Каскадное появление блоков страницы */
 function staggerChildren(container) {
   if (!container || !motionEnabled()) return;
@@ -133,19 +199,35 @@ function countUpValues(container) {
   });
 }
 
+/* Полосы прогресса заполняются от нуля */
+function animateBars(container) {
+  if (!container || !motionEnabled()) return;
+  var bars = container.querySelectorAll(".progress-fill");
+  Array.prototype.forEach.call(bars, function (bar) {
+    if (bar.dataset.animated === "1") return;
+    var target = bar.style.width;
+    if (!target) return;
+    bar.dataset.animated = "1";
+    bar.style.width = "0%";
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () { bar.style.width = target; });
+    });
+  });
+}
+
 /* Фон: мерцающие точки. Никакой реакции на курсор — только собственное движение. */
 function initBackground() {
   var layer = qs(".bg-fx");
   if (!layer || layer.dataset.twinkles) return;
   var host = layer.querySelector(".bg-twinkle");
   if (!host) return;
-  for (var i = 0; i < 18; i++) {
+  for (var i = 0; i < 26; i++) {
     var dot = document.createElement("span");
     dot.style.left = (Math.random() * 100).toFixed(2) + "%";
     dot.style.top = (Math.random() * 100).toFixed(2) + "%";
-    dot.style.setProperty("--sz", (1 + Math.random() * 2).toFixed(1) + "px");
-    dot.style.animationDelay = (-Math.random() * 9).toFixed(2) + "s";
-    dot.style.animationDuration = (5 + Math.random() * 5).toFixed(2) + "s";
+    dot.style.setProperty("--sz", (1.2 + Math.random() * 2.2).toFixed(1) + "px");
+    dot.style.animationDelay = (-Math.random() * 6).toFixed(2) + "s";
+    dot.style.animationDuration = (2.4 + Math.random() * 2.8).toFixed(2) + "s";
     host.appendChild(dot);
   }
   layer.dataset.twinkles = "1";
@@ -401,7 +483,9 @@ function switchPage(name) {
   void c.offsetWidth;
   staggerChildren(c);
   c.classList.add("page-enter");
+  armReveals(c);
   countUpValues(c);
+  animateBars(c);
   var s = qs(".page-scroll");
   if (s) s.scrollTop = 0;
   location.hash = name;
@@ -1008,6 +1092,7 @@ async function init() {
   initPalette();
   initMotion();
   initBackground();
+  initRevealOnScroll();
   bindProfileModal();
 
   var brand = qs(".brand");
@@ -1036,6 +1121,12 @@ async function init() {
    без полной перезагрузки приложения. */
 window.addEventListener("jetch:syncready", function () {
   if (!appInitialized) return;
+  /* Данные аккаунта пришли после старта: переприменяем то, что
+     зависит от сохранённых настроек (иначе тема откатывается на дефолт). */
+  try { if (typeof applyThemeVars === "function") applyThemeVars(loadTheme()); } catch (e) {}
+  try {
+    if (typeof applyLiteModeVisual === "function") applyLiteModeVisual(Store.get("litemode", false) === true);
+  } catch (e) {}
   if (typeof updateSidebarPlan === "function") { try { updateSidebarPlan(); } catch (e) {} }
   if (PAGES[currentPage]) {
     try { switchPage(currentPage); } catch (e) { console.warn("syncready rerender:", e); }

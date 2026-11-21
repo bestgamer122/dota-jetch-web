@@ -119,58 +119,67 @@ html, body {
   left: -10%; top: -12%;
   background: radial-gradient(circle, color-mix(in srgb, var(--accent) 80%, transparent), transparent 70%);
   opacity: 0.5;
-  animation: orbFloat1 26s ease-in-out infinite alternate;
+  animation: orbFloat1 18s ease-in-out infinite;
 }
 .bg-orb-2 {
   width: 420px; height: 420px;
   right: -8%; top: 12%;
   background: radial-gradient(circle, color-mix(in srgb, var(--cyan) 70%, transparent), transparent 70%);
   opacity: 0.28;
-  animation: orbFloat2 32s ease-in-out infinite alternate;
+  animation: orbFloat2 23s ease-in-out infinite;
 }
 .bg-orb-3 {
   width: 460px; height: 460px;
   left: 36%; bottom: -16%;
   background: radial-gradient(circle, color-mix(in srgb, var(--accent) 70%, transparent), transparent 70%);
   opacity: 0.3;
-  animation: orbFloat3 29s ease-in-out infinite alternate;
+  animation: orbFloat3 17s ease-in-out infinite;
 }
 @keyframes orbFloat1 {
-  from { transform: translate3d(0, 0, 0) scale(1); }
-  to { transform: translate3d(90px, 60px, 0) scale(1.14); }
+  0%   { transform: translate3d(-50px, 40px, 0) scale(1); opacity: 0.42; }
+  50%  { transform: translate3d(210px, -110px, 0) scale(1.24); opacity: 0.66; }
+  100% { transform: translate3d(-50px, 40px, 0) scale(1); opacity: 0.42; }
 }
 @keyframes orbFloat2 {
-  from { transform: translate3d(0, 0, 0) scale(1.05); }
-  to { transform: translate3d(-80px, 70px, 0) scale(0.94); }
+  0%   { transform: translate3d(0, 0, 0) scale(1.08); opacity: 0.24; }
+  50%  { transform: translate3d(-190px, 140px, 0) scale(0.88); opacity: 0.44; }
+  100% { transform: translate3d(0, 0, 0) scale(1.08); opacity: 0.24; }
 }
 @keyframes orbFloat3 {
-  from { transform: translate3d(0, 0, 0) scale(0.98); }
-  to { transform: translate3d(60px, -80px, 0) scale(1.12); }
+  0%   { transform: translate3d(0, 0, 0) scale(0.94); opacity: 0.26; }
+  50%  { transform: translate3d(150px, -190px, 0) scale(1.2); opacity: 0.46; }
+  100% { transform: translate3d(0, 0, 0) scale(0.94); opacity: 0.26; }
 }
 
 /* «Пыль»: два слоя точек ползут с разной скоростью */
 .bg-stars {
   position: absolute;
   inset: -60%;
-  background-image:
-    radial-gradient(rgba(255, 255, 255, 0.55) 1px, transparent 1.2px),
-    radial-gradient(color-mix(in srgb, var(--accent-light) 70%, transparent) 1px, transparent 1.4px);
-  background-size: 140px 140px, 220px 220px;
-  background-position: 0 0, 70px 40px;
-  opacity: 0.13;
+  opacity: 0.16;
   mask-image: radial-gradient(75% 70% at 50% 45%, #000 18%, transparent 88%);
   -webkit-mask-image: radial-gradient(75% 70% at 50% 45%, #000 18%, transparent 88%);
   will-change: transform;
 }
-.bg-stars-1 { animation: starsDrift 120s linear infinite; }
-.bg-stars-2 {
-  opacity: 0.1;
-  background-size: 260px 260px, 180px 180px;
-  animation: starsDrift 78s linear infinite reverse;
+.bg-stars-1 {
+  background-image: radial-gradient(rgba(255, 255, 255, 0.6) 1px, transparent 1.2px);
+  background-size: 140px 140px;
+  animation: starsDrift 34s linear infinite;
 }
+.bg-stars-2 {
+  opacity: 0.11;
+  background-image: radial-gradient(color-mix(in srgb, var(--accent-light) 75%, transparent) 1.5px, transparent 1.8px);
+  background-size: 260px 260px;
+  animation: starsDrift 56s linear infinite reverse;
+}
+/* Смещение кратно размеру плитки, поэтому цикл бесшовный */
 @keyframes starsDrift {
   from { transform: translate3d(0, 0, 0); }
-  to { transform: translate3d(-140px, -140px, 0); }
+  to { transform: translate3d(-560px, -560px, 0); }
+}
+.bg-stars-2 { animation-name: starsDriftWide; }
+@keyframes starsDriftWide {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(520px, 520px, 0); }
 }
 @media (prefers-reduced-motion: reduce) {
   .bg-orb, .bg-stars, .bg-twinkle span { animation: none; }
@@ -190,7 +199,7 @@ body::before {
     radial-gradient(46% 34% at 72% 94%, color-mix(in srgb, var(--accent) 18%, transparent), transparent 66%),
     radial-gradient(28% 24% at 6% 92%, color-mix(in srgb, var(--green) 12%, transparent), transparent 62%);
   filter: blur(80px) saturate(1.2);
-  animation: auroraDrift 26s ease-in-out infinite alternate;
+  animation: auroraDrift 22s ease-in-out infinite alternate;
 }
 body::after {
   content: '';
@@ -207,8 +216,8 @@ body::after {
   -webkit-mask-image: radial-gradient(120% 80% at 50% 0%, #000 8%, transparent 70%);
 }
 @keyframes auroraDrift {
-  0% { transform: translate3d(0, 0, 0) scale(1); }
-  100% { transform: translate3d(2%, -1.5%, 0) scale(1.05); }
+  0% { transform: translate3d(-2%, 1%, 0) scale(1); }
+  100% { transform: translate3d(4%, -3%, 0) scale(1.08); }
 }
 body.lite-mode::before,
 body.lite-mode::after { display: none; }
@@ -851,11 +860,28 @@ body.lite-mode::after { display: none; }
   margin: 0 auto;
   padding: var(--sp-6) var(--sp-7) var(--sp-8);
 }
-.page-content.page-enter > * {
-  animation: pageIn 0.34s var(--ease) both;
-  animation-delay: calc(var(--i, 0) * 42ms);
+/* Появление блоков: при смене страницы и при прокрутке.
+   Именно animation, а не transition: у .card и .kpi свои transition,
+   объявленные ниже, — они бы перезаписали наше появление и оно бы исчезло.
+   Свойство translate используем отдельно, чтобы не спорить с hover-трансформами. */
+.reveal {
+  opacity: 0;
+  translate: 0 22px;
 }
-@keyframes pageIn { from { opacity: 0; transform: translateY(8px) scale(0.995); } to { opacity: 1; transform: none; } }
+.reveal.is-visible {
+  animation: revealIn 0.52s var(--ease) both;
+  animation-delay: calc(var(--ri, 0) * 55ms);
+}
+@keyframes revealIn {
+  from { opacity: 0; translate: 0 22px; }
+  to { opacity: 1; translate: 0 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .reveal { opacity: 1; translate: 0 0; }
+  .reveal.is-visible { animation: none; }
+}
+body.lite-mode .reveal { opacity: 1; translate: 0 0; }
+body.lite-mode .reveal.is-visible { animation: none; }
 
 /* ─────────────────────────────────────────────
    БАЗОВЫЕ КОМПОНЕНТЫ
@@ -1520,6 +1546,7 @@ select, textarea { font-family: inherit; }
   position: relative;
   padding: var(--sp-3) var(--sp-4);
   background:
+    radial-gradient(130% 90% at 0% 0%, color-mix(in srgb, var(--accent) 13%, transparent), transparent 62%),
     linear-gradient(180deg, color-mix(in srgb, var(--text) 6%, var(--bg-card)) 0%, var(--bg-card) 60%),
     var(--bg-card);
   border: 1px solid var(--border);
@@ -1549,6 +1576,10 @@ select, textarea { font-family: inherit; }
   letter-spacing: -0.02em;
   color: var(--text);
   font-variant-numeric: tabular-nums;
+  background: linear-gradient(175deg, var(--text) 28%, color-mix(in srgb, var(--accent-light) 72%, var(--text)) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 .kpi-sub { margin-top: 2px; font-size: var(--text-xs); color: var(--text-dim); }
 
@@ -1903,6 +1934,7 @@ body.lite-mode .btn:hover { transform: none; }
 .progress-fill, .plan-bar-fill {
   position: relative;
   overflow: hidden;
+  transition: width 0.85s var(--ease);
 }
 .progress-fill::after, .plan-bar-fill::after {
   content: '';

@@ -164,6 +164,9 @@ function applyThemeVars(name) {
   document.body.style.background = t.vars["--bg"];
   document.body.style.color = t.vars["--text"];
   document.documentElement.setAttribute("data-theme", key);
+  /* Запоминаем последнюю тему отдельно от аккаунта: до загрузки облака
+     мы ещё не знаем UID, а показать правильную тему уже нужно. */
+  try { localStorage.setItem("dota.theme.last", key); } catch (e) {}
   return key;
 }
 
@@ -175,4 +178,12 @@ function applyTheme(name) {
   return key;
 }
 
-function loadTheme() { return Store.get("theme", "dark"); }
+function loadTheme() {
+  var stored = Store.get("theme", null);
+  if (stored && THEMES[stored]) return stored;
+  try {
+    var last = localStorage.getItem("dota.theme.last");
+    if (last && THEMES[last]) return last;
+  } catch (e) {}
+  return "dark";
+}
