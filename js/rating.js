@@ -654,32 +654,35 @@ window.renderRatingWidget = function () {
   var data = window.getRatingData();
   var calibrated = data.calibrated;
   var medal = getMedalForMMR(data.mmr);
-  var card = UI.card("🏆 Рейтинг мини-игр");
-  var main = el("div", { style: "display:flex;align-items:center;gap:20px;margin-bottom:16px;flex-wrap:wrap;" });
-  var medalBox = el("div", { style: "text-align:center;flex-shrink:0;" });
-  if (calibrated) medalBox.appendChild(buildMedalSVG(medal.medal.rankIdx, 140));
-  else medalBox.appendChild(buildQuestionMedalSVG(140));
+  var card = UI.card("Рейтинг мини-игр");
+
+  var main = el("div", { class: "rank-row" });
+  var medalBox = el("div", { class: "rank-medal" });
+  if (calibrated) medalBox.appendChild(buildMedalSVG(medal.medal.rankIdx, 92, false));
+  else medalBox.appendChild(buildQuestionMedalSVG(92));
   main.appendChild(medalBox);
-  var info = el("div", { style: "flex:1;min-width:180px;" });
+
+  var info = el("div", { class: "rank-info" });
   if (calibrated) {
-    var rankName = el("div", { style: "font-size:24px;font-weight:900;color:" + medal.medal.a + ";" });
-    rankName.textContent = medal.medal.ru;
-    info.appendChild(rankName);
-    var starsRow = el("div", { style: "display:flex;gap:3px;margin-top:6px;" });
+    info.appendChild(el("div", { class: "rank-name", style: "color:" + medal.medal.a + ";" }, medal.medal.ru));
+    var starsRow = el("div", { class: "rank-stars" });
     for (var s = 0; s < 5; s++) {
-      var star = el("span", { style: "font-size:12px;color:" + (s < medal.stars ? medal.medal.a : "var(--border)") + ";" }, "★");
-      starsRow.appendChild(star);
+      starsRow.appendChild(el("span", {
+        class: "rank-star" + (s < medal.stars ? " on" : ""),
+        style: "color:" + (s < medal.stars ? medal.medal.a : "var(--border-hl)") + ";"
+      }, "★"));
     }
     info.appendChild(starsRow);
-    info.appendChild(el("div", { style: "font-size:12px;color:var(--text-muted);margin-top:6px;font-family:'JetBrains Mono',monospace;" }, data.mmr + " MMR"));
+    info.appendChild(el("div", { class: "rank-mmr" }, data.mmr.toLocaleString() + " MMR"));
+    info.appendChild(el("div", { class: "rank-meta" }, "Игр: " + data.gamesPlayed + " · Побед: " + data.wins));
   } else {
-    var calName = el("div", { style: "font-size:22px;font-weight:900;color:var(--text);" });
-    calName.textContent = "Калибровка";
-    info.appendChild(calName);
-    info.appendChild(el("div", { style: "font-size:12px;color:var(--text-muted);margin-top:6px;" }, "Сыграно: " + data.calibrationGames + " / " + CALIBRATION_GAMES));
-    info.appendChild(el("div", { style: "font-size:11px;color:var(--text-dim);margin-top:6px;line-height:1.5;" }, "Пока неизвестно. Ранг откроется после 10 игр."));
+    info.appendChild(el("div", { class: "rank-name" }, "Калибровка"));
+    info.appendChild(el("div", { class: "rank-meta" }, "Сыграно " + data.calibrationGames + " из " + CALIBRATION_GAMES));
+    info.appendChild(el("div", { class: "rank-hint" }, "Ранг откроется после 10 игр."));
   }
-  info.appendChild(el("div", { style: "font-size:11px;color:var(--text-dim);margin-top:8px;" }, "Игр: " + data.gamesPlayed + " · Побед: " + data.wins));
+  main.appendChild(info);
+  card.appendChild(main);
+
   if (calibrated) {
     var nextStarMMR = null;
     for (var i = 0; i < RATING_TABLE.length; i++) {
@@ -692,47 +695,43 @@ window.renderRatingWidget = function () {
     if (nextStarMMR) {
       var currBase = medal.medal.stars[medal.stars - 1] || 0;
       var pct = Math.max(0, Math.min(100, ((data.mmr - currBase) / (nextStarMMR - currBase)) * 100));
-      var barWrap = el("div", { style: "margin-top:10px;" });
-      barWrap.appendChild(el("div", { class: "dim", style: "font-size:10px;margin-bottom:4px;" }, "До следующей звезды: " + (nextStarMMR - data.mmr) + " MMR"));
-      var bar = el("div", { style: "height:6px;background:var(--bg-elev);border-radius:3px;overflow:hidden;" });
-      var fill = el("div", { style: "height:100%;width:" + pct + "%;background:linear-gradient(90deg," + medal.medal.a + ",var(--cyan));border-radius:3px;transition:width 0.6s ease;" });
+      var bar = el("div", { class: "progress-line" });
+      var fill = el("div", { class: "progress-fill" });
+      fill.style.width = pct + "%";
+      fill.style.background = medal.medal.a;
       bar.appendChild(fill);
-      barWrap.appendChild(bar);
-      info.appendChild(barWrap);
+      card.appendChild(bar);
+      card.appendChild(el("div", { class: "progress-caption" }, "До следующей звезды: " + (nextStarMMR - data.mmr) + " MMR"));
     }
-  }
-  if (!calibrated) {
-    var calWrap = el("div", { style: "margin-top:12px;" });
-    var calBar = el("div", { style: "height:6px;background:var(--bg-elev);border-radius:3px;overflow:hidden;" });
-    var calFill = el("div", { style: "height:100%;width:" + ((data.calibrationGames / CALIBRATION_GAMES) * 100) + "%;background:linear-gradient(90deg,var(--accent),var(--cyan));border-radius:3px;" });
+  } else {
+    var calBar = el("div", { class: "progress-line" });
+    var calFill = el("div", { class: "progress-fill" });
+    calFill.style.width = ((data.calibrationGames / CALIBRATION_GAMES) * 100) + "%";
     calBar.appendChild(calFill);
-    calWrap.appendChild(calBar);
-    info.appendChild(calWrap);
+    card.appendChild(calBar);
   }
-  main.appendChild(info);
-  card.appendChild(main);
-  var btnRow = el("div", { style: "display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;" });
-  var allRanksBtn = UI.btn("📊 Все ранги", { variant: "ghost" });
-  allRanksBtn.style.flex = "1";
-  allRanksBtn.addEventListener("click", function () { showAllRanksDialog(); });
-  btnRow.appendChild(allRanksBtn);
-  card.appendChild(btnRow);
-  var scores = el("div", { style: "display:grid;grid-template-columns:repeat(3,1fr);gap:8px;" });
+
+  var scores = el("div", { class: "rank-scores" });
   var scoreDefs = [
-    { icon: "🔓", name: "Взлом", val: data.bestScores.lockpick, color: "var(--gold)" },
-    { icon: "⌨️", name: "Автоматоны", val: data.bestScores.automaton, color: "var(--cyan)" },
-    { icon: "🎪", name: "Дири-Джампер", val: data.bestScores.direjumper, color: "var(--accent-light)" }
+    { name: "Взлом", val: data.bestScores.lockpick, color: "var(--gold)" },
+    { name: "Автоматоны", val: data.bestScores.automaton, color: "var(--cyan)" },
+    { name: "Джампер", val: data.bestScores.direjumper, color: "var(--accent-light)" }
   ];
   for (var sd = 0; sd < scoreDefs.length; sd++) {
-    var sb = el("div", { style: "text-align:center;padding:10px 6px;background:var(--bg-elev);border:1px solid var(--border);border-radius:10px;" });
-    sb.appendChild(el("div", { style: "font-size:18px;" }, scoreDefs[sd].icon));
-    sb.appendChild(el("div", { style: "font-size:11px;font-weight:700;color:" + scoreDefs[sd].color + ";font-family:'JetBrains Mono',monospace;margin-top:4px;" }, scoreDefs[sd].val ? scoreDefs[sd].val.toLocaleString() : "—"));
-    sb.appendChild(el("div", { class: "dim", style: "font-size:9px;text-transform:uppercase;margin-top:2px;" }, scoreDefs[sd].name));
+    var sb = el("div", { class: "rank-score" });
+    sb.appendChild(el("div", { class: "rank-score-value", style: "color:" + scoreDefs[sd].color + ";" },
+      scoreDefs[sd].val ? Number(scoreDefs[sd].val).toLocaleString() : "—"));
+    sb.appendChild(el("div", { class: "rank-score-label" }, scoreDefs[sd].name));
     scores.appendChild(sb);
   }
   card.appendChild(scores);
-  var note = el("div", { class: "dim", style: "font-size:10px;margin-top:12px;text-align:center;line-height:1.5;" }, "Викторина не влияет на рейтинг.");
-  card.appendChild(note);
+
+  var foot = el("div", { class: "card-foot", style: "justify-content:space-between;align-items:center;" });
+  var allRanksBtn = el("button", { class: "link-btn", type: "button" }, "Все ранги");
+  allRanksBtn.addEventListener("click", function () { showAllRanksDialog(); });
+  foot.appendChild(allRanksBtn);
+  foot.appendChild(el("span", { class: "progress-caption", style: "margin:0;" }, "Викторина не влияет на рейтинг"));
+  card.appendChild(foot);
   return card;
 };
 

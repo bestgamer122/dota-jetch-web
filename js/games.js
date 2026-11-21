@@ -148,7 +148,6 @@ function isGameEnabled(gameId) {
 
 function renderGames() {
   var frag = document.createDocumentFragment();
-  frag.appendChild(UI.heroBanner("Мини-игры", "Выбери игру и покажи лучший результат", []));
 
   var anyEnabled = false;
   var gamesList = ["lockpick", "automaton", "direjumper", "quiz"];
@@ -168,10 +167,10 @@ function renderGames() {
 
   var tabs = el("div", { class: "row", style: "margin-bottom:16px;gap:8px;flex-wrap:wrap;" });
   var tabDefs = [
-    { id: "lockpick", label: "🔓 Взлом замка" },
-    { id: "automaton", label: "⌨️ Атака автоматонов" },
-    { id: "direjumper", label: "🎪 Дири-Джампер" },
-    { id: "quiz", label: "🧠 Викторина" }
+    { id: "lockpick", label: "Взлом замка" },
+    { id: "automaton", label: "Атака автоматонов" },
+    { id: "direjumper", label: "Дири-Джампер" },
+    { id: "quiz", label: "Викторина" }
   ];
   for (var t = 0; t < tabDefs.length; t++) {
     (function (tab) {
@@ -199,10 +198,6 @@ function renderGames() {
     })(tabDefs[t]);
   }
   frag.appendChild(tabs);
-
-  if (typeof window.renderRatingWidget === "function") {
-    try { frag.appendChild(window.renderRatingWidget()); } catch (e) {}
-  }
 
   var stats = el("div", { class: "stat-grid" });
   var lpBest = Store.get("lockpickbest", 0) || 0;

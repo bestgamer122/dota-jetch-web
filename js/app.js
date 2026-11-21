@@ -17,21 +17,47 @@ var PAGES = {
   about:        { title: "О сайте",           render: renderAbout }
 };
 
-var NAV = [
-  { page: "dashboard",    label: "Главная",           icon: "M3 11l9-8 9 8v9a2 2 0 0 1-2 2h-4v-7h-6v7H5a2 2 0 0 1-2-2z" },
-  { page: "profile",      label: "Мой профиль",       icon: "M12 2a10 10 0 1 0 0 20a10 10 0 1 0 0-20zm0 3a3 3 0 1 1 0 6a3 3 0 1 0 0-6zm0 14.2a7.2 7.2 0 0 1-4.8-2.2c1.4-1.8 3.2-2.8 4.8-2.8s3.4 1 4.8 2.8a7.2 7.2 0 0 1-4.8 2.2z" },
-  { page: "analyze",      label: "Анализ матча",      icon: "M5 3l14 9-14 9z" },
-  { page: "history",      label: "История",           icon: "M3 6h18M3 12h18M3 18h18" },
-  { page: "charts",       label: "Прогресс",          icon: "M21 12a9 9 0 1 1-9-9M21 3v9h-9" },
-  { page: "diary",        label: "Дневник",           icon: "M4 4h12l4 4v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z" },
-  { page: "games",        label: "Мини-игры",         icon: "M3 7h18v12H3z" },
-  { page: "leaderboard",  label: "Лидерборд",         icon: "M19 5h-2V3H7v2H5c-1.1 0-2 .9-2 2v1c0 2.55 1.92 4.63 4.39 4.94.63 1.5 1.98 2.63 3.61 2.96V19H7v2h10v-2h-4v-3.1c1.63-.33 2.98-1.46 3.61-2.96C19.08 12.63 21 10.55 21 8V7c0-1.1-.9-2-2-2zM5 8V7h2v3.82C5.84 10.4 5 9.3 5 8zm14 0c0 1.3-.84 2.4-2 2.82V7h2v1z" },
-  { page: "achievements", label: "Достижения",        icon: "M12 9m-6 0a6 6 0 1 0 12 0a6 6 0 1 0 -12 0" },
-  { page: "settings",     label: "Настройки",         icon: "M12 12m-3 0a3 3 0 1 0 6 0a3 3 0 1 0 -6 0" },
-  { page: "about",        label: "О сайте",           icon: "M12 12m-10 0a10 10 0 1 0 20 0a10 10 0 1 0 -20 0" }
+var ICONS = {
+  dashboard: "M3 11l9-8 9 8v9a2 2 0 0 1-2 2h-4v-7h-6v7H5a2 2 0 0 1-2-2z",
+  profile: "M12 2a10 10 0 1 0 0 20a10 10 0 1 0 0-20zm0 3a3 3 0 1 1 0 6a3 3 0 1 0 0-6zm0 14.2a7.2 7.2 0 0 1-4.8-2.2c1.4-1.8 3.2-2.8 4.8-2.8s3.4 1 4.8 2.8a7.2 7.2 0 0 1-4.8 2.2z",
+  analyze: "M5 3l14 9-14 9z",
+  history: "M3 6h18M3 12h18M3 18h18",
+  charts: "M21 12a9 9 0 1 1-9-9M21 3v9h-9",
+  diary: "M4 4h12l4 4v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z",
+  games: "M3 7h18v12H3z",
+  leaderboard: "M19 5h-2V3H7v2H5c-1.1 0-2 .9-2 2v1c0 2.55 1.92 4.63 4.39 4.94.63 1.5 1.98 2.63 3.61 2.96V19H7v2h10v-2h-4v-3.1c1.63-.33 2.98-1.46 3.61-2.96C19.08 12.63 21 10.55 21 8V7c0-1.1-.9-2-2-2zM5 8V7h2v3.82C5.84 10.4 5 9.3 5 8zm14 0c0 1.3-.84 2.4-2 2.82V7h2v1z",
+  achievements: "M8 21h8M12 17v4M7 4h10v4a5 5 0 0 1-10 0zM7 6H4v2a3 3 0 0 0 3 3M17 6h3v2a3 3 0 0 1-3 3",
+  settings: "M4 21v-6M4 11V3M12 21v-9M12 8V3M20 21v-4M20 13V3M1 15h6M9 8h6M17 17h6",
+  about: "M12 2a10 10 0 1 0 0 20a10 10 0 1 0 0-20zM12 11v6M12 7.6v.6",
+  action: "M13 2 L4 14h6l-1 8 9-12h-6z",
+  admin: "M12 2 L4 6v6c0 5 3.5 9.5 8 11 4.5-1.5 8-6 8-11V6l-8-4z"
+};
+
+var NAV_GROUPS = [
+  { label: "Обзор", items: [
+    { page: "dashboard", label: "Главная" },
+    { page: "profile", label: "Мой профиль" }
+  ]},
+  { label: "Данные", items: [
+    { page: "analyze", label: "Анализ матча" },
+    { page: "history", label: "История" },
+    { page: "charts", label: "Прогресс" },
+    { page: "diary", label: "Дневник" }
+  ]},
+  { label: "Игра", items: [
+    { page: "games", label: "Мини-игры" },
+    { page: "leaderboard", label: "Лидерборд" },
+    { page: "achievements", label: "Достижения" }
+  ]},
+  { label: "Система", items: [
+    { page: "settings", label: "Настройки" },
+    { page: "about", label: "О сайте" }
+  ]}
 ];
 
-var ADMIN_NAV_ITEM = { page: "admin", label: "Админ-панель", icon: "M12 2 L4 6v6c0 5 3.5 9.5 8 11 4.5-1.5 8-6 8-11V6l-8-4z" };
+function navIconMarkup(path) {
+  return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="' + path + '"/></svg>';
+}
 
 var currentPage = "dashboard";
 var notificationUnsubscribe = null;
@@ -63,27 +89,275 @@ function initSyncIndicator() {
   });
 }
 
+/* ─── Микро-анимации ────────────────────────────────────────── */
+function prefersReducedMotion() {
+  try { return window.matchMedia("(prefers-reduced-motion: reduce)").matches; } catch (e) { return false; }
+}
+
+function motionEnabled() {
+  return !prefersReducedMotion() && !document.body.classList.contains("lite-mode");
+}
+
+/* Каскадное появление блоков страницы */
+function staggerChildren(container) {
+  if (!container || !motionEnabled()) return;
+  var children = container.children;
+  for (var i = 0; i < children.length; i++) {
+    children[i].style.setProperty("--i", String(Math.min(i, 12)));
+  }
+}
+
+/* Счётчики: числа «набегают» от нуля */
+function countUpValues(container) {
+  if (!container || !motionEnabled()) return;
+  var nodes = container.querySelectorAll(".kpi-value, .quota-value");
+  Array.prototype.forEach.call(nodes, function (node) {
+    if (node.dataset.counted === "1") return;
+    var raw = (node.textContent || "").trim();
+    if (!/^\d{1,6}$/.test(raw)) return;
+    var target = parseInt(raw, 10);
+    if (!target) return;
+    node.dataset.counted = "1";
+    var start = 0;
+    var duration = 620;
+    node.textContent = "0";
+    function frame(now) {
+      if (!start) start = now;
+      var t = Math.min(1, (now - start) / duration);
+      var eased = 1 - Math.pow(1 - t, 3);
+      node.textContent = String(Math.round(target * eased));
+      if (t < 1) requestAnimationFrame(frame);
+      else node.textContent = raw;
+    }
+    requestAnimationFrame(frame);
+  });
+}
+
+/* Фон: мерцающие точки. Никакой реакции на курсор — только собственное движение. */
+function initBackground() {
+  var layer = qs(".bg-fx");
+  if (!layer || layer.dataset.twinkles) return;
+  var host = layer.querySelector(".bg-twinkle");
+  if (!host) return;
+  for (var i = 0; i < 18; i++) {
+    var dot = document.createElement("span");
+    dot.style.left = (Math.random() * 100).toFixed(2) + "%";
+    dot.style.top = (Math.random() * 100).toFixed(2) + "%";
+    dot.style.setProperty("--sz", (1 + Math.random() * 2).toFixed(1) + "px");
+    dot.style.animationDelay = (-Math.random() * 9).toFixed(2) + "s";
+    dot.style.animationDuration = (5 + Math.random() * 5).toFixed(2) + "s";
+    host.appendChild(dot);
+  }
+  layer.dataset.twinkles = "1";
+}
+
+/* Подсветка карточки за курсором + ripple на кнопках */
+function initMotion() {
+  document.addEventListener("pointermove", function (event) {
+    if (!motionEnabled()) return;
+    var target = event.target;
+    var card = target && target.closest
+      ? target.closest(".card, .kpi, .stat-card, .hero-banner")
+      : null;
+    if (!card) return;
+    var rect = card.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    card.style.setProperty("--mx", (((event.clientX - rect.left) / rect.width) * 100).toFixed(1) + "%");
+    card.style.setProperty("--my", (((event.clientY - rect.top) / rect.height) * 100).toFixed(1) + "%");
+  }, { passive: true });
+
+  document.addEventListener("pointerdown", function (event) {
+    if (!motionEnabled()) return;
+    var btn = event.target && event.target.closest ? event.target.closest(".btn") : null;
+    if (!btn || btn.disabled) return;
+    var rect = btn.getBoundingClientRect();
+    var size = Math.max(rect.width, rect.height);
+    var ripple = document.createElement("span");
+    ripple.className = "btn-ripple";
+    ripple.style.width = size + "px";
+    ripple.style.height = size + "px";
+    ripple.style.left = (event.clientX - rect.left - size / 2) + "px";
+    ripple.style.top = (event.clientY - rect.top - size / 2) + "px";
+    btn.appendChild(ripple);
+    setTimeout(function () {
+      if (ripple.parentNode) ripple.parentNode.removeChild(ripple);
+    }, 620);
+  }, { passive: true });
+}
+
 function buildNav() {
   var nav = qs("#sidebarNav");
   if (!nav) return;
   nav.innerHTML = "";
-  var list = NAV.slice();
   var isAdmin = window.AdminPanel && window.AdminPanel.isAdmin === true;
-  console.log("[NAV] buildNav: isAdmin =", isAdmin);
-  if (isAdmin) {
-    list.push(ADMIN_NAV_ITEM);
-  }
-  for (var i = 0; i < list.length; i++) {
-    (function (item) {
-      var btn = el("button", { class: "nav-btn" + (item.page === currentPage ? " active" : ""), "data-page": item.page });
-      var ico = el("span", { class: "nav-ico" });
-      ico.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="' + item.icon + '"/></svg>';
+
+  NAV_GROUPS.forEach(function (group) {
+    var items = group.items.slice();
+    if (group.label === "Система" && isAdmin) {
+      items.push({ page: "admin", label: "Админ-панель" });
+    }
+    var wrap = el("div", { class: "nav-group", role: "group", "aria-label": group.label });
+    wrap.appendChild(el("div", { class: "nav-group-label" }, group.label));
+    items.forEach(function (item) {
+      var btn = el("button", {
+        class: "nav-btn" + (item.page === currentPage ? " active" : ""),
+        "data-page": item.page,
+        type: "button",
+        title: item.label,
+        "aria-current": item.page === currentPage ? "page" : null
+      });
+      var ico = el("span", { class: "nav-ico", "aria-hidden": "true" });
+      ico.innerHTML = navIconMarkup(ICONS[item.page] || ICONS.about);
       btn.appendChild(ico);
-      btn.appendChild(document.createTextNode(item.label));
+      btn.appendChild(el("span", { class: "nav-label" }, item.label));
       btn.addEventListener("click", function () { switchPage(item.page); });
-      nav.appendChild(btn);
-    })(list[i]);
+      wrap.appendChild(btn);
+    });
+    nav.appendChild(wrap);
+  });
+}
+
+/* ─── Командная палитра ─────────────────────────────────────── */
+var paletteState = { open: false, index: 0, items: [] };
+
+function paletteCommands() {
+  var cmds = [];
+  NAV_GROUPS.forEach(function (group) {
+    group.items.forEach(function (item) {
+      cmds.push({ label: item.label, hint: group.label, page: item.page });
+    });
+  });
+  if (window.AdminPanel && window.AdminPanel.isAdmin) {
+    cmds.push({ label: "Админ-панель", hint: "Система", page: "admin" });
   }
+  cmds.push({
+    label: "Сменить тему",
+    hint: "Оформление",
+    run: function () {
+      var names = Object.keys(THEMES);
+      var next = names[(names.indexOf(loadTheme()) + 1) % names.length];
+      applyTheme(next);
+      if (typeof showDialog === "function") showDialog("Тема", THEMES[next].label, "success");
+    }
+  });
+  cmds.push({
+    label: Store.get("litemode", false) === true ? "Выключить Lite-режим" : "Включить Lite-режим",
+    hint: "Производительность",
+    run: function () { applyLiteMode(!isLiteMode()); }
+  });
+  cmds.push({ label: "Открыть профиль", hint: "Аккаунт", run: function () { window.openProfileModal(); } });
+  return cmds;
+}
+
+function renderPalette(query) {
+  var list = qs("#paletteList");
+  if (!list) return;
+  var q = String(query || "").trim().toLowerCase();
+  var items = paletteCommands().filter(function (item) {
+    if (!q) return true;
+    return item.label.toLowerCase().indexOf(q) >= 0 || item.hint.toLowerCase().indexOf(q) >= 0;
+  });
+  paletteState.items = items;
+  paletteState.index = Math.min(paletteState.index, Math.max(0, items.length - 1));
+  list.innerHTML = "";
+
+  if (!items.length) {
+    list.appendChild(el("div", { class: "palette-empty" }, "Ничего не найдено"));
+    return;
+  }
+
+  items.forEach(function (item, i) {
+    var row = el("button", {
+      type: "button",
+      class: "palette-item",
+      role: "option",
+      "aria-selected": i === paletteState.index ? "true" : "false"
+    });
+    var ico = el("span", { class: "nav-ico", "aria-hidden": "true" });
+    ico.innerHTML = navIconMarkup(ICONS[item.page] || ICONS.action);
+    row.appendChild(ico);
+    row.appendChild(el("span", { class: "palette-item-label" }, item.label));
+    row.appendChild(el("span", { class: "palette-item-hint" }, item.hint));
+    row.addEventListener("mouseenter", function () {
+      paletteState.index = i;
+      updatePaletteSelection();
+    });
+    row.addEventListener("click", function () { runPaletteItem(item); });
+    list.appendChild(row);
+  });
+}
+
+function updatePaletteSelection() {
+  var rows = qsa("#paletteList .palette-item");
+  rows.forEach(function (row, i) {
+    row.setAttribute("aria-selected", i === paletteState.index ? "true" : "false");
+    if (i === paletteState.index && row.scrollIntoView) {
+      row.scrollIntoView({ block: "nearest" });
+    }
+  });
+}
+
+function runPaletteItem(item) {
+  closePalette();
+  if (!item) return;
+  if (item.page) switchPage(item.page);
+  else if (typeof item.run === "function") item.run();
+}
+
+function openPalette() {
+  var overlay = qs("#paletteOverlay");
+  var input = qs("#paletteInput");
+  if (!overlay) return;
+  paletteState.open = true;
+  paletteState.index = 0;
+  overlay.hidden = false;
+  if (input) { input.value = ""; input.focus(); }
+  renderPalette("");
+}
+
+function closePalette() {
+  var overlay = qs("#paletteOverlay");
+  paletteState.open = false;
+  if (overlay) overlay.hidden = true;
+}
+
+function onPaletteKey(e) {
+  if (e.key === "Escape") { e.preventDefault(); closePalette(); return; }
+  if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+    e.preventDefault();
+    var count = paletteState.items.length;
+    if (!count) return;
+    paletteState.index = (paletteState.index + (e.key === "ArrowDown" ? 1 : -1) + count) % count;
+    updatePaletteSelection();
+    return;
+  }
+  if (e.key === "Enter") {
+    e.preventDefault();
+    runPaletteItem(paletteState.items[paletteState.index]);
+  }
+}
+
+function initPalette() {
+  var trigger = qs("#paletteTrigger");
+  if (trigger) trigger.addEventListener("click", openPalette);
+  var overlay = qs("#paletteOverlay");
+  if (overlay) overlay.addEventListener("mousedown", function (e) { if (e.target === overlay) closePalette(); });
+  var input = qs("#paletteInput");
+  if (input) {
+    input.addEventListener("input", function () { paletteState.index = 0; renderPalette(input.value); });
+    input.addEventListener("keydown", onPaletteKey);
+  }
+  document.addEventListener("keydown", function (e) {
+    if (paletteState.open && e.key === "Escape") {
+      e.preventDefault();
+      closePalette();
+      return;
+    }
+    if ((e.metaKey || e.ctrlKey) && String(e.key).toLowerCase() === "k") {
+      e.preventDefault();
+      if (paletteState.open) closePalette(); else openPalette();
+    }
+  });
 }
 
 function safeRender(name) {
@@ -109,7 +383,12 @@ function switchPage(name) {
     name = "dashboard";
   }
   currentPage = name;
-  qsa(".nav-btn").forEach(function (b) { b.classList.toggle("active", b.getAttribute("data-page") === name); });
+  qsa(".nav-btn").forEach(function (b) {
+    var active = b.getAttribute("data-page") === name;
+    b.classList.toggle("active", active);
+    if (active) b.setAttribute("aria-current", "page");
+    else b.removeAttribute("aria-current");
+  });
   var t = qs("#pageTitle");
   if (t) t.textContent = PAGES[name].title;
   var c = qs("#pageContent");
@@ -120,7 +399,9 @@ function switchPage(name) {
   catch (e) { c.appendChild(el("div", { style: "padding:30px;color:var(--red);" }, "Ошибка: " + (e.message || e))); }
   c.classList.remove("page-enter");
   void c.offsetWidth;
+  staggerChildren(c);
   c.classList.add("page-enter");
+  countUpValues(c);
   var s = qs(".page-scroll");
   if (s) s.scrollTop = 0;
   location.hash = name;
@@ -128,6 +409,35 @@ function switchPage(name) {
     try { Store.set("visitedabout", true); if (typeof Achievements !== "undefined") Achievements.check(); } catch (e) {}
   }
   if (typeof updateSidebarPlan === "function") updateSidebarPlan();
+}
+
+function syncSidebarUser() {
+  var nick = Store.get("nickname", "") || "";
+  var avatar = Store.get("avatar", null);
+  var email = (window.__fbAuth && window.__fbAuth.currentUser && window.__fbAuth.currentUser.email) || "";
+  var nickEl = qs("#userNick");
+  var emailEl = qs("#userEmailSmall");
+  var avEl = qs("#sidebarAvatar");
+  var badge = qs("#sidebarUserBadge");
+
+  if (nickEl) nickEl.textContent = nick || "Гость";
+  if (emailEl) emailEl.textContent = email || "—";
+  if (avEl) {
+    if (avatar && typeof avatar === "string" && avatar.indexOf("data:image") === 0) {
+      avEl.style.backgroundImage = "url(" + avatar + ")";
+      avEl.textContent = "";
+    } else {
+      avEl.style.backgroundImage = "";
+      avEl.textContent = (nick || "?").charAt(0).toUpperCase();
+    }
+  }
+  if (badge) {
+    var plus = false;
+    try { plus = typeof checkLicense === "function" ? checkLicense() === true : false; } catch (e) {}
+    badge.className = "user-badge " + (plus ? "jetch" : "free");
+    badge.textContent = plus ? "JETCH+" : "FREE";
+    badge.style.display = "inline-flex";
+  }
 }
 
 function updateSidebarPlan() {
@@ -144,7 +454,7 @@ function updateSidebarPlan() {
       if (bar) { bar.style.width = "100%"; bar.style.background = "linear-gradient(90deg, var(--gold), var(--yellow))"; }
     } else if (expires) {
       var expDate = new Date(expires);
-      var daysLeft = Math.max(0, Math.ceil((expDate - new Date()) / (24 * 60 * 60 * 1000)));
+      var daysLeft = Math.max(0, Math.ceil((expDate.getTime() - Date.now()) / (24 * 60 * 60 * 1000)));
       var dd = String(expDate.getDate()).padStart(2, "0");
       var mm = String(expDate.getMonth() + 1).padStart(2, "0");
       var yyyy = expDate.getFullYear();
@@ -174,6 +484,7 @@ function updateSidebarPlan() {
     }
   }
   if (typeof window.refreshUserUI === "function") { try { window.refreshUserUI(); } catch (e) {} }
+  syncSidebarUser();
 }
 
 function buildGreeting() {
@@ -187,7 +498,7 @@ function buildGreeting() {
   else if (plus) {
     var expires = Store.get("license.expires", null);
     if (expires) {
-      var daysLeft = Math.max(0, Math.ceil((new Date(expires) - new Date()) / (24 * 60 * 60 * 1000)));
+      var daysLeft = Math.max(0, Math.ceil((new Date(expires).getTime() - Date.now()) / (24 * 60 * 60 * 1000)));
       var word = daysLeft === 1 ? "день" : (daysLeft < 5 ? "дня" : "дней");
       status = "JETCH+ · осталось " + daysLeft + " " + word;
     } else status = "JETCH+ активен";
@@ -204,27 +515,31 @@ function pluralAnalyses(n) {
 
 function renderLeaderboardPage() {
   var frag = document.createDocumentFragment();
-  var placeholder = el("div", { id: "leaderboardPlaceholder" });
-  placeholder.appendChild(el("div", { class: "dim", style: "font-size:12px;padding:8px 0;" }, "Загрузка..."));
+  var placeholder = el("div", { id: "leaderboardPlaceholder", class: "card" });
+  for (var i = 0; i < 5; i++) placeholder.appendChild(el("div", { class: "skeleton-row" }));
   frag.appendChild(placeholder);
+
+  function fillPlaceholder(content) {
+    placeholder.classList.remove("card");
+    placeholder.innerHTML = "";
+    if (content) placeholder.appendChild(content);
+  }
+
   setTimeout(function () {
     if (typeof window.renderLeaderboard !== "function") {
-      placeholder.innerHTML = "";
-      placeholder.appendChild(el("div", { class: "dim", style: "font-size:12px;" }, "Модуль не загрузился."));
+      fillPlaceholder(el("div", { class: "dim", style: "font-size:12px;" }, "Модуль не загрузился."));
       return;
     }
     try {
       var result = window.renderLeaderboard();
       if (result && typeof result.then === "function") {
-        result.then(function (card) { placeholder.innerHTML = ""; if (card) placeholder.appendChild(card); })
-          .catch(function (e) { placeholder.innerHTML = ""; placeholder.appendChild(el("div", { style: "color:var(--red);font-size:12px;" }, "Ошибка: " + (e.message || e))); });
+        result.then(function (card) { fillPlaceholder(card); })
+          .catch(function (e) { fillPlaceholder(el("div", { style: "color:var(--red);font-size:12px;" }, "Ошибка: " + (e.message || e))); });
       } else {
-        placeholder.innerHTML = "";
-        if (result) placeholder.appendChild(result);
+        fillPlaceholder(result);
       }
     } catch (e) {
-      placeholder.innerHTML = "";
-      placeholder.appendChild(el("div", { style: "color:var(--red);font-size:12px;" }, "Ошибка: " + (e.message || e)));
+      fillPlaceholder(el("div", { style: "color:var(--red);font-size:12px;" }, "Ошибка: " + (e.message || e)));
     }
   }, 30);
   return frag;
@@ -233,15 +548,30 @@ function renderLeaderboardPage() {
 function renderDashboard() {
   var frag = document.createDocumentFragment();
   var plus = (typeof checkLicense === "function") ? checkLicense() : (Store.get("license.active", false) === true);
-  frag.appendChild(UI.heroBanner(
-    "DOTA JETCH",
-    buildGreeting(),
-    [
-      UI.btn("Мой профиль", { onclick: function () { switchPage("profile"); } }),
-      UI.btn("Анализ матча", { onclick: function () { switchPage("analyze"); }, variant: "ghost" }),
-      UI.btn("Мини-игры", { onclick: function () { switchPage("games"); }, variant: "ghost" })
-    ]
-  ));
+  var nick = Store.get("nickname", "") || "";
+  var remain = (typeof analyzeQuotaRemaining === "function") ? analyzeQuotaRemaining() : 5;
+  var recent = Store.get("recentmatches", []) || [];
+  var unlocked = Store.get("achievementsunlocked", []) || [];
+  var analyzed = Store.get("analyzedcount", 0) || 0;
+  var streak = Store.get("dailystreak", 0) || 0;
+
+  /* Шапка: приветствие, статус и быстрые действия */
+  var head = el("div", { class: "dash-head" });
+  var headMain = el("div", { class: "dash-head-main" });
+  headMain.appendChild(el("h1", { class: "dash-greeting" }, nick ? "Привет, " + nick : "Добро пожаловать"));
+  headMain.appendChild(el("p", { class: "dash-sub" }, buildStatusLine(plus, remain)));
+  var actions = el("div", { class: "dash-actions" });
+  actions.appendChild(UI.btn("Анализировать матч", { onclick: function () { switchPage("analyze"); } }));
+  actions.appendChild(UI.btn("Открыть профиль", { variant: "ghost", onclick: function () { switchPage("profile"); } }));
+  headMain.appendChild(actions);
+  head.appendChild(headMain);
+
+  var quota = el("div", { class: "dash-quota" });
+  quota.appendChild(el("div", { class: "quota-label" }, plus ? "JETCH+" : "FREE"));
+  quota.appendChild(el("div", { class: "quota-value" }, plus ? "∞" : String(remain)));
+  quota.appendChild(el("div", { class: "quota-hint" }, plus ? "безлимит анализов" : "анализов осталось"));
+  head.appendChild(quota);
+  frag.appendChild(head);
 
   (function () {
     try {
@@ -254,48 +584,146 @@ function renderDashboard() {
         var existing = document.getElementById("globalNotifBox");
         if (n && n.enabled && n.text) {
           if (existing) {
-            existing.textContent = "📢 " + n.text;
+            existing.textContent = n.text;
           } else {
             var box = document.createElement("div");
             box.id = "globalNotifBox";
-            box.style.cssText = "padding:12px 16px;background:var(--accent-bg);border:1px solid var(--accent);border-radius:12px;margin-bottom:16px;font-size:13px;color:var(--accent-light);line-height:1.5;";
-            box.textContent = "📢 " + n.text;
+            box.className = "notice";
+            box.textContent = n.text;
             var wrap = document.getElementById("pageContent");
             if (wrap) wrap.insertBefore(box, wrap.firstChild);
           }
-        } else {
-          if (existing) existing.remove();
+        } else if (existing) {
+          existing.remove();
         }
       });
     } catch (e) {}
   })();
 
-  if (typeof renderDailyWidget === "function") { try { frag.appendChild(renderDailyWidget()); } catch (e) {} }
+  /* Ключевые показатели */
+  var kpiRow = el("div", { class: "kpi-row" });
+  [
+    { label: "Анализов", value: String(analyzed), sub: "за всё время" },
+    { label: "Достижения", value: unlocked.length + " / " + ACHIEVEMENTS.length, sub: "открыто" },
+    { label: "Стрик", value: String(streak), sub: streak === 1 ? "день подряд" : "дней подряд" },
+    { label: "История", value: String(recent.length), sub: "матчей сохранено" }
+  ].forEach(function (item) {
+    var kpi = el("div", { class: "kpi" });
+    kpi.appendChild(el("div", { class: "kpi-label" }, item.label));
+    kpi.appendChild(el("div", { class: "kpi-value" }, item.value));
+    kpi.appendChild(el("div", { class: "kpi-sub" }, item.sub));
+    kpiRow.appendChild(kpi);
+  });
+  frag.appendChild(kpiRow);
+
+  /* Две колонки */
+  var cols = el("div", { class: "dash-cols" });
+  var colMain = el("div", { class: "dash-col" });
+  var colSide = el("div", { class: "dash-col" });
+
+  if (typeof renderDailyWidget === "function") {
+    try { colMain.appendChild(renderDailyWidget()); } catch (e) { console.warn("daily widget:", e); }
+  }
+
+  if (typeof lastAnalysis !== "undefined" && lastAnalysis && lastAnalysis.hero) {
+    var last = el("div", { class: "card" });
+    var lastHead = el("div", { class: "card-title" }, "Последний матч");
+    last.appendChild(lastHead);
+    var lrow = el("div", { class: "match-row" });
+    lrow.appendChild(heroImgEl(lastAnalysis.hero, 36));
+    var linfo = el("div", { class: "match-info" });
+    linfo.appendChild(el("div", { class: "match-hero" }, lastAnalysis.hero.name));
+    linfo.appendChild(el("div", { class: "match-meta" },
+      lastAnalysis.player.kills + " / " + lastAnalysis.player.deaths + " / " + lastAnalysis.player.assists +
+      " · " + (lastAnalysis.won ? "победа" : "поражение")));
+    lrow.appendChild(linfo);
+    lrow.appendChild(el("span", { class: "badge " + (lastAnalysis.won ? "badge-win" : "badge-loss") },
+      lastAnalysis.won ? "Победа" : "Поражение"));
+    last.appendChild(lrow);
+    colMain.appendChild(last);
+  }
+
+  colMain.appendChild(buildRecentMatchesCard(recent));
+
   if (typeof window.renderRatingWidget === "function") {
-    try { var rw = window.renderRatingWidget(); if (rw) frag.appendChild(rw); }
+    try { var rw = window.renderRatingWidget(); if (rw) colSide.appendChild(rw); }
     catch (e) { console.warn("rating widget:", e); }
   }
-  var stats = el("div", { class: "stat-grid" });
-  var left = typeof analyzeQuotaRemaining === "function" ? (plus ? "∞" : String(analyzeQuotaRemaining())) : "-";
-  stats.appendChild(UI.statCard("S", "var(--cyan)", "var(--cyan-bg)", "Сессий", String(Store.get("sessions", 0)), "Всего"));
-  stats.appendChild(UI.statCard("A", "var(--accent-light)", "var(--accent-bg)", "Анализов", left, plus ? "JETCH+" : "из 5"));
-  stats.appendChild(UI.statCard("T", "var(--yellow)", "var(--yellow-bg)", "Ачивки", (Store.get("achievementsunlocked", []) || []).length + " / " + ACHIEVEMENTS.length, "Открыто"));
-  frag.appendChild(stats);
-  var s2 = el("div", { class: "stat-grid" });
-  s2.appendChild(UI.statCard("D", "var(--cyan)", "var(--cyan-bg)", "Дневник", String((Store.get("diarynotes", []) || []).length), "Записей"));
-  s2.appendChild(UI.statCard("F", "var(--orange)", "var(--orange-bg)", "Стрик", String(Store.get("dailystreak", 0) || 0), "дней"));
-  s2.appendChild(UI.statCard("H", "var(--green)", "var(--green-bg)", "История", String((Store.get("recentmatches", []) || []).length), "Матчей"));
-  frag.appendChild(s2);
-  if (typeof lastAnalysis !== "undefined" && lastAnalysis && lastAnalysis.hero) {
-    var last = UI.card("Последний матч");
-    var row = el("div", { style: "display:flex;align-items:center;gap:14px;" });
-    row.appendChild(heroImgEl(lastAnalysis.hero, 56));
-    var info = el("div", { style: "flex:1;" });
-    info.appendChild(el("div", { style: "font-size:15px;font-weight:bold;" }, lastAnalysis.hero.name));
-    info.appendChild(el("div", { class: "muted", style: "font-size:11px;margin-top:4px;" }, lastAnalysis.player.kills + "/" + lastAnalysis.player.deaths + "/" + lastAnalysis.player.assists + " — " + (lastAnalysis.won ? "победа" : "поражение")));
-    row.appendChild(info); last.appendChild(row); frag.appendChild(last);
-  }
+
+  colSide.appendChild(buildProgressCard(unlocked, analyzed));
+
+  cols.appendChild(colMain);
+  cols.appendChild(colSide);
+  frag.appendChild(cols);
+
   return frag;
+}
+
+function buildStatusLine(plus, remain) {
+  if (plus) return "Подписка активна — анализы без ограничений.";
+  if (remain > 0) return "Сегодня доступно " + remain + " " + pluralAnalyses(remain) + ".";
+  return "Лимит анализов на сегодня исчерпан.";
+}
+
+function buildRecentMatchesCard(list) {
+  var card = el("div", { class: "card" });
+  var head = el("div", { class: "card-title" }, "Последние матчи");
+  card.appendChild(head);
+
+  if (!list.length) {
+    var empty = el("div", { class: "empty-state" });
+    empty.appendChild(el("div", { class: "empty-title" }, "Пока пусто"));
+    empty.appendChild(el("div", { class: "empty-sub" }, "Разбери первый матч — он появится здесь."));
+    var go = UI.btn("Разобрать матч", { variant: "ghost", onclick: function () { switchPage("analyze"); } });
+    empty.appendChild(go);
+    card.appendChild(empty);
+    return card;
+  }
+
+  var rows = el("div", { class: "match-list" });
+  list.slice(0, 5).forEach(function (m) {
+    var row = el("div", { class: "match-row" });
+    row.appendChild(heroImgEl({ id: m.heroId, name: m.heroName, slug: m.heroSlug }, 32));
+    var info = el("div", { class: "match-info" });
+    info.appendChild(el("div", { class: "match-hero" }, m.heroName || "Герой"));
+    info.appendChild(el("div", { class: "match-meta" },
+      (m.kills || 0) + " / " + (m.deaths || 0) + " / " + (m.assists || 0) +
+      " · " + Math.round(m.durMin || 0) + " мин"));
+    row.appendChild(info);
+    row.appendChild(el("span", { class: "badge " + (m.won ? "badge-win" : "badge-loss") }, m.won ? "W" : "L"));
+    rows.appendChild(row);
+  });
+  card.appendChild(rows);
+
+  var foot = el("div", { class: "card-foot" });
+  var all = el("button", { class: "link-btn", type: "button" }, "Вся история");
+  all.addEventListener("click", function () { switchPage("history"); });
+  foot.appendChild(all);
+  card.appendChild(foot);
+  return card;
+}
+
+function buildProgressCard(unlocked, analyzed) {
+  var card = el("div", { class: "card" });
+  card.appendChild(el("div", { class: "card-title" }, "Прогресс аккаунта"));
+
+  var total = ACHIEVEMENTS.length;
+  var pct = total ? Math.round((unlocked.length / total) * 100) : 0;
+  var bar = el("div", { class: "progress-line" });
+  var fill = el("div", { class: "progress-fill" });
+  fill.style.width = pct + "%";
+  bar.appendChild(fill);
+  card.appendChild(bar);
+  card.appendChild(el("div", { class: "progress-caption" }, "Достижения " + unlocked.length + " из " + total + " · " + pct + "%"));
+
+  card.appendChild(el("div", { class: "progress-caption" }, "Разобрано матчей: " + analyzed));
+
+  var foot = el("div", { class: "card-foot" });
+  var btn = el("button", { class: "link-btn", type: "button" }, "Все достижения");
+  btn.addEventListener("click", function () { switchPage("achievements"); });
+  foot.appendChild(btn);
+  card.appendChild(foot);
+  return card;
 }
 
 function renderChartsPage() {
@@ -345,7 +773,7 @@ function resizeImage(file, maxSize, cb) {
       } catch (e) { cb(null); }
     };
     img.onerror = function () { cb(null); };
-    img.src = ev.target.result;
+    img.src = String(ev.target.result);
   };
   reader.onerror = function () { cb(null); };
   reader.readAsDataURL(file);
@@ -554,8 +982,8 @@ function bindProfileModal() {
 }
 
 async function init() {
-  try { if (typeof applyTheme === "function") applyTheme(loadTheme()); } catch (e) {}
-  try { if (typeof applyLiteMode === "function") applyLiteMode(isLiteMode()); } catch (e) {}
+  try { if (typeof applyThemeVars === "function") applyThemeVars(loadTheme()); } catch (e) {}
+  try { if (typeof applyLiteModeVisual === "function") applyLiteModeVisual(isLiteMode()); } catch (e) {}
   initSyncIndicator();
 
   /* Проверка прав администратора ДО построения навигации */
@@ -577,12 +1005,29 @@ async function init() {
   }, 1500);
 
   document.addEventListener("click", function () { if (typeof closeAllDropdowns === "function") closeAllDropdowns(); });
+  initPalette();
+  initMotion();
+  initBackground();
   bindProfileModal();
+
+  var brand = qs(".brand");
+  if (brand && !brand.__bound) {
+    brand.__bound = true;
+    brand.style.cursor = "pointer";
+    brand.setAttribute("role", "button");
+    brand.setAttribute("tabindex", "0");
+    brand.setAttribute("title", "На главную");
+    brand.addEventListener("click", function () { switchPage("dashboard"); });
+    brand.addEventListener("keydown", function (e) {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); switchPage("dashboard"); }
+    });
+  }
   try { Store.set("sessions", (Store.get("sessions", 0) || 0) + 1); } catch (e) {}
   var h = (location.hash || "#dashboard").slice(1);
   switchPage(PAGES[h] ? h : "dashboard");
   if (typeof updateSidebarPlan === "function") updateSidebarPlan();
   try { if (typeof Achievements !== "undefined") Achievements.check(); } catch (e) {}
+  syncSidebarUser();
   appInitialized = true;
   console.log("DOTA JETCH v" + APP_VERSION + " init");
 }

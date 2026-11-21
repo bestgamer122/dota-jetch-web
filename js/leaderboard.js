@@ -101,14 +101,14 @@ window.fetchTopByMMR = async function (limit) {
 
 window.renderLeaderboard = async function (game) {
   ensureLbStyle();
-  var card = UI.card("🏅 Лидерборд");
+  var card = UI.card("Лидерборд");
   card.classList.add("lb-card-anim");
   var tabsRow = el("div", { style: "display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;" });
   var tabs = [
-    { id: "lockpick", label: "🔓 Взлом", type: "game" },
-    { id: "automaton", label: "⌨️ Автоматоны", type: "game" },
-    { id: "direjumper", label: "🎪 Дири-Джампер", type: "game" },
-    { id: "mmr", label: "🏆 Топ по MMR", type: "mmr" }
+    { id: "lockpick", label: "Взлом", type: "game" },
+    { id: "automaton", label: "Автоматоны", type: "game" },
+    { id: "direjumper", label: "Дири-Джампер", type: "game" },
+    { id: "mmr", label: "Топ по MMR", type: "mmr" }
   ];
   var currentTab = "lockpick";
   var contentWrap = el("div", { id: "lbContent" });

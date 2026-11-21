@@ -9,7 +9,8 @@ var ProfileAnalyzer = {
   requestId: 0,
 
   STRATZ_ENDPOINT: "https://api.stratz.com/graphql",
-  STRATZ_TOKEN: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJTdWJqZWN0IjoiMDU0OGI4YWQtN2ZmOC00YzczLTljODAtNDM2NDNiYTdmYWUwIiwiU3RlYW1JZCI6IjExMzUyNTQ1MDEiLCJBUElVc2VyIjoidHJ1ZSIsIm5iZiI6MTc5MTkwMDg4OCwiZXhwIjoxODIzNDM2ODg4LCJpYXQiOjE3OTE5MDA4ODgsImlzcyI6Imh0dHBzOi8vYXBpLnN0cmF0ei5jb20ifQ.BA03Klw7gTTzsi6NvVahT85LjqJtl9wi0sOm_fCI6KU",
+  /* Пусто = профиль выключен до настройки прокси. Токен живёт только на сервере. */
+  STRATZ_PROXY: "",
   STEAM_OPENID_URL: "https://steamcommunity.com/openid/login",
 
   hasAccess: function () {
@@ -77,13 +78,18 @@ var ProfileAnalyzer = {
   },
 
   stratzQuery: async function (query, variables) {
-    var res = await fetch(this.STRATZ_ENDPOINT, {
+    /* Токен STRATZ нельзя держать в браузере: любой посетитель увидел бы его
+       в исходниках. Запросы идут через Cloud Function functions/stratz,
+       которая подставляет токен на сервере.
+       Адрес функции вписывается после деплоя, например:
+       "https://europe-west1-<project>.cloudfunctions.net/stratz" */
+    var endpoint = this.STRATZ_PROXY;
+    if (!endpoint) {
+      throw new Error("Профиль временно недоступен: не настроен серверный прокси STRATZ.");
+    }
+    var res = await fetch(endpoint, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": "Bearer " + this.STRATZ_TOKEN,
-        "User-Agent": "STRATZ_API"
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ query: query, variables: variables || {} })
     });
     if (!res.ok) {
@@ -599,9 +605,9 @@ var ProfileAnalyzer = {
     if (!accountId) { frag.appendChild(this.renderLoginCard()); return frag; }
 
     var loadingCard = UI.card("");
-    loadingCard.style.cssText = "text-align:center;padding:50px 26px;";
-    loadingCard.appendChild(el("div", { style: "font-size:42px;margin-bottom:10px;opacity:0.6;" }, "⏳"));
-    loadingCard.appendChild(el("div", { class: "dim", style: "font-size:12.5px;" }, "Загружаю профиль..."));
+    loadingCard.appendChild(el("div", { class: "skeleton-row", style: "height:64px;border-radius:16px;" }));
+    for (var si = 0; si < 3; si++) loadingCard.appendChild(el("div", { class: "skeleton-row" }));
+    loadingCard.appendChild(el("div", { class: "dim", style: "font-size:12.5px;text-align:center;margin-top:10px;" }, "Загружаю профиль…"));
     frag.appendChild(loadingCard);
 
     setTimeout(async function () {
@@ -611,7 +617,9 @@ var ProfileAnalyzer = {
         data = { ok: false, reason: "error", msg: loadError.message || String(loadError), accountId: accountId };
       }
       var container = document.getElementById("pageContent");
-      if (!container || currentPage !== "profile" || !frag.isConnected) return;
+      /* Проверяем именно карточку-заглушку: DocumentFragment после вставки
+         в DOM всегда disconnected, поэтому frag.isConnected проверять нельзя. */
+      if (!container || currentPage !== "profile" || !loadingCard.isConnected) return;
       if (!data || data.reason === "stale") return;
       container.innerHTML = "";
 

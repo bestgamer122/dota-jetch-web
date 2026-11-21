@@ -1,0 +1,17 @@
+{
+  "name": "dota-jetch-functions",
+  "private": true,
+  "description": "Серверная проверка результатов и прокси API",
+  "main": "index.js",
+  "engines": {
+    "node": "20"
+  },
+  "scripts": {
+    "test": "node ../tests/run.mjs",
+    "deploy": "firebase deploy --only functions"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.6.0",
+    "firebase-functions": "^5.1.1"
+  }
+}

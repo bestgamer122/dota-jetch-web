@@ -67,35 +67,33 @@ function renderDailyWidget() {
     Store.set("dailydate", Daily.todayKey());
     Store.set("dailystreakclaimed", false);
   }
-  var grid = el("div", { style: "display:flex;flex-direction:column;gap:10px;" });
+  var grid = el("div", { class: "task-list" });
   for (var j = 0; j < tasks.length; j++) {
     var t = tasks[j];
     var cur = Math.min(t.prog(), t.goal);
     var done = cur >= t.goal;
-    var row = el("div", {
-      style: "display:flex;align-items:center;gap:14px;padding:12px 14px;border-radius:12px;background:" + (done ? "var(--green-bg)" : "var(--bg-elev)") + ";border:1px solid " + (done ? "var(--green)" : "var(--border)") + ";"
-    });
-    row.appendChild(el("div", { style: "font-size:16px;font-weight:800;color:" + (done ? "var(--green)" : "var(--text-muted)") + ";width:28px;text-align:center;font-family:'JetBrains Mono',monospace;" }, done ? "V" : String(cur)));
-    var info = el("div", { style: "flex:1;" });
-    info.appendChild(el("div", { style: "font-size:13px;font-weight:600;" }, t.title));
-    info.appendChild(el("div", { class: "dim", style: "font-size:11px;margin-top:3px;" }, done ? "Выполнено" : t.desc));
+    var row = el("div", { class: "task-row" + (done ? " done" : "") });
+    row.appendChild(el("span", { class: "task-check", "aria-hidden": "true" }, done ? "✓" : ""));
+    var info = el("div", { class: "task-info" });
+    info.appendChild(el("div", { class: "task-title" }, t.title));
+    info.appendChild(el("div", { class: "task-desc" }, done ? "Выполнено" : t.desc));
     row.appendChild(info);
-    row.appendChild(el("div", { style: "font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:" + (done ? "var(--green)" : "var(--text-muted)") + ";" }, cur + "/" + t.goal));
+    row.appendChild(el("span", { class: "task-count" }, cur + " / " + t.goal));
     grid.appendChild(row);
   }
   card.appendChild(grid);
   var claimed = Store.get("dailystreakclaimed", false);
   var streak = Store.get("dailystreak", 0) || 0;
-  var foot = el("div", { class: "row", style: "margin-top:14px;justify-content:space-between;" });
-  foot.appendChild(el("div", { style: "font-size:12px;" }, "Стрик: " + streak + " дн."));
+  var foot = el("div", { class: "card-foot", style: "justify-content:space-between;align-items:center;" });
+  foot.appendChild(el("span", { class: "progress-caption", style: "margin:0;" }, "Стрик: " + streak + " " + (streak === 1 ? "день" : "дн.")));
   if (Daily.allDone() && !claimed) {
-    var btn = UI.btn("Забрать");
+    var btn = UI.btn("Забрать награду");
     btn.addEventListener("click", function () {
-      if (Daily.claim()) { showDialog("Награда!", "Отлично", "success"); switchPage("dashboard"); }
+      if (Daily.claim()) { showDialog("Награда!", "Награда за сегодня получена.", "success"); switchPage("dashboard"); }
     });
     foot.appendChild(btn);
   } else if (claimed) {
-    foot.appendChild(el("div", { style: "font-size:12px;color:var(--green);" }, "Получено"));
+    foot.appendChild(el("span", { class: "badge badge-win" }, "Получено"));
   }
   card.appendChild(foot);
   return card;

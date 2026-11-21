@@ -2,7 +2,7 @@
    - Убрана кнопка «Очистить» (пользователь не управляет данными)
    - Удаление отдельного матча через крестик оставлено */
 
-var History = {
+var MatchHistory = {
   add: function (r) {
     if (!r || !r.match || !r.hero || !r.player) return;
     var list = Store.get("recentmatches", []) || [];
@@ -28,39 +28,50 @@ var History = {
 
 function renderHistory() {
   var frag = document.createDocumentFragment();
-  var list = History.all();
+  var list = MatchHistory.all();
 
-  var head = UI.card("История матчей");
-  head.appendChild(el("div", { class: "dim", style: "font-size:12px;" },
-    list.length ? "Сохранено: " + list.length + " матчей" : "Пока пусто. Разбери первый матч на вкладке «Анализ матча»."));
-  frag.appendChild(head);
+  var card = UI.card("История матчей");
+  card.appendChild(el("div", { class: "progress-caption", style: "margin:-8px 0 12px;" },
+    list.length ? "Сохранено " + list.length + " " + (list.length === 1 ? "матч" : (list.length < 5 ? "матча" : "матчей")) : "Пока пусто"));
 
-  if (!list.length) return frag;
+  if (!list.length) {
+    var empty = el("div", { class: "empty-state" });
+    empty.appendChild(el("div", { class: "empty-title" }, "Здесь появятся разобранные матчи"));
+    empty.appendChild(el("div", { class: "empty-sub" }, "Открой «Анализ матча», укажи ID и героя — разбор сохранится автоматически."));
+    var go = UI.btn("Перейти к анализу", { variant: "ghost", onclick: function () { switchPage("analyze"); } });
+    empty.appendChild(go);
+    card.appendChild(empty);
+    frag.appendChild(card);
+    return frag;
+  }
 
-  var card = UI.card("Список");
+  var rows = el("div", { class: "match-list" });
   for (var i = 0; i < list.length; i++) {
     (function (m) {
-      var item = el("div", { style: "display:flex;align-items:center;gap:14px;padding:10px;border-bottom:1px solid var(--border);" });
-      var heroRef = { id: m.heroId, name: m.heroName, slug: m.heroSlug };
-      item.appendChild(heroImgEl(heroRef, 48));
-      var info = el("div", { style: "flex:1;" });
-      info.appendChild(el("div", { style: "font-size:14px;font-weight:bold;" }, m.heroName));
-      info.appendChild(el("div", { class: "muted", style: "font-size:11px;margin-top:3px;" },
-        m.kills + "/" + m.deaths + "/" + m.assists + " — " + (m.won ? "победа" : "поражение") + " — " + (m.durMin || 0).toFixed(0) + " мин"));
-      item.appendChild(info);
+      var row = el("div", { class: "match-row" });
+      row.appendChild(heroImgEl({ id: m.heroId, name: m.heroName, slug: m.heroSlug }, 32));
 
-      /* Удаление отдельного матча (крестик) — оставлено */
-      var del = UI.btn("✕", { variant: "ghost" });
-      del.title = "Удалить матч";
+      var info = el("div", { class: "match-info" });
+      info.appendChild(el("div", { class: "match-hero" }, m.heroName || "Герой"));
+      info.appendChild(el("div", { class: "match-meta" },
+        (m.kills || 0) + " / " + (m.deaths || 0) + " / " + (m.assists || 0) +
+        " · " + Math.round(m.durMin || 0) + " мин"));
+      row.appendChild(info);
+
+      row.appendChild(el("span", { class: "badge " + (m.won ? "badge-win" : "badge-loss") }, m.won ? "W" : "L"));
+
+      var del = el("button", { class: "icon-btn", type: "button", title: "Удалить матч", "aria-label": "Удалить матч" });
+      del.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
       del.addEventListener("click", function () {
-        History.remove(m.matchId);
+        MatchHistory.remove(m.matchId);
         switchPage("history");
       });
-      item.appendChild(del);
+      row.appendChild(del);
 
-      card.appendChild(item);
+      rows.appendChild(row);
     })(list[i]);
   }
+  card.appendChild(rows);
   frag.appendChild(card);
   return frag;
 }

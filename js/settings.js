@@ -4,12 +4,14 @@ function isLiteMode() {
   return Store.get("litemode", false) === true;
 }
 
+function applyLiteModeVisual(on) {
+  document.body.classList.toggle("lite-mode", !!on);
+}
+
+/* Применяет Lite-режим и запоминает выбор. Не вызывать из обработчиков
+   изменения хранилища — там нужен только applyLiteModeVisual. */
 function applyLiteMode(on) {
-  if (on) document.body.classList.add("lite-mode");
-  else document.body.classList.remove("lite-mode");
-  var finePointer = false;
-  try { finePointer = window.matchMedia("(hover: hover) and (pointer: fine)").matches; } catch (e) {}
-  document.body.classList.toggle("cursor-ready", !on && finePointer);
+  applyLiteModeVisual(on);
   Store.set("litemode", !!on);
 }
 

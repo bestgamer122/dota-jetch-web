@@ -223,7 +223,7 @@ async function onAnalyzeClick() {
     report.innerHTML = "";
     report.appendChild(buildReport(res));
     lastAnalysis = res;
-    if (typeof History !== "undefined") History.add(res);
+    if (typeof MatchHistory !== "undefined") MatchHistory.add(res);
     if (typeof Achievements !== "undefined") Achievements.onAnalyze(res);
     if (typeof Daily !== "undefined") Daily.bump("analyze");
     hint.textContent = "Готово!"; hint.style.color = "var(--green)";

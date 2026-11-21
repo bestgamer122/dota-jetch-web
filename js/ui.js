@@ -24,7 +24,20 @@ function appendChild(node, c) {
   else node.appendChild(document.createTextNode(String(c)));
 }
 
+/**
+ * Поиск одного элемента. Возвращает any, потому что один и тот же хелпер
+ * используется для input/button/canvas; конкретный тип знает вызывающий код.
+ * @param {string} sel
+ * @param {ParentNode} [root]
+ * @returns {any}
+ */
 function qs(sel, root) { return (root || document).querySelector(sel); }
+
+/**
+ * @param {string} sel
+ * @param {ParentNode} [root]
+ * @returns {any[]}
+ */
 function qsa(sel, root) { return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
 
 var UI = {

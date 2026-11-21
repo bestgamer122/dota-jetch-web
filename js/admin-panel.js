@@ -1529,7 +1529,7 @@ function buildLogRow(log) {
   try {
     var d = new Date(log.ts);
     var now = new Date();
-    var diffMin = Math.floor((now - d) / 60000);
+    var diffMin = Math.floor((now.getTime() - d.getTime()) / 60000);
     if (diffMin < 1) time.textContent = "сейчас";
     else if (diffMin < 60) time.textContent = diffMin + " мин";
     else if (diffMin < 1440) time.textContent = Math.floor(diffMin / 60) + " ч";

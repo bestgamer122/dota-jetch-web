@@ -568,15 +568,23 @@ window.addEventListener("jetch:blocked", async function () {
 });
 
 window.addEventListener("jetch:storechange", function (event) {
-  const key = event.detail && event.detail.key;
-  if (!key) return;
+  const detail = event.detail || {};
+  const key = detail.key;
+  /* Локальные изменения уже применены тем, кто их сделал.
+     Реагируем только на пришедшие извне (облако/опрос). */
+  if (!key || detail.source === "local" || detail.source === "unauthenticated") return;
   try {
-    if (key === "theme" && typeof applyTheme === "function") applyTheme(loadTheme());
-    if (key === "litemode" && typeof applyLiteMode === "function") applyLiteMode(isLiteMode());
+    if (key === "theme" && typeof applyThemeVars === "function") {
+      applyThemeVars(Store.get("theme", "dark"));
+    }
+    if (key === "litemode" && typeof applyLiteModeVisual === "function") {
+      applyLiteModeVisual(Store.get("litemode", false) === true);
+    }
     if (key === "nickname" || key === "avatar" || key.indexOf("license.") === 0) {
       if (typeof window.refreshUserUI === "function") window.refreshUserUI();
+      if (typeof updateSidebarPlan === "function") updateSidebarPlan();
     }
-  } catch (e) {}
+  } catch (e) { console.warn("jetch:storechange:", e); }
 });
 
 document.addEventListener("DOMContentLoaded", function () {

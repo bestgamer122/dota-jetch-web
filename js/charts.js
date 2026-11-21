@@ -48,7 +48,7 @@ var Charts = {
   },
   render: function () {
     var frag = document.createDocumentFragment();
-    var list = History.all();
+    var list = MatchHistory.all();
     var head = UI.card("Прогресс");
     if (!list.length || list.length < 2) {
       head.appendChild(el("div", { class: "dim", style: "font-size:12px;" }, "Нужно минимум 2 матча."));

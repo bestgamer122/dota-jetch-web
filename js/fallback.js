@@ -365,7 +365,7 @@ wrap.appendChild(img);
 if (opts.kda) {
 var kda = document.createElement("div");
 kda.style.cssText = "position:absolute;bottom:0;left:0;right:0;padding:4px;background:linear-gradient(0deg,rgba(0,0,0,0.9),transparent);font-size:9px;font-weight:700;color:#fff;text-align:center;font-family:'JetBrains Mono',monospace;z-index:2;";
-kda.textContent = opts.kda;
+kda.textContent = String(opts.kda);
 wrap.appendChild(kda);
 }
 return wrap;

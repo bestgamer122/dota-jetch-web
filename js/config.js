@@ -2,8 +2,6 @@
    - Store поверх CloudSync (UID-изоляция, очередь записи)
    - CORS-безопасный apiGet с fallback */
 
-var APP_VERSION = "8.0.0";
-
 var Store = {
   prefix: "dota.",
 
@@ -85,15 +83,15 @@ async function apiGet(path, params) {
 var THEMES = {};
 
 THEMES.dark = { label: "Тёмная", vars: {
-  "--bg": "#0b0c10", "--bg-card": "#16181f", "--bg-elev": "#1e2129",
-  "--text": "#e8eaf0", "--text-muted": "#9ba0ad", "--text-dim": "#6b7280",
-  "--border": "#2a2d36", "--border-hl": "#3a3e4a",
-  "--accent": "#8b5cf6", "--accent-light": "#a78bfa", "--accent-dark": "#6d28d9",
-  "--accent-bg": "rgba(139,92,246,0.12)",
-  "--gold": "#fbbf24", "--gold-bg": "rgba(251,191,36,0.12)",
-  "--cyan": "#22d3ee", "--cyan-bg": "rgba(34,211,238,0.12)",
-  "--green": "#22c55e", "--green-bg": "rgba(34,197,94,0.12)",
-  "--red": "#ef4444", "--red-bg": "rgba(239,68,68,0.12)"
+  "--bg": "#0a0a0b", "--bg-card": "#111113", "--bg-elev": "#19191d",
+  "--text": "#ededf0", "--text-muted": "#a1a1aa", "--text-dim": "#71717a",
+  "--border": "#232327", "--border-hl": "#33333a",
+  "--accent": "#7c5cff", "--accent-light": "#a48bff", "--accent-dark": "#5b3fd6",
+  "--accent-bg": "rgba(124,92,255,0.14)",
+  "--gold": "#f5b544", "--gold-bg": "rgba(245,181,68,0.12)",
+  "--cyan": "#38bdf8", "--cyan-bg": "rgba(56,189,248,0.12)",
+  "--green": "#34d399", "--green-bg": "rgba(52,211,153,0.12)",
+  "--red": "#f87171", "--red-bg": "rgba(248,113,113,0.12)"
 }};
 
 THEMES.ocean = { label: "Океан", vars: {
@@ -156,7 +154,7 @@ THEMES.candy = { label: "Кэнди", vars: {
   "--red": "#ef4444", "--red-bg": "rgba(239,68,68,0.12)"
 }};
 
-function applyTheme(name) {
+function applyThemeVars(name) {
   var key = THEMES[name] ? name : "dark";
   var t = THEMES[key];
   var root = document.documentElement;
@@ -165,7 +163,16 @@ function applyTheme(name) {
   }
   document.body.style.background = t.vars["--bg"];
   document.body.style.color = t.vars["--text"];
+  document.documentElement.setAttribute("data-theme", key);
+  return key;
+}
+
+/* Применяет тему и запоминает выбор. Не вызывать из обработчиков
+   изменения хранилища — там нужен только applyThemeVars. */
+function applyTheme(name) {
+  var key = applyThemeVars(name);
   Store.set("theme", key);
+  return key;
 }
 
 function loadTheme() { return Store.get("theme", "dark"); }
